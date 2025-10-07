@@ -48,6 +48,8 @@ import useSessionRefresher from "./hooks/useSessionRefresher";
 import BulkIrdUploader from "./components/BulkIrdUploader/BulkIrdUploader";
 
 import ServicesMultiHost from "./components/ServicesMultiHost/ServicesMultiHost";
+import TipoEquipoForm from "./pages/Tipo-Equipo/TipoEquipoForm";
+import TipoEquipoList from "./pages/Tipo-Equipo/TipoEquipoList";
 
 
 const App = () => {
@@ -89,6 +91,8 @@ const App = () => {
                         {/* Editar */}
 
                         <Route path="/equipment" element={<Equipment />} />
+                        <Route path="/register-type-equitment" element={<TipoEquipoForm />} />
+                        <Route path="/list-type-equitment" element={<TipoEquipoList />} />
                         <Route path="/equipment-list" element={<ListEquipment />} />
 
                         <Route path="/contact" element={<Contacto />} />

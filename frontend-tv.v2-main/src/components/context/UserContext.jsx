@@ -15,11 +15,11 @@ export const UserProvider = ({ children }) => {
       const res = await api.profile();
       // Guardar TODOS los datos del usuario, incluyendo imagen
       const userData = res?.user || res || null;
-      console.log('Datos del usuario recuperados:', userData); // Debug
+      
       setUser(userData);
       setIsAuth(!!userData);
     } catch (error) {
-      console.log('Error al recuperar perfil:', error);
+      
       setUser(null);
       setIsAuth(false);
     }

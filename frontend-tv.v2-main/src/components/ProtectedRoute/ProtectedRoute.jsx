@@ -12,10 +12,8 @@ export default function ProtectedRoute() {
     const checkAuth = async () => {
       try {
         const response = await api.profile();
-        console.log('Usuario autenticado:', response);
         if (mounted) setOk(true);
       } catch (error) {
-        console.log('Error de autenticación:', error?.response?.status, error?.response?.data);
         if (mounted) {
           setOk(false);
           setError(error?.response?.data?.error || 'No autorizado');

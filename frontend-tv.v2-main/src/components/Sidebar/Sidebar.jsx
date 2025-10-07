@@ -50,6 +50,9 @@ const Sidebar = () => {
           <Link to="/equipment">Equipos</Link>
         </li>
         <li>
+          <Link to="/register-type-equitment">Tipo Equipo</Link>
+        </li>
+        <li>
           <Link to="/ird">Encoder Ird</Link>
         </li>
         <hr />
