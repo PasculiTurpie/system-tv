@@ -3,7 +3,7 @@ const Satellite = require("../models/satellite.model");
 module.exports.getSatellites = async (req, res) => {
   try {
     const satellites = await Satellite.find()
-      .sort({ nombreSatelite: -1 })
+      .sort({ satelliteName: 1 })
       .populate("satelliteType");
     res.json(satellites);
   } catch (error) {

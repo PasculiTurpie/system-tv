@@ -1,11 +1,10 @@
-const mongoose = require('mongoose')
-
+const mongoose = require("mongoose");
 
 const TipoTechSchema = new mongoose.Schema(
   {
     nombreTipo: {
       type: String,
-      require: true,
+      required: true,
       unique: true,
       trim: true,
     },
@@ -13,5 +12,5 @@ const TipoTechSchema = new mongoose.Schema(
   { timestamps: true, versionKey: false }
 );
 
-const TipoTech = mongoose.model('TipoTech', TipoTechSchema);
+const TipoTech = mongoose.model("TipoTech", TipoTechSchema);
 module.exports = TipoTech;

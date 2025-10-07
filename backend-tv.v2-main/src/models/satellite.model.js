@@ -10,7 +10,7 @@ const SatelliteSchema = new mongoose.Schema(
     satelliteType: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Polarization",
-      require: true,
+      required: true,
       trim: true,
     },
     urlImagen: {

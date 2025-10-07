@@ -135,74 +135,76 @@ class Api {
 
     // ====== API ======
     createUser(values) {
-        return this._axios.post("/user", values).then((r) => r.data);
+        return this._axios.post("/users", values).then((r) => r.data);
     }
     updateUserId(id, values) {
-        return this._axios.put(`/user/${id}`, values).then((r) => r.data);
+        return this._axios.put(`/users/${id}`, values).then((r) => r.data);
     }
     getUserInfo() {
         return this._axios.get("/users").then((r) => r.data);
     }
     getUserId(id) {
-        return this._axios.get(`/user/${id}`).then((r) => r.data);
+        return this._axios.get(`/users/${id}`).then((r) => r.data);
     }
     deleteUserId(id) {
-        return this._axios.delete(`/user/${id}`).then((r) => r.data);
+        return this._axios.delete(`/users/${id}`).then((r) => r.data);
     }
 
     createSatelite(values) {
-        return this._axios.post("/satelite", values).then((r) => r.data);
+        return this._axios.post("/satellites", values).then((r) => r.data);
     }
     getSatellites() {
-        return this._axios.get("/satelite").then((r) => r.data);
+        return this._axios.get("/satellites").then((r) => r.data);
     }
     getSatelliteId(id) {
-        return this._axios.get(`/satelite/${id}`).then((r) => r.data);
+        return this._axios.get(`/satellites/${id}`).then((r) => r.data);
     }
     deleteSatelliteId(id) {
-        return this._axios.delete(`/satelite/${id}`).then((r) => r.data);
+        return this._axios.delete(`/satellites/${id}`).then((r) => r.data);
     }
     updateSatelite(values, id) {
-        return this._axios.put(`/satelite/${id}`, values).then((r) => r.data);
+        return this._axios.put(`/satellites/${id}`, values).then((r) => r.data);
     }
 
     getPolarizations() {
-        return this._axios.get("/polarization").then((r) => r.data);
+        return this._axios.get("/polarizations").then((r) => r.data);
     }
 
     getSignal() {
-        return this._axios.get("/signal").then((r) => r);
+        return this._axios.get("/signals").then((r) => r);
     }
     createSignal(values) {
-        return this._axios.post("/signal", values).then((r) => r.data);
+        return this._axios.post("/signals", values).then((r) => r.data);
     }
     getIdSignal(id) {
-        return this._axios.get(`/signal/${id}`).then((r) => r);
+        return this._axios.get(`/signals/${id}`).then((r) => r);
     }
     deleteSignal(id) {
-        return this._axios.delete(`/signal/${id}`).then((r) => r);
+        return this._axios.delete(`/signals/${id}`).then((r) => r);
     }
     updateSignal(id, values) {
-        return this._axios.put(`/signal/${id}`, values).then((r) => r.data);
+        return this._axios.put(`/signals/${id}`, values).then((r) => r.data);
     }
     searchFilter(keyword) {
-        return this._axios.get(`/search?keyword=${keyword}`).then((r) => r);
+        return this._axios
+            .get("/signals/search", { params: { keyword } })
+            .then((r) => r);
     }
 
     getIrd() {
-        return this._axios.get("/ird").then((r) => r);
+        return this._axios.get("/irds").then((r) => r);
     }
     createIrd(values) {
-        return this._axios.post("/ird", values).then((r) => r.data);
+        return this._axios.post("/irds", values).then((r) => r.data);
     }
     getIdIrd(id) {
-        return this._axios.get(`/ird/${id}`).then((r) => r);
+        return this._axios.get(`/irds/${id}`).then((r) => r);
     }
     deleteIrd(id) {
-        return this._axios.delete(`/ird/${id}`).then((r) => r);
+        return this._axios.delete(`/irds/${id}`).then((r) => r);
     }
     updateIrd(id, values) {
-        return this._axios.put(`/ird/${id}`, values).then((r) => r.data);
+        return this._axios.put(`/irds/${id}`, values).then((r) => r.data);
     }
 
     validateExcelIrds(file) {
@@ -226,19 +228,19 @@ class Api {
     }
 
     getEquipo() {
-        return this._axios.get("/equipo").then((r) => r);
+        return this._axios.get("/equipos").then((r) => r);
     }
     deleteEquipo(id) {
-        return this._axios.delete(`/equipo/${id}`).then((r) => r);
+        return this._axios.delete(`/equipos/${id}`).then((r) => r);
     }
     createEquipo(values) {
-        return this._axios.post("/equipo", values).then((r) => r.data);
+        return this._axios.post("/equipos", values).then((r) => r.data);
     }
     getIdEquipo(id) {
-        return this._axios.get(`/equipo/${id}`).then((r) => r);
+        return this._axios.get(`/equipos/${id}`).then((r) => r);
     }
     updateEquipo(id, values) {
-        return this._axios.put(`/equipo/${id}`, values).then((r) => r);
+        return this._axios.put(`/equipos/${id}`, values).then((r) => r);
     }
 
     getTipoEquipo() {
@@ -258,35 +260,35 @@ class Api {
     }
 
     getContact() {
-        return this._axios.get("/contact").then((r) => r);
+        return this._axios.get("/contacts").then((r) => r);
     }
     deleteContact(id) {
-        return this._axios.delete(`/contact/${id}`).then((r) => r);
+        return this._axios.delete(`/contacts/${id}`).then((r) => r);
     }
     createContact(values) {
-        return this._axios.post("/contact", values).then((r) => r.data);
+        return this._axios.post("/contacts", values).then((r) => r.data);
     }
     getIdContact(id) {
-        return this._axios.get(`/contact/${id}`).then((r) => r);
+        return this._axios.get(`/contacts/${id}`).then((r) => r);
     }
     updateContact(id, values) {
-        return this._axios.put(`/contact/${id}`, values).then((r) => r);
+        return this._axios.put(`/contacts/${id}`, values).then((r) => r);
     }
 
     getTipoTech() {
-        return this._axios.get("/tecnologia").then((r) => r);
+        return this._axios.get("/tipo-tech").then((r) => r);
     }
     deleteTipoTech(id) {
-        return this._axios.delete(`/tecnologia/${id}`).then((r) => r);
+        return this._axios.delete(`/tipo-tech/${id}`).then((r) => r);
     }
     createTipoTech(values) {
-        return this._axios.post("/tecnologia", values).then((r) => r.data);
+        return this._axios.post("/tipo-tech", values).then((r) => r.data);
     }
     getIdTipoTech(id) {
-        return this._axios.get(`/tecnologia/${id}`).then((r) => r);
+        return this._axios.get(`/tipo-tech/${id}`).then((r) => r);
     }
     updateTipoTech(id, values) {
-        return this._axios.put(`/tecnologia/${id}`, values).then((r) => r);
+        return this._axios.put(`/tipo-tech/${id}`, values).then((r) => r);
     }
 
     createChannelDiagram(payload) {

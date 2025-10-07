@@ -3,9 +3,19 @@ const TipoTechController = require("../controllers/tipoTech.controller");
 
 const router = express.Router();
 
-router
-  .route("/tipo-tech")
-  .get(TipoTechController.getTech)
-  .post(TipoTechController.createTech);
+const basePaths = ["/tipo-tech", "/tecnologia"]; // alias para compatibilidad
+
+basePaths.forEach((path) => {
+  router
+    .route(path)
+    .get(TipoTechController.getTech)
+    .post(TipoTechController.createTech);
+
+  router
+    .route(`${path}/:id`)
+    .get(TipoTechController.getTechById)
+    .put(TipoTechController.updateTech)
+    .delete(TipoTechController.deleteTech);
+});
 
 module.exports = router;
