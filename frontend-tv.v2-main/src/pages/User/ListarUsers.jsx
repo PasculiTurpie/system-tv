@@ -229,19 +229,19 @@ const ListarUsers = () => {
                                     </tr>
                                 ) : (
                                     pageItems.map((user) => (
-                                        <tr key={user._id} id={user._id}>
+                                        <tr key={user.id} id={user.id}>
                                             <td>{user.username}</td>
                                             <td>{user.email}</td>
                                             <td className="button-action">
                                                 <button
                                                     className="btn btn-warning"
-                                                    onClick={() => showModal(user._id)}
+                                                    onClick={() => showModal(user.id)}
                                                 >
                                                     Editar
                                                 </button>
                                                 <button
                                                     className="btn btn-danger"
-                                                    onClick={() => deleteUser(user._id)}
+                                                    onClick={() => deleteUser(user.id)}
                                                 >
                                                     Eliminar
                                                 </button>
