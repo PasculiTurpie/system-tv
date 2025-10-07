@@ -234,13 +234,13 @@ const ListarUsers = () => {
                                             <td>{user.email}</td>
                                             <td className="button-action">
                                                 <button
-                                                    className="button btn-primary"
+                                                    className="btn btn-warning"
                                                     onClick={() => showModal(user._id)}
                                                 >
                                                     Editar
                                                 </button>
                                                 <button
-                                                    className="button btn-danger"
+                                                    className="btn btn-danger"
                                                     onClick={() => deleteUser(user._id)}
                                                 >
                                                     Eliminar

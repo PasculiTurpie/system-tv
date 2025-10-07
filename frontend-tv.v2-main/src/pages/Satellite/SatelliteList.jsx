@@ -141,7 +141,7 @@ export const SatelliteList = () => {
                                     </td>
                                     <td className="button-action">
                                         <button
-                                            className="table-btn table-btn-primary"
+                                            className="btn btn-warning"
                                             onClick={() => {
                                                 showModal(satellite._id);
                                             }}
@@ -149,7 +149,7 @@ export const SatelliteList = () => {
                                             Editar
                                         </button>
                                         <button
-                                            className="table-btn table-btn-danger"
+                                            className="btn btn-danger"
                                             onClick={() =>
                                                 deleteSatellite(satellite._id)
                                             }

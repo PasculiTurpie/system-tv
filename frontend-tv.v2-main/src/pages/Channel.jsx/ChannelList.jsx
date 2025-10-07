@@ -244,13 +244,13 @@ const ChannelList = () => {
                                             <td>{channel.tipoTecnologia?.toUpperCase()}</td>
                                             <td className="button-action">
                                                 <button
-                                                    className="table-btn table-btn-primary"
+                                                    className="btn btn-warning"
                                                     onClick={() => showModal(channel._id)}
                                                 >
                                                     Editar
                                                 </button>
                                                 <button
-                                                    className="table-btn table-btn-danger"
+                                                    className="btn btn-danger"
                                                     onClick={() => deleteChannel(channel._id)}
                                                 >
                                                     Eliminar
