@@ -2,6 +2,7 @@
 import { Formik, Field, Form } from "formik";
 import { Link } from "react-router-dom";
 import styles from "./Ird.module.css";
+import '../../styles.css'
 import * as Yup from "yup";
 import Swal from "sweetalert2";
 import api from "../../utils/api";
@@ -648,7 +649,7 @@ const IrdForm = () => {
                                 </div>
                             </div>
 
-                            <button type="submit" className={`${styles.button} btn-primary`}>
+                            <button type="submit" className={`btn btn-primary`}>
                                 Enviar
                             </button>
                         </Form>
