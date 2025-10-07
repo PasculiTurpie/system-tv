@@ -122,31 +122,32 @@
 }
 
 .table-btn-primary {
-  background  : var(--accent-primary, #2563eb);
-  border-color: var(--accent-primary, #2563eb);
-  color       : #fff;
-  box-shadow  : 0 10px 24px color-mix(in srgb, var(--color-primary, var(--accent-primary, #2563eb)) 25%, transparent);
+  background  : #facc15;
+  border-color: #facc15;
+  color       : #1f2937;
+  box-shadow  : 0 6px 14px rgba(250, 204, 21, 0.35);
 }
 
 .table-btn-primary:hover,
 .table-btn-primary:focus-visible {
-  background  : var(--accent-primary-600, #1d4ed8);
-  border-color: var(--accent-primary-600, #1d4ed8);
-  box-shadow  : 0 12px 24px rgba(29, 78, 216, 0.18);
+  background  : #f59e0b;
+  border-color: #f59e0b;
+  color       : #111827;
+  box-shadow  : 0 10px 22px rgba(245, 158, 11, 0.38);
 }
 
 .table-btn-danger {
-  background  : var(--accent-danger, #dc2626);
-  border-color: var(--accent-danger, #dc2626);
+  background  : #ef4444;
+  border-color: #ef4444;
   color       : #fff;
-  box-shadow  : 0 10px 24px color-mix(in srgb, var(--color-danger, var(--accent-danger, #dc2626)) 22%, transparent);
+  box-shadow  : 0 6px 14px rgba(239, 68, 68, 0.35);
 }
 
 .table-btn-danger:hover,
 .table-btn-danger:focus-visible {
-  background  : var(--accent-danger-600, #b91c1c);
-  border-color: var(--accent-danger-600, #b91c1c);
-  box-shadow  : 0 12px 24px rgba(220, 38, 38, 0.2);
+  background  : #dc2626;
+  border-color: #dc2626;
+  box-shadow  : 0 10px 22px rgba(220, 38, 38, 0.38);
 }
 
 @media (max-width: 768px) {
