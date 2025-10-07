@@ -125,6 +125,7 @@
   background  : var(--accent-primary, #2563eb);
   border-color: var(--accent-primary, #2563eb);
   color       : #fff;
+  box-shadow  : 0 10px 24px color-mix(in srgb, var(--color-primary, var(--accent-primary, #2563eb)) 25%, transparent);
 }
 
 .table-btn-primary:hover,
@@ -138,6 +139,7 @@
   background  : var(--accent-danger, #dc2626);
   border-color: var(--accent-danger, #dc2626);
   color       : #fff;
+  box-shadow  : 0 10px 24px color-mix(in srgb, var(--color-danger, var(--accent-danger, #dc2626)) 22%, transparent);
 }
 
 .table-btn-danger:hover,
