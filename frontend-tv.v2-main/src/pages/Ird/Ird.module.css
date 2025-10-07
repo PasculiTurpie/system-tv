@@ -1,25 +1,28 @@
-.form__add {
-    width: min(720px, 100%);
-    display: flex;
-    flex-direction: column;
-    gap: 24px;
-    padding: 28px;
-    background: var(--surface-base, #ffffff);
-    border: 1px solid var(--border-subtle, rgba(148, 163, 184, 0.35));
-    border-radius: 18px;
-    box-shadow: var(--shadow-elevated, 0 18px 40px rgba(15, 23, 42, 0.12));
+:global(.form__add).formGrid {
+    width: min(1120px, 100%);
+    margin-inline: auto;
 }
 
 .rows__group {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: var(--form-gap, 24px);
     align-items: flex-start;
+    grid-auto-flow: row dense;
 }
 
 .columns__group {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    min-width: 0;
+    display: contents;
+}
+
+@media (max-width: 1200px) {
+    .rows__group {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 768px) {
+    .rows__group {
+        grid-template-columns: 1fr;
+    }
 }
