@@ -122,51 +122,31 @@
 }
 
 .table-btn-primary {
-  background  : var(--color-primary, var(--accent-primary, #2563eb));
-  border-color: var(--color-primary, var(--accent-primary, #2563eb));
+  background  : var(--accent-primary, #2563eb);
+  border-color: var(--accent-primary, #2563eb);
   color       : #fff;
   box-shadow  : 0 10px 24px color-mix(in srgb, var(--color-primary, var(--accent-primary, #2563eb)) 25%, transparent);
 }
 
 .table-btn-primary:hover,
 .table-btn-primary:focus-visible {
-  background  : var(--color-primary-600, var(--accent-primary-600, #1d4ed8));
-  border-color: var(--color-primary-600, var(--accent-primary-600, #1d4ed8));
-  box-shadow  : 0 14px 28px color-mix(in srgb, var(--color-primary-600, var(--accent-primary-600, #1d4ed8)) 28%, transparent);
+  background  : var(--accent-primary-600, #1d4ed8);
+  border-color: var(--accent-primary-600, #1d4ed8);
+  box-shadow  : 0 12px 24px rgba(29, 78, 216, 0.18);
 }
 
 .table-btn-danger {
-  background  : var(--color-danger, var(--accent-danger, #dc2626));
-  border-color: var(--color-danger, var(--accent-danger, #dc2626));
+  background  : var(--accent-danger, #dc2626);
+  border-color: var(--accent-danger, #dc2626);
   color       : #fff;
   box-shadow  : 0 10px 24px color-mix(in srgb, var(--color-danger, var(--accent-danger, #dc2626)) 22%, transparent);
 }
 
 .table-btn-danger:hover,
 .table-btn-danger:focus-visible {
-  background  : var(--color-danger-600, var(--accent-danger-600, #b91c1c));
-  border-color: var(--color-danger-600, var(--accent-danger-600, #b91c1c));
-  box-shadow  : 0 14px 28px color-mix(in srgb, var(--color-danger-600, var(--accent-danger-600, #b91c1c)) 26%, transparent);
-}
-
-@supports not (color: color-mix(in srgb, #000 50%, #fff)) {
-  .table-btn-primary {
-    box-shadow: 0 10px 24px rgba(37, 99, 235, 0.22);
-  }
-
-  .table-btn-primary:hover,
-  .table-btn-primary:focus-visible {
-    box-shadow: 0 14px 28px rgba(29, 78, 216, 0.24);
-  }
-
-  .table-btn-danger {
-    box-shadow: 0 10px 24px rgba(220, 38, 38, 0.22);
-  }
-
-  .table-btn-danger:hover,
-  .table-btn-danger:focus-visible {
-    box-shadow: 0 14px 28px rgba(185, 28, 28, 0.24);
-  }
+  background  : var(--accent-danger-600, #b91c1c);
+  border-color: var(--accent-danger-600, #b91c1c);
+  box-shadow  : 0 12px 24px rgba(220, 38, 38, 0.2);
 }
 
 @media (max-width: 768px) {
