@@ -8,7 +8,7 @@ import Swal from "sweetalert2";
 import api from "../../utils/api";
 import { ipGestionRegex } from "../../utils/regexValidate";
 import stylesEquipment from "./Equipment.module.css";
-import EquipmentTypeManager from "./EquipmentTypeManager";
+import TipoEquipoList from "./TipoEquipoList";
 
 const SchemaEquipos = Yup.object().shape({
     nombre: Yup.string()
@@ -281,7 +281,7 @@ const Equipment = () => {
                         )}
                     </Formik>
 
-                    <EquipmentTypeManager tipos={uniqueTipos} onRefresh={fetchTipos} />
+                    <TipoEquipoList tipos={uniqueTipos} onRefresh={fetchTipos} />
                 </div>
             </div>
         </div>
