@@ -223,7 +223,6 @@ const Equipment = () => {
                     {/* === Formulario Tipo Equipo === */}
                     <Formik
                         initialValues={{ tipoNombre: "" }}
-                        validationSchema={SchemaTipoEquipos}
                         onSubmit={async (values, { resetForm }) => {
                             // Normaliza para evitar duplicados por mayúsculas/espacios
                             const normalized = values.tipoNombre.trim().toLowerCase();
@@ -276,7 +275,6 @@ const Equipment = () => {
                         )}
                     </Formik>
 
-                    <EquipmentTypeManager tipos={uniqueTipos} onRefresh={fetchTipos} />
                 </div>
             </div>
         </div>
