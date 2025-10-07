@@ -8,6 +8,7 @@ const {
 
 const FALLBACK_URI = buildUriFromFragments();
 const DEFAULT_URI = MONGODB_URI || MONGO_URI || FALLBACK_URI;
+const LOCAL_DEV_URI = resolveLocalDevUri();
 const CONNECTION_TIMEOUT_MS = Number(process.env.MONGODB_TIMEOUT_MS || 5000);
 const FAMILY = process.env.MONGODB_FAMILY
   ? Number(process.env.MONGODB_FAMILY)
@@ -112,9 +113,9 @@ function sanitizeConnectionString(uri) {
 }
 
 function connectMongoose() {
-  if (!DEFAULT_URI) {
+  if (!DEFAULT_URI && !LOCAL_DEV_URI) {
     throw new Error(
-      "Missing MONGODB_URI environment variable. Update .env with a valid connection string."
+      "Missing MongoDB connection configuration. Define MONGODB_URI or the MONGODB_* fragments in your .env file."
     );
   }
 
@@ -126,23 +127,12 @@ function connectMongoose() {
     mongoose.set("debug", true);
   }
 
-  const maskedUri = sanitizeConnectionString(DEFAULT_URI);
-  console.log(`🔌 Connecting to MongoDB using ${maskedUri}`);
+  const urisToTry = buildUriCandidates();
 
-  connectionPromise = mongoose
-    .connect(DEFAULT_URI, {
-      serverSelectionTimeoutMS: CONNECTION_TIMEOUT_MS,
-      family: FAMILY,
-    })
-    .then(() => {
-      console.log("✅ Connected to MongoDB");
-      return mongoose.connection;
-    })
-    .catch((error) => {
-      connectionPromise = null;
-      console.error("❌ Could not connect to MongoDB", error);
-      throw error;
-    });
+  connectionPromise = attemptConnectionChain(urisToTry).catch((error) => {
+    connectionPromise = null;
+    throw error;
+  });
 
   return connectionPromise;
 }
@@ -151,3 +141,55 @@ module.exports = {
   connectMongoose,
   mongoose,
 };
+
+function buildUriCandidates() {
+  const uris = [];
+
+  if (DEFAULT_URI) {
+    uris.push(DEFAULT_URI);
+  }
+
+  if (LOCAL_DEV_URI && LOCAL_DEV_URI !== DEFAULT_URI) {
+    uris.push(LOCAL_DEV_URI);
+  }
+
+  return uris;
+}
+
+async function attemptConnectionChain(uris) {
+  let lastError = null;
+
+  for (const uri of uris) {
+    const maskedUri = sanitizeConnectionString(uri);
+    console.log(`🔌 Connecting to MongoDB using ${maskedUri}`);
+
+    try {
+      await mongoose.connect(uri, {
+        serverSelectionTimeoutMS: CONNECTION_TIMEOUT_MS,
+        family: FAMILY,
+      });
+
+      console.log("✅ Connected to MongoDB");
+      return mongoose.connection;
+    } catch (error) {
+      lastError = error;
+      console.error(
+        `❌ Could not connect to MongoDB using ${maskedUri}: ${error.message}`
+      );
+    }
+  }
+
+  throw lastError;
+}
+
+function resolveLocalDevUri() {
+  if (process.env.NODE_ENV === "production") {
+    return null;
+  }
+
+  return (
+    process.env.MONGODB_LOCAL_URI ||
+    process.env.MONGO_LOCAL_URI ||
+    "mongodb://127.0.0.1:27017/signalTV"
+  );
+}
