@@ -8,4 +8,10 @@ router
   .get(TipoEquipoController.getTipoEquipo)
   .post(TipoEquipoController.createTipoEquipo);
 
+router
+  .route("/tipo-equipo/:id")
+  .get(TipoEquipoController.getTipoEquipoById)
+  .put(TipoEquipoController.updateTipoEquipo)
+  .delete(TipoEquipoController.deleteTipoEquipo);
+
 module.exports = router;
