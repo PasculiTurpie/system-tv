@@ -221,7 +221,6 @@ const Equipment = () => {
                     )}
                 </Formik>
 
-                <hr />
 
                 {/* === Formulario Tipo Equipo === */}
                 <Formik
