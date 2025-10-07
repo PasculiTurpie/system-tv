@@ -5,13 +5,13 @@ import Swal from "sweetalert2";
 import ModalComponent from "../../components/ModalComponent/ModalComponent";
 import api from "../../utils/api";
 import stylesEquipment from "../Equipment/Equipment.module.css";
+import ModalTipoEquipo from "./ModalTipoEquipo";
 
 const TipoEquipoList = () => {
     const [tipos, setTipos] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [editingTipoId, setEditingTipoId] = useState(null);
-    const [editingTipoNombre, setEditingTipoNombre] = useState("");
-    const [updatingId, setUpdatingId] = useState(null);
+    const [editModalOpen, setEditModalOpen] = useState(false);
     const [deletingId, setDeletingId] = useState(null);
     const [deleteModalOpen, setDeleteModalOpen] = useState(false);
     const [tipoToDelete, setTipoToDelete] = useState(null);
@@ -45,46 +45,14 @@ const TipoEquipoList = () => {
 
     const handleStartEdit = (tipo) => {
         setEditingTipoId(tipo?._id || null);
-        setEditingTipoNombre((tipo?.tipoNombre || "").trim());
+        setEditModalOpen(true);
     };
 
-    const handleCancelEdit = () => {
-        setEditingTipoId(null);
-        setEditingTipoNombre("");
-    };
-
-    const handleSaveEdit = async () => {
-        const normalized = editingTipoNombre.trim().toLowerCase();
-
-        if (!editingTipoId || !normalized) {
-            Swal.fire({
-                title: "Validación",
-                icon: "warning",
-                text: "El tipo de equipo no puede estar vacío.",
-            });
-            return;
+    const handleToggleEditModal = (open) => {
+        if (!open) {
+            setEditingTipoId(null);
         }
-
-        try {
-            setUpdatingId(editingTipoId);
-            await api.updateTipoEquipo(editingTipoId, { tipoNombre: normalized });
-            Swal.fire({
-                title: "Tipo de equipo actualizado",
-                icon: "success",
-                html: `<p><strong>Tipo:</strong> ${normalized}</p>`,
-            });
-            handleCancelEdit();
-            await fetchTipos();
-        } catch (error) {
-            Swal.fire({
-                title: "Error",
-                icon: "error",
-                text: "No se pudo actualizar el tipo de equipo",
-                footer: `${error.response?.data?.message || "Error desconocido"}`,
-            });
-        } finally {
-            setUpdatingId(null);
-        }
+        setEditModalOpen(open);
     };
 
     const handleRequestDelete = (tipo) => {
@@ -116,7 +84,7 @@ const TipoEquipoList = () => {
                 html: `<p><strong>Tipo:</strong> ${displayName || "(sin nombre)"}</p>`,
             });
             if (editingTipoId === tipoToDelete._id) {
-                handleCancelEdit();
+                handleToggleEditModal(false);
             }
             await fetchTipos();
         } catch (error) {
@@ -181,81 +149,41 @@ const TipoEquipoList = () => {
                                     </tr>
                                 ) : (
                                     sortedTipos.map((tipo, index) => {
-                                        const isEditing = editingTipoId === tipo._id;
                                         const displayName = (tipo?.tipoNombre || "").trim();
-                                        const isSaving = updatingId === tipo._id;
                                         const isDeleting = deletingId === tipo._id;
 
                                         return (
                                             <tr key={tipo._id}>
                                                 <td data-label="#">{index + 1}</td>
                                                 <td data-label="Nombre">
-                                                    {isEditing ? (
-                                                        <input
-                                                            type="text"
-                                                            value={editingTipoNombre}
-                                                            onChange={(event) => setEditingTipoNombre(event.target.value)}
-                                                            className={`form__group-input ${stylesEquipment.type__input}`}
-                                                            placeholder="Tipo equipo"
-                                                            onKeyDown={(event) => {
-                                                                if (event.key === "Enter") {
-                                                                    event.preventDefault();
-                                                                    handleSaveEdit();
-                                                                }
-                                                                if (event.key === "Escape") {
-                                                                    event.preventDefault();
-                                                                    handleCancelEdit();
-                                                                }
-                                                            }}
-                                                            autoFocus
-                                                        />
-                                                    ) : (
-                                                        <span className={stylesEquipment.type__name}>
-                                                            {displayName.toUpperCase() || "(SIN NOMBRE)"}
-                                                        </span>
-                                                    )}
+                                                    <span className={stylesEquipment.type__name}>
+                                                        {displayName.toUpperCase() || "(SIN NOMBRE)"}
+                                                    </span>
                                                 </td>
                                                 <td data-label="Acciones">
                                                     <div className={stylesEquipment.type__actions}>
-                                                        {isEditing ? (
-                                                            <>
-                                                                <button
-                                                                    type="button"
-                                                                    className="button btn-primary"
-                                                                    onClick={handleSaveEdit}
-                                                                    disabled={isSaving || isLoading}
-                                                                >
-                                                                    {isSaving ? "Guardando..." : "Guardar"}
-                                                                </button>
-                                                                <button
-                                                                    type="button"
-                                                                    className="button btn-secondary"
-                                                                    onClick={handleCancelEdit}
-                                                                    disabled={isSaving || isLoading}
-                                                                >
-                                                                    Cancelar
-                                                                </button>
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <button
-                                                                    type="button"
-                                                                    className="button btn-secondary"
-                                                                    onClick={() => handleStartEdit(tipo)}
-                                                                    disabled={Boolean(updatingId) || Boolean(deletingId) || isLoading}
-                                                                >
-                                                                    Editar
-                                                                </button>
-                                                                <button
-                                                                    type="button"
-                                                                    className="button btn-danger"
-                                                                    onClick={() => handleRequestDelete(tipo)}
-                                                                    disabled={isDeleting || Boolean(updatingId) || isLoading}
-                                                                >
-                                                                    {isDeleting ? "Eliminando..." : "Eliminar"}
-                                                                </button>
-                                                            </>
-                                                        )}
+                                                        <>
+                                                            <button
+                                                                type="button"
+                                                                className="button btn-secondary"
+                                                                onClick={() => handleStartEdit(tipo)}
+                                                                disabled={
+                                                                    Boolean(deletingId) ||
+                                                                    isLoading ||
+                                                                    editModalOpen
+                                                                }
+                                                            >
+                                                                Editar
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                className="button btn-danger"
+                                                                onClick={() => handleRequestDelete(tipo)}
+                                                                disabled={isDeleting || isLoading}
+                                                            >
+                                                                {isDeleting ? "Eliminando..." : "Eliminar"}
+                                                            </button>
+                                                        </>
                                                     </div>
                                                 </td>
                                             </tr>
@@ -297,6 +225,13 @@ const TipoEquipoList = () => {
                     </button>
                 </div>
             </ModalComponent>
+            <ModalTipoEquipo
+                modalOpen={editModalOpen}
+                setModalOpen={handleToggleEditModal}
+                itemId={editingTipoId}
+                title="Editar tipo de equipo"
+                refreshList={fetchTipos}
+            />
         </div>
     );
 };
