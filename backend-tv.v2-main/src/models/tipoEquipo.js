@@ -4,9 +4,9 @@ const SchemaTipoEquipos = new mongoose.Schema(
   {
     tipoNombre: {
       type: String,
-      require: true,
+      required: true,
       unique: true,
-      trim:true
+      trim: true,
     },
   },
   { timestamps: true, versionKey: false }

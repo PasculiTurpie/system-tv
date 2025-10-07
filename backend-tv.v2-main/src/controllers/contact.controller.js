@@ -4,61 +4,77 @@ module.exports.createContact = async (req, res) => {
   try {
     const contact = new Contact(req.body);
     await contact.save();
-    res.status(200).json(contact);
+    return res.status(201).json(contact);
   } catch (error) {
-    if (error.code === 11000) {
-      const field = Object.values(error.keyValue).join(", ");
-      
-      return res.status(400).json({
-        message: `Ya existe ${field}`,
-      });
+    if (error?.code === 11000) {
+      const field = Object.keys(error.keyValue)[0];
+      const value = error.keyValue[field];
+      return res
+        .status(409)
+        .json({ message: `Ya existe un contacto con ${field}: "${value}"` });
     }
-    console.error(error);
-    res.status(500).json({
-      message: `Contacto creado`,
-    });
+    console.error("Error al crear contacto:", error);
+    return res
+      .status(500)
+      .json({ message: "Error al crear contacto" });
   }
 };
 
-module.exports.getContact = async (req, res) => {
+module.exports.getContact = async (_req, res) => {
   try {
-    const contact = await Contact.find();
-    res.json(contact);
+    const contact = await Contact.find().lean();
+    return res.json(contact);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: `Error al obtener contacto` });
+    console.error("Error al obtener contactos:", error);
+    return res.status(500).json({ message: "Error al obtener contacto" });
   }
 };
 
 module.exports.getIdContact = async (req, res) => {
   try {
-    const id = req.params.id;
-    const contact = await Contact.findById(id);
-    res.json(contact);
+    const contact = await Contact.findById(req.params.id).lean();
+    if (!contact) {
+      return res.status(404).json({ message: "Contacto no encontrado" });
+    }
+    return res.json(contact);
   } catch (error) {
-    res.status(500).json({ message: "Error al obtener contacto" });
+    console.error("Error al obtener contacto:", error);
+    return res.status(500).json({ message: "Error al obtener contacto" });
   }
 };
+
 module.exports.updateContact = async (req, res) => {
   try {
-    const id = req.params.id;
-    const contact = await Contact.findByIdAndUpdate(id, req.body, {
+    const contact = await Contact.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
-    });
-    res.json(contact);
+      runValidators: true,
+    }).lean();
+    if (!contact) {
+      return res.status(404).json({ message: "Contacto no encontrado" });
+    }
+    return res.json(contact);
   } catch (error) {
-    res.status(500).json({ message: "Error al actualizar contacto" });
+    if (error?.code === 11000) {
+      const field = Object.keys(error.keyValue)[0];
+      const value = error.keyValue[field];
+      return res
+        .status(409)
+        .json({ message: `Ya existe un contacto con ${field}: "${value}"` });
+    }
+    console.error("Error al actualizar contacto:", error);
+    return res.status(500).json({ message: "Error al actualizar contacto" });
   }
 };
 
 module.exports.deleteContact = async (req, res) => {
   try {
-    const id = req.params.id;
-    const contact = await Contact.findByIdAndDelete(id);
-    if (!contact)
-      return res.status(404).json({ message: `Contacto no encontrado` });
-    res.json({ message: "Contacto eliminado de la base de datos" });
+    const contact = await Contact.findByIdAndDelete(req.params.id).lean();
+    if (!contact) {
+      return res.status(404).json({ message: "Contacto no encontrado" });
+    }
+    return res.json({ message: "Contacto eliminado correctamente" });
   } catch (error) {
-    res.status(500).json({ message: "Error al eliminar contacto" });
+    console.error("Error al eliminar contacto:", error);
+    return res.status(500).json({ message: "Error al eliminar contacto" });
   }
 };

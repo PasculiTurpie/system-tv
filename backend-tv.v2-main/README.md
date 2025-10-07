@@ -23,6 +23,8 @@ MONGODB_URI=mongodb://localhost:27017/signalTV
 # MONGODB_PASSWORD=
 # MONGODB_AUTH_SOURCE=admin
 # MONGODB_OPTIONS=retryWrites=true&w=majority
+# Para desarrollo local puedes definir una URI alternativa que se usará si la principal falla
+# MONGODB_LOCAL_URI=mongodb://127.0.0.1:27017/signalTV
 TITAN_USERNAME=Operator
 TITAN_PASSWORD=titan
 TITAN_DEFAULT_PROTOCOL=http
@@ -43,7 +45,8 @@ npm start
 
 El backend intentará construir la cadena de conexión usando `MONGODB_URI` o, si no está disponible,
 los fragmentos `MONGODB_HOST`, `MONGODB_DATABASE`, etc. La cadena que se usa se muestra (sin credenciales)
-en la consola para facilitar la depuración.
+en la consola para facilitar la depuración. Si la conexión principal falla y estás en modo desarrollo,
+se intentará automáticamente con `MONGODB_LOCAL_URI` (o `mongodb://127.0.0.1:27017/signalTV`).
 
 El servidor sólo comienza a escuchar una vez que la conexión a MongoDB se establece correctamente.
 
