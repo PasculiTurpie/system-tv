@@ -1,0 +1,436 @@
+:root {
+    --card-top-offset: 30px;
+    --tv     :#2563eb;
+/* azul */
+--radio  :#16a34a;
+/* verde */
+--text   :#1f2937;
+/* gris oscuro */
+--bg     :#ffffff;
+--pill-bg: rgba(0, 0, 0, .04);
+--ring   : rgba(0, 0, 0, .12);
+}
+
+.card__heading {
+    display    : flex;
+    align-items: center;
+    gap        : 10px;
+    margin     : 0 0 8px 0;
+    /* sin margen arriba; queda bien con el top 30px */
+    color      : var(--text);
+    font-weight: 600;
+    line-height: 1.2;
+    flex-wrap  : wrap;
+    /* para que en móviles baje a la línea siguiente */
+}
+
+.card__total {
+    font-weight         : 800;
+    padding             : 2px 6px;
+    border-radius       : 10px;
+    background          : var(--pill-bg);
+    border              : 1px solid var(--ring);
+    font-variant-numeric: tabular-nums;
+    /* alinea números mejor */
+}
+
+/* Píldoras */
+.pill {
+    display       : inline-flex;
+    align-items   : center;
+    gap           : 6px;
+    padding       : 4px 10px;
+    border-radius : 9999px;
+    font-size     : .875rem;
+    font-weight   : 700;
+    letter-spacing: .2px;
+    background    : var(--pill-bg);
+    border        : 1px solid var(--ring);
+}
+
+/* Colores por tipo */
+.pill--tv {
+    color       : var(--tv);
+    border-color: color-mix(in srgb, var(--tv) 45%, #0000);
+    background  : color-mix(in srgb, var(--tv) 12%, #fff);
+}
+
+.pill--radio {
+    color       : var(--radio);
+    border-color: color-mix(in srgb, var(--radio) 45%, #0000);
+    background  : color-mix(in srgb, var(--radio) 12%, #fff);
+}
+
+/* Fallback si el navegador no soporta color-mix */
+@supports not (color: color-mix(in srgb, #000 50%, #fff)) {
+    .pill--tv {
+        border-color: rgba(37, 99, 235, .45);
+        background  : rgba(37, 99, 235, .12);
+    }
+
+    .pill--radio {
+        border-color: rgba(22, 163, 74, .45);
+        background  : rgba(22, 163, 74, .12);
+    }
+}
+
+/* Fuerza el offset superior constante */
+.card__layout {
+    margin-top  : var(--card-top-offset) !important;
+    /* por si el contenedor padre es flex y la centra verticalmente */
+    align-self  : flex-start;
+    justify-self: start;
+}
+
+/* Evita que el margin-top del h3 “colapse” con el contenedor */
+.card__layout>h3 {
+    margin-top: 0;
+}
+
+/* (opcional) Si tu layout usa un header fijo y quieres espacio de scroll anclado */
+.card__layout {
+    scroll-margin-top: var(--card-top-offset);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+.table {
+    border-top: 2px solid rgb(226, 226, 226);
+}
+.text__align {
+    text-align: left;
+}
+
+.button-action {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-around;
+    column-gap: 10px;
+}
+
+.button,
+.ant-btn {
+    padding: 5px 8px;
+    color: white;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.2s ease-in-out;
+}
+
+.ant-btn-variant-outlined {
+    color: rgb(126, 124, 124);
+}
+
+.btn-primary {
+    background-color: #4db89b;
+}
+.btn-primary:hover {
+    background-color: #059669;
+}
+.separate {
+    margin-top: 15px;
+}
+
+.btn-danger {
+    background-color: #d6244d;
+}
+.btn-danger:hover {
+    background-color: #850220;
+}
+.total-list {
+    font-weight: bold;
+}
+
+.loader__spinner {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+    margin: 0 auto;
+}
+
+th,
+td {
+    height: 51.5px;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.action {
+    text-align: center;
+}
+
+.ant-modal-content {
+    width: fit-content;
+    align-self: center;
+}
+
+.ant-modal {
+    display: flex;
+    justify-content: center;
+}
+
+.form__modal {
+    box-shadow: none;
+}
+/* .css-13cymwt-control{
+    background-color: #fff;
+outline         : none;
+border          : 1px solid rgb(5, 53, 156);
+padding         : 3px 5px;
+width           : 250px;
+} */
+
+select {
+    width: 170px;
+}
+
+.form__add {
+    display: flex;
+    flex-direction: column;
+    width: fit-content;
+    box-shadow: 0 14px 28px rgba(0, 0, 0, 0.25), 0 10px 10px rgba(0, 0, 0, 0.22);
+    padding: 30px;
+    row-gap: 15px;
+    border-radius: 8px;
+    background: #fff;
+}
+.form__add-more {
+    display: flex;
+    flex-direction: row;
+    column-gap: 20px;
+}
+.form__add-group {
+    margin-top: 30px;
+}
+
+.form__titulo {
+    font-size: 20px;
+    font-weight: bold;
+}
+
+.form__group {
+    display: flex;
+    flex-direction: column;
+}
+
+.form__group-label {
+    font-size: 15px;
+}
+.form__group:nth-child(1) {
+    margin-top: 20px;
+}
+
+.form__group-input {
+    background-color: #fff;
+    outline: none;
+    border: 1px solid rgb(5, 53, 156);
+    padding: 3px 5px;
+    width: 180px;
+}
+
+.form__group-input:focus {
+    outline: 2px solid #05359c9d;
+}
+
+.form__group-error {
+    color: red;
+    font-size: 12px;
+}
+
+.button-self {
+    align-self: flex-end;
+}
+
+.btn {
+    padding: 8px 0;
+    font-size: 18px;
+    border-radius: 0.5em;
+    font-weight: 600;
+    letter-spacing: 0.07em;
+    cursor: pointer;
+}
+
+.btn-success {
+    background-color: #01447a;
+    color: #fff;
+}
+.btn-warning {
+    background-color: #ffb52c;
+    color: #000000;
+}
+
+.icon__password {
+    width: 24px;
+}
+
+.container-form-brother {
+    display: flex;
+    column-gap: 40px;
+}
+
+.nodo1 {
+    border: 1px solid #d6244d;
+}
+.container__modal-component {
+    position        : fixed;
+    top             : 0;
+    left            : 0;
+    width           : 100vw;
+    min-height      : 100vh;
+    background-color: rgba(0, 0, 0, 0.7);
+    display         : flex;
+    justify-content : center;
+    align-items     : flex-start;
+    padding         : 130px 20px 40px;
+    /* Espacio superior + márgenes laterales para móviles */
+    z-index         : 1000;
+    overflow-y      : auto;
+    box-sizing      : border-box;
+    transition      : opacity 0.3s ease;
+}
+
+.show__modal {
+    opacity: 1;
+    transform: scale(1);
+    transition: all 0.3s ease;
+    pointer-events: visible;
+}
+
+.close__modal {
+    opacity: 0;
+    transform: scale(0);
+    transition: all 0.3s ease;
+    pointer-events: none;
+}
+
+.form__modal-component {
+    position: relative;
+}
+
+.modal__title {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    height: 40px;
+    margin-bottom: 20px;
+}
+
+.modal__close {
+    width: 25px;
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    cursor: pointer;
+}
+
+.modal__close:hover {
+    filter: brightness(0) saturate(100%) invert(62%) sepia(4%) saturate(23%)
+        hue-rotate(66deg) brightness(88%) contrast(96%);
+    transition: filter 0.3s ease;
+}
+.grid-cols-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: fit-content;
+    height: fit-content;
+    border-radius: 8px;
+    padding: 65px 35px 35px;
+    row-gap: 20px;
+    column-gap: 30px;
+    background-color: #ffffff;
+}
+
+.btn-adjust {
+    height: 40px;
+}
+
+.form__add {
+    display: flex;
+    flex-direction: column;
+    width: fit-content;
+    box-shadow: 0 14px 28px rgba(0, 0, 0, 0.25), 0 10px 10px rgba(0, 0, 0, 0.22);
+    padding: 30px;
+    row-gap: 15px;
+    border-radius: 8px;
+    background: #fff;
+}
+
+.rows__group {
+    display: flex;
+    flex-direction: row;
+    column-gap: 10px;
+}
+
+.columns__group {
+    display: flex;
+    flex-direction: column;
+    row-gap: 10px;
+    margin-bottom: 20px;
+}
+
+.button {
+    padding: 5px 8px;
+    color: white;
+    border-radius: 5px;
+}
+.double__form {
+    display: flex;
+    width: 500px;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.loader {
+    position: relative;
+    width: 85px;
+    height: 50px;
+    background-repeat: no-repeat;
+    background-image: linear-gradient(#e7880b 50px, transparent 0),
+        linear-gradient(#e7880b 50px, transparent 0),
+        linear-gradient(#e7880b 50px, transparent 0),
+        linear-gradient(#e7880b 50px, transparent 0),
+        linear-gradient(#e7880b 50px, transparent 0),
+        linear-gradient(#e7880b 50px, transparent 0);
+    background-position: 0px center, 15px center, 30px center, 45px center,
+        60px center, 75px center, 90px center;
+    animation: rikSpikeRoll 0.65s linear infinite alternate;
+}
+
+@keyframes rikSpikeRoll {
+    0% {
+        background-size: 10px 3px;
+    }
+
+    16% {
+        background-size: 10px 50px, 10px 3px, 10px 3px, 10px 3px, 10px 3px,
+            10px 3px;
+    }
+
+    33% {
+        background-size: 10px 30px, 10px 50px, 10px 3px, 10px 3px, 10px 3px,
+            10px 3px;
+    }
+
+    50% {
+        background-size: 10px 10px, 10px 30px, 10px 50px, 10px 3px, 10px 3px,
+            10px 3px;
+    }
+
+    66% {
+        background-size: 10px 3px, 10px 10px, 10px 30px, 10px 50px, 10px 3px,
+            10px 3px;
+    }
+
+    83% {
+        background-size: 10px 3px, 10px 3px, 10px 10px, 10px 30px, 10px 50px,
+            10px 3px;
+    }
+
+    100% {
+        background-size: 10px 3px, 10px 3px, 10px 3px, 10px 10px, 10px 30px,
+            10px 50px;
+    }
+}
