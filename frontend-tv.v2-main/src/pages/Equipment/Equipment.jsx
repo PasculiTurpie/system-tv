@@ -8,7 +8,6 @@ import Swal from "sweetalert2";
 import api from "../../utils/api";
 import { ipGestionRegex } from "../../utils/regexValidate";
 import stylesEquipment from "./Equipment.module.css";
-import EquipmentTypeManager from "./EquipmentTypeManager";
 
 const SchemaEquipos = Yup.object().shape({
     nombre: Yup.string()
