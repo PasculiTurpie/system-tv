@@ -427,7 +427,7 @@ class Api {
         push("dateTo", params.dateTo);
 
         const query = qs.toString();
-        const url = `/audit${query ? `?${query}` : ""}`;
+        const url = `/audits${query ? `?${query}` : ""}`;
         return this._axios.get(url).then((res) => res.data);
     }
 
@@ -458,7 +458,7 @@ class Api {
         ].forEach((k) => push(k, params[k]));
 
         const query = qs.toString();
-        const url = `/audit/export${query ? `?${query}` : ""}`;
+        const url = `/audits/export${query ? `?${query}` : ""}`;
         return this._axios.get(url, { responseType: "blob" });
     }
 }
