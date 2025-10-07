@@ -79,9 +79,13 @@ const TipoEquipoList = () => {
             setDeletingId(tipoToDelete._id);
             await api.deleteTipoEquipo(tipoToDelete._id);
             Swal.fire({
-                title: "Tipo de equipo eliminado",
-                icon: "success",
-                html: `<p><strong>Tipo:</strong> ${displayName || "(sin nombre)"}</p>`,
+                        title: "¿Estás seguro de eliminar el registro?",
+                        text: "¡No podrás revertir esto!",
+                        icon: "warning",
+                        showCancelButton: true,
+                        confirmButtonColor: "#3085d6",
+                        cancelButtonColor: "#d33",
+                        confirmButtonText: "Sí, eliminar",
             });
             if (editingTipoId === tipoToDelete._id) {
                 handleToggleEditModal(false);
