@@ -219,7 +219,7 @@ const IrdForm = () => {
                     }}
                 >
                     {({ errors, touched }) => (
-                        <Form className="form__add">
+                        <Form className={`form__add ${styles.formGrid}`}>
                             <h1 className="form__titulo">Ingresa un IRD</h1>
 
                             <div className={styles.rows__group}>
