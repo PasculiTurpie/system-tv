@@ -1,120 +1,121 @@
 import React, { useEffect, useState } from "react";
+import { Modal } from "antd";
 import { Formik, Form, Field, ErrorMessage } from "formik";
 import * as Yup from "yup";
 import Swal from "sweetalert2";
 
-import ModalComponent from "../../components/ModalComponent/ModalComponent";
 import api from "../../utils/api";
 
 const TipoEquipoSchema = Yup.object().shape({
-    tipoNombre: Yup.string().trim().required("El nombre es obligatorio"),
+    tipoNombre: Yup.string()
+        .trim()
+        .required("Campo obligatorio"),
 });
 
 const ModalTipoEquipo = ({
+    isModalOpen,
+    handleOk,
+    handleCancel,
     itemId,
-    modalOpen,
-    setModalOpen,
-    title = "Editar tipo de equipo",
     refreshList,
 }) => {
-    const [initialValues, setInitialValues] = useState({ tipoNombre: "" });
-    const [isLoading, setIsLoading] = useState(false);
-    const [fetchError, setFetchError] = useState(null);
+    const [initialValues, setInitialValues] = useState(null);
 
     useEffect(() => {
-        if (!modalOpen) {
-            setInitialValues({ tipoNombre: "" });
-            setFetchError(null);
+        if (!isModalOpen || !itemId) {
+            setInitialValues(null);
             return;
         }
 
-        if (!itemId) {
-            setFetchError("No se encontró el tipo de equipo.");
-            return;
-        }
-
-        setIsLoading(true);
-        setFetchError(null);
+        let isMounted = true;
 
         api
             .getIdTipoEquipo(itemId)
             .then((response) => {
-                const data = response?.data;
-                setInitialValues({ tipoNombre: data?.tipoNombre || "" });
+                const data = response?.data || {};
+                if (isMounted) {
+                    setInitialValues({
+                        tipoNombre: data.tipoNombre || "",
+                    });
+                }
             })
             .catch(() => {
-                setFetchError(
-                    "No se pudo obtener la información del tipo de equipo."
-                );
-            })
-            .finally(() => {
-                setIsLoading(false);
+                Swal.fire({
+                    icon: "error",
+                    title: "Error",
+                    text: "No se pudo obtener la información del tipo de equipo",
+                });
+                if (isMounted) {
+                    setInitialValues({ tipoNombre: "" });
+                }
             });
-    }, [itemId, modalOpen]);
 
-    if (!modalOpen) return null;
+        return () => {
+            isMounted = false;
+        };
+    }, [isModalOpen, itemId]);
+
+    const handleSubmit = async (values, { setSubmitting }) => {
+        try {
+            const payload = {
+                tipoNombre: values.tipoNombre.trim(),
+            };
+
+            await api.updateTipoEquipo(itemId, payload);
+
+            Swal.fire(
+                "Actualizado",
+                "El tipo de equipo fue actualizado correctamente",
+                "success"
+            );
+
+            if (typeof refreshList === "function") {
+                await refreshList();
+            }
+
+            handleOk();
+        } catch (error) {
+            Swal.fire({
+                icon: "error",
+                title: "Error",
+                text: "No se pudo actualizar el tipo de equipo",
+                footer:
+                    error?.response?.data?.message ||
+                    "Inténtalo nuevamente más tarde",
+            });
+        } finally {
+            setSubmitting(false);
+        }
+    };
 
     return (
-        <ModalComponent
-            modalOpen={modalOpen}
-            title={title}
-            setModalOpen={setModalOpen}
+        <Modal
+            open={isModalOpen}
+            onOk={handleOk}
+            onCancel={handleCancel}
+            footer={null}
+            destroyOnClose
         >
-            {isLoading ? (
-                <div className="form__group" style={{ margin: "24px 0", textAlign: "center" }}>
-                    Cargando información…
-                </div>
-            ) : fetchError ? (
-                <div className="form__group-error" style={{ margin: "24px 0" }}>
-                    {fetchError}
-                </div>
-            ) : (
+            {initialValues ? (
                 <Formik
-                    enableReinitialize
                     initialValues={initialValues}
                     validationSchema={TipoEquipoSchema}
-                    onSubmit={async (values, { setSubmitting }) => {
-                        const normalized = values.tipoNombre.trim().toLowerCase();
-
-                        try {
-                            await api.updateTipoEquipo(itemId, {
-                                tipoNombre: normalized,
-                            });
-
-                            Swal.fire({
-                                title: "Tipo de equipo actualizado",
-                                icon: "success",
-                                html: `<p><strong>Tipo:</strong> ${normalized}</p>`,
-                            });
-
-                            if (typeof refreshList === "function") {
-                                await refreshList();
-                            }
-
-                            setModalOpen(false);
-                        } catch (error) {
-                            Swal.fire({
-                                title: "Error",
-                                icon: "error",
-                                text: "No se pudo actualizar el tipo de equipo",
-                                footer: `${error?.response?.data?.message || "Error desconocido"}`,
-                            });
-                        } finally {
-                            setSubmitting(false);
-                        }
-                    }}
+                    onSubmit={handleSubmit}
+                    enableReinitialize
                 >
                     {({ isSubmitting }) => (
                         <Form className="form form__modal">
+                            <h1 className="form__titulo">Editar tipo de equipo</h1>
+
                             <div className="form__group">
-                                <label className="form__group-label">
+                                <label>
                                     Nombre tipo de equipo
                                     <br />
                                     <Field
                                         name="tipoNombre"
                                         type="text"
                                         className="form__group-input"
-                                        placeholder="Tipo de equipo"
+                                        placeholder="Nombre"
                                     />
                                     <ErrorMessage
                                         name="tipoNombre"
@@ -126,19 +127,24 @@ const ModalTipoEquipo = ({
 
                             <div className="form__group">
                                 <button
+                                    className="button separate btn-primary"
                                     type="submit"
-                                    className="button btn-primary"
                                     disabled={isSubmitting}
                                 >
-                                    {isSubmitting ? "Guardando..." : "Guardar"}
+                                    {isSubmitting ? "Guardando..." : "Guardar cambios"}
                                 </button>
                             </div>
                         </Form>
                     )}
                 </Formik>
+            ) : (
+                <div className="form__group" style={{ textAlign: "center" }}>
+                    Cargando información...
+                </div>
             )}
-        </ModalComponent>
+        </Modal>
     );
 };
 
 export default ModalTipoEquipo;
+
