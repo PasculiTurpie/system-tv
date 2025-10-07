@@ -88,6 +88,7 @@ const TipoEquipoList = () => {
                 });
             }
         }
+        setEditModalOpen(open);
     };
 
     const showModal = (id) => {
