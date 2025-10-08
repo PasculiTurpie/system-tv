@@ -65,7 +65,7 @@ const TipoEquipoList = () => {
             confirmButtonColor: "#3085d6",
             cancelButtonColor: "#d33",
             confirmButtonText: "Sí, eliminar",
-            cancelButtonText: "Cancelar",
+            cancelButtonText: "Cancel",
         });
 
         if (result.isConfirmed) {
@@ -99,43 +99,18 @@ const TipoEquipoList = () => {
     const handleOk = () => {
         setIsModalOpen(false);
         setItemId("");
+        Swal.fire({
+            position: "center",
+            icon: "success",
+            title: "Registro actualizado",
+            showConfirmButton: false,
+            timer: 1500,
+        });
     };
 
-    const handleConfirmDelete = async () => {
-        if (!tipoToDelete?._id) {
-            handleToggleDeleteModal(false);
-            return;
-        }
-
-        const displayName = (tipoToDelete?.tipoNombre || "").trim().toUpperCase();
-
-        try {
-            setDeletingId(tipoToDelete._id);
-            await api.deleteTipoEquipo(tipoToDelete._id);
-            Swal.fire({
-                        title: "¿Estás seguro de eliminar el registro?",
-                        text: "¡No podrás revertir esto!",
-                        icon: "warning",
-                        showCancelButton: true,
-                        confirmButtonColor: "#3085d6",
-                        cancelButtonColor: "#d33",
-                        confirmButtonText: "Sí, eliminar",
-            });
-            if (editingTipoId === tipoToDelete._id) {
-                handleToggleEditModal(false);
-            }
-            await fetchTipos();
-        } catch (error) {
-            Swal.fire({
-                title: "Error",
-                icon: "error",
-                text: "No se pudo eliminar el tipo de equipo",
-                footer: `${error.response?.data?.message || "Error desconocido"}`,
-            });
-        } finally {
-            setDeletingId(null);
-            handleToggleDeleteModal(false);
-        }
+    const handleCancel = () => {
+        setIsModalOpen(false);
+        setItemId("");
     };
 
     return (
