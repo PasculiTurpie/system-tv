@@ -181,7 +181,7 @@ const Equipment = () => {
                                             <Field as="select" className="form__group-input" name="tipoNombre">
                                                 <option value="">--Seleccionar--</option>
                                                 {uniqueTipos.map((t) => (
-                                                    <option key={t._id} value={t._id}>
+                                                    <option key={t?._id} value={t._id}>
                                                         {(t.tipoNombre || "").toUpperCase()}
                                                     </option>
                                                 ))}

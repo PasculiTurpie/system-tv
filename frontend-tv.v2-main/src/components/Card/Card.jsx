@@ -19,7 +19,6 @@ const Card = () => {
         setIsLoading(true);
         try {
             const res = await api.getChannelDiagram();
-            console.log(res.data[0])
             const raw = Array.isArray(res?.data) ? res.data : [];
             const signals = raw.map((it) => it?.signal ?? null).filter(Boolean);
 

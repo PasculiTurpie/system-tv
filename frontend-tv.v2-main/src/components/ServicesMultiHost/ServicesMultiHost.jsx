@@ -23,6 +23,22 @@ const TITAN_REQUEST_OPTIONS = {
   password: TITAN_PASSWORD,
 };
 
+
+
+
+
+
+  api.getEquipo()
+  .then((res)=>{
+   console.log(res.data)
+    
+  })
+
+
+
+
+
+
 // Hosts proporcionados
 const HOSTS = [
   { label: "TL-HOST_109", ip: "172.19.14.109" },
