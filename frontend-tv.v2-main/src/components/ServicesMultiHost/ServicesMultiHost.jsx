@@ -437,6 +437,52 @@ export default function ServicesMultiHost() {
   // Ref para el input de búsqueda
   const searchRef = useRef(null);
 
+  const loadHosts = useCallback(async () => {
+    setHostsLoading(true);
+    setHostFetchError(null);
+
+    try {
+      const response = await api.getEquipo();
+      const equipos = Array.isArray(response?.data) ? response.data : [];
+      const seenIps = new Set();
+      const titanHosts = [];
+
+      for (const item of equipos) {
+        const typeName = item?.tipoNombre?.tipoNombre;
+        if (typeof typeName !== "string" || typeName.toLowerCase() !== "titan") {
+          continue;
+        }
+
+        const ip = item?.ip_gestion ? String(item.ip_gestion).trim() : "";
+        if (!ip || seenIps.has(ip)) continue;
+
+        seenIps.add(ip);
+        const rawName = item?.nombre ? String(item.nombre).trim() : "";
+        titanHosts.push({
+          label: rawName || ip || "(sin nombre)",
+          ip,
+        });
+      }
+
+      if (titanHosts.length === 0) {
+        setHostFetchError(
+          "No se encontraron equipos Titan con IP de gestión configurada."
+        );
+      }
+
+      titanHosts.sort((a, b) =>
+        a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: "base" })
+      );
+      console.log("Titan hosts:", titanHosts);
+      setHosts(titanHosts);
+    } catch (error) {
+      setHosts([]);
+      setHostFetchError(`Equipos Titan: ${describeError(error)}`);
+    } finally {
+      setHostsLoading(false);
+    }
+  }, []);
+
   const loadAll = useCallback(async () => {
     setLoading(true);
     setErrors([]);
