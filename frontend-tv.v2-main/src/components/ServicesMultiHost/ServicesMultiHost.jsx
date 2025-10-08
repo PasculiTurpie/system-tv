@@ -38,18 +38,29 @@ const useTitanHosts = () => {
       const titanHosts = [];
 
       for (const item of equipos) {
-        const typeName = item?.tipoNombre?.tipoNombre;
-        if (typeof typeName !== "string" || typeName.toLowerCase() !== "titan") {
+        const typeNameRaw = pickFirst(
+          item?.tipoNombre?.tipoNombre,
+          item?.tipoNombre?.nombre,
+          item?.tipoNombre,
+          item?.tipo,
+          item?.tipo_equipo
+        );
+        const typeName =
+          typeof typeNameRaw === "string" ? typeNameRaw.trim().toLowerCase() : "";
+
+        if (!typeName || !typeName.includes("titan")) {
           continue;
         }
-        const ip = item?.ip_gestion ? String(item.ip_gestion).trim() : "";
-        if (!ip || seenIps.has(ip)) continue;
 
-        seenIps.add(ip);
+        const ip = pickFirst(item?.ip_gestion, item?.ipGestion);
+        const normalizedIp = ip ? String(ip).trim() : "";
+        if (!normalizedIp || seenIps.has(normalizedIp)) continue;
+
+        seenIps.add(normalizedIp);
         const rawName = item?.nombre ? String(item.nombre).trim() : "";
         titanHosts.push({
-          label: rawName || ip || "(sin nombre)",
-          ip,
+          label: rawName || normalizedIp || "(sin nombre)",
+          ip: normalizedIp,
         });
       }
 
