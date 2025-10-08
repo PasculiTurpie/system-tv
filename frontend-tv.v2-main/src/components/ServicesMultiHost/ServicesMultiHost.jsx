@@ -23,30 +23,6 @@ const TITAN_REQUEST_OPTIONS = {
   password: TITAN_PASSWORD,
 };
 
-// Hosts proporcionados
-const HOSTS = [
-  { label: "TL-HOST_109", ip: "172.19.14.109" },
-  { label: "TL-HOST_112", ip: "172.19.14.112" },
-  { label: "TL-HOST_113", ip: "172.19.14.113" },
-  { label: "TL-HOST_114", ip: "172.19.14.114" },
-  { label: "TL-HOST_118", ip: "172.19.14.118" },
-  { label: "TL-HOST_120", ip: "172.19.14.120" },
-  { label: "TL-HOST_121", ip: "172.19.14.121" },
-  { label: "TL-HOST_123", ip: "172.19.14.123" },
-  { label: "TL-HOST_124", ip: "172.19.14.124" },
-  { label: "TL-HOST_125", ip: "172.19.14.125" },
-  { label: "TL-HOST_140", ip: "172.19.14.140" },
-  { label: "TL-HOST_156", ip: "172.19.14.156" },
-  { label: "TL-HOST_157", ip: "172.19.14.157" },
-  { label: "TL-HOST_158", ip: "172.19.14.158" },
-  { label: "TL-HOST_161", ip: "172.19.14.161" },
-  { label: "TL-HOST_164", ip: "172.19.14.164" },
-  { label: "TL-HOST_188", ip: "172.19.14.188" },
-  { label: "TL-HOST_091", ip: "172.28.201.91" },
-];
-
-
-
 // Anchos fijos de columnas críticas (tabla principal)
 const COL_WIDTHS = {
   fuente: 260,
@@ -411,6 +387,9 @@ function hostHref(ip) {
 /* ───────────────────────── Componente ───────────────────────── */
 
 export default function ServicesMultiHost() {
+  const [hosts, setHosts] = useState([]);
+  const [hostsLoading, setHostsLoading] = useState(true);
+  const [hostFetchError, setHostFetchError] = useState(null);
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState([]);
@@ -421,14 +400,70 @@ export default function ServicesMultiHost() {
   // Ref para el input de búsqueda
   const searchRef = useRef(null);
 
-  const loadAll = useCallback(async () => {
-    setLoading(true);
-    setErrors([]);
+  const loadHosts = useCallback(async () => {
+    setHostsLoading(true);
+    setHostFetchError(null);
 
-    const hostMap = new Map(HOSTS.map((item) => [item.ip, item]));
-    const hostIps = HOSTS.map((item) => item.ip);
+    try {
+      const response = await api.getEquipo();
+      const equipos = Array.isArray(response?.data) ? response.data : [];
+      const seenIps = new Set();
+      const titanHosts = [];
+
+      for (const item of equipos) {
+        const typeName = item?.tipoNombre?.tipoNombre;
+        if (typeof typeName !== "string" || typeName.toLowerCase() !== "titan") {
+          continue;
+        }
+
+        const ip = item?.ip_gestion ? String(item.ip_gestion).trim() : "";
+        if (!ip || seenIps.has(ip)) continue;
+
+        seenIps.add(ip);
+        const rawName = item?.nombre ? String(item.nombre).trim() : "";
+        titanHosts.push({
+          label: rawName || ip || "(sin nombre)",
+          ip,
+        });
+      }
+
+      if (titanHosts.length === 0) {
+        setHostFetchError(
+          "No se encontraron equipos Titan con IP de gestión configurada."
+        );
+      }
+
+      titanHosts.sort((a, b) =>
+        a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: "base" })
+      );
+      console.log("Titan hosts:", titanHosts);
+      setHosts(titanHosts);
+    } catch (error) {
+      setHosts([]);
+      setHostFetchError(`Equipos Titan: ${describeError(error)}`);
+    } finally {
+      setHostsLoading(false);
+    }
+  }, []);
+
+  const loadAll = useCallback(async () => {
+    if (hostsLoading) return;
+
+    if (hosts.length === 0) {
+      setRows([]);
+      setErrors(hostFetchError ? [hostFetchError] : []);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    const initialErrors = hostFetchError ? [hostFetchError] : [];
+    let nextErrors = [...initialErrors];
+    setErrors(initialErrors);
+
+    const hostMap = new Map(hosts.map((item) => [item.ip, item]));
+    const hostIps = hosts.map((item) => item.ip);
     let nextRows = [];
-    let nextErrors = [];
 
     const pushRowsFromHost = (hostInfo, payload) => {
       const services = extractServicesArray(payload);
@@ -446,7 +481,7 @@ export default function ServicesMultiHost() {
       const processed = processTitanEntries(entries, hostMap);
 
       nextRows = [...processed.rows];
-      nextErrors = [...processed.errors];
+      nextErrors = [...initialErrors, ...processed.errors];
 
       const missingHosts = hostIps.filter((ip) => !processed.seenHosts.has(ip));
       if (missingHosts.length > 0) {
@@ -470,16 +505,19 @@ export default function ServicesMultiHost() {
       }
     } catch (err) {
       nextRows = [];
-      nextErrors = [`Titans multi-host: ${describeError(err)}`];
+      nextErrors = [
+        ...initialErrors,
+        `Titans multi-host: ${describeError(err)}`,
+      ];
 
       const settled = await Promise.allSettled(
-        HOSTS.map((host) =>
+        hosts.map((host) =>
           api.getTitanServices(host.ip, TITAN_REQUEST_OPTIONS)
         )
       );
 
       settled.forEach((result, index) => {
-        const hostInfo = HOSTS[index];
+        const hostInfo = hosts[index];
         if (result.status === "fulfilled") {
           pushRowsFromHost(hostInfo, result.value);
         } else {
@@ -493,11 +531,17 @@ export default function ServicesMultiHost() {
     setRows(nextRows);
     setErrors(nextErrors);
     setLoading(false);
-  }, []);
+  }, [hosts, hostFetchError, hostsLoading]);
 
   useEffect(() => {
-    loadAll();
-  }, [loadAll]);
+    loadHosts();
+  }, [loadHosts]);
+
+  useEffect(() => {
+    if (!hostsLoading) {
+      loadAll();
+    }
+  }, [hostsLoading, loadAll]);
 
   useEffect(() => {
     if (!autoRefresh) {
@@ -647,8 +691,16 @@ export default function ServicesMultiHost() {
         >
           Limpiar
         </button>
-        <button onClick={loadAll} disabled={loading} className="btn btn-primary">
-          {loading ? "Cargando..." : "Refrescar"}
+        <button
+          onClick={loadAll}
+          disabled={loading || hostsLoading}
+          className="btn btn-primary"
+        >
+          {loading
+            ? "Cargando..."
+            : hostsLoading
+            ? "Cargando hosts..."
+            : "Refrescar"}
         </button>
         <label style={{ display: "flex", gap: 6, alignItems: "center" }}>
           <input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} />
