@@ -436,6 +436,7 @@ export default function ServicesMultiHost() {
       titanHosts.sort((a, b) =>
         a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: "base" })
       );
+      console.log("Titan hosts:", titanHosts);
       setHosts(titanHosts);
     } catch (error) {
       setHosts([]);
