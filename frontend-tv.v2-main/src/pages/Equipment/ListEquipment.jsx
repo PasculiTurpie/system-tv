@@ -7,9 +7,11 @@ import api from "../../utils/api";
 import Loader from "../../components/Loader/Loader";
 import ModalEquipment from "./ModalEquipment";
 import "../../components/styles/tables.css";
+import "../../components/styles/forms.css";
 
 const ListEquipment = () => {
     const [equipos, setEquipos] = useState([]);
+    const [searchTerm, setSearchTerm] = useState("");
     const [isLoading, setIsLoading] = useState(true);
     const [modalOpen, setModalOpen] = useState(false);
     const [itemId, setItemId] = useState("");
@@ -18,7 +20,37 @@ const ListEquipment = () => {
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
 
-    const total = equipos.length;
+    const processedEquipos = useMemo(() => {
+        const term = searchTerm.trim().toLowerCase();
+        const filtered = term
+            ? equipos.filter((equipo) => {
+                  const valuesToSearch = [
+                      equipo.nombre,
+                      equipo.marca,
+                      equipo.modelo,
+                      equipo.ip_gestion,
+                      equipo?.tipoNombre?.tipoNombre || equipo?.tipoNombre,
+                  ];
+
+                  return valuesToSearch.some((value) =>
+                      String(value || "").toLowerCase().includes(term)
+                  );
+              })
+            : equipos;
+
+        return [...filtered].sort((a, b) => {
+            const typeA = String(
+                a?.tipoNombre?.tipoNombre || a?.tipoNombre || ""
+            ).toLowerCase();
+            const typeB = String(
+                b?.tipoNombre?.tipoNombre || b?.tipoNombre || ""
+            ).toLowerCase();
+
+            return typeA.localeCompare(typeB);
+        });
+    }, [equipos, searchTerm]);
+
+    const total = processedEquipos.length;
     const totalPages = Math.max(Math.ceil(total / pageSize) || 1, 1);
 
     // Asegura que page siempre esté dentro de rango cuando cambian lista/tamaño
@@ -29,8 +61,12 @@ const ListEquipment = () => {
     // Items actuales de la página
     const pageItems = useMemo(() => {
         const start = (page - 1) * pageSize;
-        return equipos.slice(start, start + pageSize);
-    }, [equipos, page, pageSize]);
+        return processedEquipos.slice(start, start + pageSize);
+    }, [processedEquipos, page, pageSize]);
+
+    useEffect(() => {
+        setPage(1);
+    }, [searchTerm]);
 
     // Rango mostrado (1-indexed)
     const rangeStart = total === 0 ? 0 : (page - 1) * pageSize + 1;
@@ -193,7 +229,28 @@ const ListEquipment = () => {
                         )}
                     </p>
 
-                    <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+                    <div
+                        style={{
+                            marginLeft: "auto",
+                            display: "flex",
+                            gap: 8,
+                            flexWrap: "wrap",
+                            alignItems: "center",
+                        }}
+                    >
+                        <div className="form__group" style={{ minWidth: 220, margin: 0 }}>
+                            <label htmlFor="equipment-search" className="form__group-label">
+                                Buscar
+                            </label>
+                            <input
+                                id="equipment-search"
+                                type="text"
+                                placeholder="Buscar..."
+                                className="form__group-input"
+                                value={searchTerm}
+                                onChange={(event) => setSearchTerm(event.target.value)}
+                            />
+                        </div>
                         <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
                             Tamaño de página:
                             <select
