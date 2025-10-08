@@ -305,7 +305,15 @@ const ListEquipment = () => {
                                                     : "Sin tipo"}
                                             </td>
                                             <td>{equipo.ip_gestion || "-"}</td>
-                                            <td className="button-action">
+                                            <td
+                                                className="button-action"
+                                                style={{
+                                                    display: "flex",
+                                                    flexWrap: "nowrap",
+                                                    gap: 8,
+                                                    justifyContent: "center",
+                                                }}
+                                            >
                                                 <button
                                                     className="btn btn-warning"
                                                     onClick={() => showModal(equipo._id)}
