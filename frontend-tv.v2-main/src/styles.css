@@ -119,7 +119,7 @@
 /* ===================== Formularios y botones ===================== */
 .button-action {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: none;
     gap: 12px;
     justify-content: center;
     align-items: center;

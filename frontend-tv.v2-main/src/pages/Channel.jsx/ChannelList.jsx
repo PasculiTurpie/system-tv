@@ -226,7 +226,7 @@ const ChannelList = () => {
                                         <th>Número canal Norte</th>
                                         <th>Número canal Sur</th>
                                         <th>Tipo de tecnología</th>
-                                        <th className="action">Acciones</th>
+                                        <th>Acciones</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -243,7 +243,7 @@ const ChannelList = () => {
                                                 <td>{channel.numberChannelCn}</td>
                                                 <td>{channel.numberChannelSur}</td>
                                                 <td>{channel.tipoTecnologia?.toUpperCase()}</td>
-                                                <td className="action">
+                                                <td>
                                                     <div className="button-action">
                                                         <button
                                                             className="btn btn-warning"
