@@ -4,6 +4,7 @@ import api from "../../utils/api";
 
 /**
  * Listado de Señales desde múltiples hosts Titan
+ * - Descubre hosts Titan desde api.getEquipo() (tipoNombre.tipoNombre === "titan")
  * - Consulta en paralelo las APIs Titans directamente (sin proxy intermedio)
  * - Columnas: Name, Input.IPInputList.Url, Outputs[0].Outputs, Fuente (pattern/still/live/fail), State.State
  * - Botón Exportar CSV (aplica al filtrado)
@@ -12,9 +13,7 @@ import api from "../../utils/api";
 const PROTOCOL = "http";
 const TITAN_SERVICES_PATH = "/api/v1/servicesmngt/services";
 const env =
-  typeof import.meta !== "undefined" && import.meta?.env
-    ? import.meta.env
-    : {};
+  typeof import.meta !== "undefined" && import.meta?.env ? import.meta.env : {};
 const TITAN_USERNAME = env.VITE_TITAN_USERNAME || "Operator";
 const TITAN_PASSWORD = env.VITE_TITAN_PASSWORD || "titan";
 const TITAN_REQUEST_OPTIONS = {
@@ -23,45 +22,55 @@ const TITAN_REQUEST_OPTIONS = {
   password: TITAN_PASSWORD,
 };
 
+// ───────────────────────── estado de hosts Titan (dinámico vía getEquipo) ─────────────────────────
+const useTitanHosts = () => {
+  const [hosts, setHosts] = useState([]); // [{label, ip}]
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
+  const loadHosts = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await api.getEquipo();
+      const equipos = Array.isArray(response?.data) ? response.data : [];
+      const seenIps = new Set();
+      const titanHosts = [];
 
+      for (const item of equipos) {
+        const typeName = item?.tipoNombre?.tipoNombre;
+        if (typeof typeName !== "string" || typeName.toLowerCase() !== "titan") {
+          continue;
+        }
+        const ip = item?.ip_gestion ? String(item.ip_gestion).trim() : "";
+        if (!ip || seenIps.has(ip)) continue;
 
+        seenIps.add(ip);
+        const rawName = item?.nombre ? String(item.nombre).trim() : "";
+        titanHosts.push({
+          label: rawName || ip || "(sin nombre)",
+          ip,
+        });
+      }
 
+      titanHosts.sort((a, b) =>
+        a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: "base" })
+      );
 
-  api.getEquipo()
-  .then((res)=>{
-   console.log(res.data)
-    
-  })
+      if (titanHosts.length === 0) {
+        setError("No se encontraron equipos Titan con IP de gestión configurada.");
+      }
+      setHosts(titanHosts);
+    } catch (err) {
+      setHosts([]);
+      setError(`Equipos Titan: ${describeError(err)}`);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-
-
-
-
-
-// Hosts proporcionados
-const HOSTS = [
-  { label: "TL-HOST_109", ip: "172.19.14.109" },
-  { label: "TL-HOST_112", ip: "172.19.14.112" },
-  { label: "TL-HOST_113", ip: "172.19.14.113" },
-  { label: "TL-HOST_114", ip: "172.19.14.114" },
-  { label: "TL-HOST_118", ip: "172.19.14.118" },
-  { label: "TL-HOST_120", ip: "172.19.14.120" },
-  { label: "TL-HOST_121", ip: "172.19.14.121" },
-  { label: "TL-HOST_123", ip: "172.19.14.123" },
-  { label: "TL-HOST_124", ip: "172.19.14.124" },
-  { label: "TL-HOST_125", ip: "172.19.14.125" },
-  { label: "TL-HOST_140", ip: "172.19.14.140" },
-  { label: "TL-HOST_156", ip: "172.19.14.156" },
-  { label: "TL-HOST_157", ip: "172.19.14.157" },
-  { label: "TL-HOST_158", ip: "172.19.14.158" },
-  { label: "TL-HOST_161", ip: "172.19.14.161" },
-  { label: "TL-HOST_164", ip: "172.19.14.164" },
-  { label: "TL-HOST_188", ip: "172.19.14.188" },
-  { label: "TL-HOST_091", ip: "172.28.201.91" },
-];
-
-
+  return { hosts, loading, error, loadHosts, setHosts };
+};
 
 // Anchos fijos de columnas críticas (tabla principal)
 const COL_WIDTHS = {
@@ -101,12 +110,7 @@ function extractServicesArray(resp) {
   return [];
 }
 
-/* ───────────────────────── detección de fuente ─────────────────────────
-   FAIL solo con: "Video Signal Missing" | "Audio Signal Silent" | "Video Signal Frozen" | "Input Source Loss"
-   Luego: PATTERN si EmulationMode.Mode === "Pattern"
-          STILL si VideoTracks[0].Variants[0].StillPicture === true
-          LIVE en otro caso
-*/
+/* ───────────────────────── detección de fuente ───────────────────────── */
 const FAIL_NAMES = new Set([
   "Video Signal Missing",
   "Audio Signal Silent",
@@ -118,7 +122,6 @@ function detectVideoSource(svc) {
   const state = get(svc, "State.State");
   const streaming = !!get(svc, "State.Streaming", false);
 
-  // 1) FALLA solo por nombres específicos
   const msgs = get(svc, "State.Messages", []);
   const failMsgs = Array.isArray(msgs)
     ? msgs.filter((m) => {
@@ -129,15 +132,11 @@ function detectVideoSource(svc) {
       })
     : [];
 
-  // 2) Pattern (emulación)
   const emuMode = get(svc, "Device.Template.Tracks.VideoTracks[0].EmulationMode.Mode", "Off");
   const patternName = get(svc, "Device.Template.Tracks.VideoTracks[0].EmulationMode.PatternName", null);
-
-  // 3) Still picture
   const stillPictureEnabled = !!get(svc, "Device.Template.Tracks.VideoTracks[0].Variants[0].StillPicture", false);
   const stillPictureFilename = get(svc, "Device.Template.Tracks.VideoTracks[0].Variants[0].StillPictureFilename", null);
 
-  // 4) Live input URL
   const liveInputUrl = pickFirst(
     get(svc, "Input[0].IPInputList[0].Url"),
     get(svc, "Input.IPInputList[0].Url"),
@@ -146,7 +145,6 @@ function detectVideoSource(svc) {
     get(svc, "InputUrl")
   );
 
-  // Decisión (fail > pattern > still > live)
   if (failMsgs.length > 0) {
     const reason = failMsgs
       .map((m) => (typeof m === "string" ? m : m?.Name || m?.Description))
@@ -236,7 +234,6 @@ function extractRow(hostLabel, ip, svc) {
 
   const stateVal = pickFirst(get(s, "State.State"), get(s, "state.state"), get(s, "State"), get(s, "state"));
 
-  // Detección de fuente (live/pattern/still/fail)
   const src = detectVideoSource(s);
   const sourceText =
     src.mode === "fail"
@@ -420,7 +417,6 @@ function downloadText(filename, text) {
 /* Helpers UI */
 function hostHref(ip) {
   if (!ip) return "#";
-  // Enlace a la ruta base de la IP: http://{IP}
   return `${PROTOCOL}://${ip}`;
 }
 
@@ -433,62 +429,25 @@ export default function ServicesMultiHost() {
   const [query, setQuery] = useState("");
   const [autoRefresh, setAutoRefresh] = useState(false);
   const timerRef = useRef(null);
-
-  // Ref para el input de búsqueda
   const searchRef = useRef(null);
 
-  const loadHosts = useCallback(async () => {
-    setHostsLoading(true);
-    setHostFetchError(null);
 
-    try {
-      const response = await api.getEquipo();
-      const equipos = Array.isArray(response?.data) ? response.data : [];
-      const seenIps = new Set();
-      const titanHosts = [];
+  // hosts Titan desde backend
+  const { hosts, loading: hostsLoading, error: hostFetchError, loadHosts } = useTitanHosts();
 
-      for (const item of equipos) {
-        const typeName = item?.tipoNombre?.tipoNombre;
-        if (typeof typeName !== "string" || typeName.toLowerCase() !== "titan") {
-          continue;
-        }
-
-        const ip = item?.ip_gestion ? String(item.ip_gestion).trim() : "";
-        if (!ip || seenIps.has(ip)) continue;
-
-        seenIps.add(ip);
-        const rawName = item?.nombre ? String(item.nombre).trim() : "";
-        titanHosts.push({
-          label: rawName || ip || "(sin nombre)",
-          ip,
-        });
-      }
-
-      if (titanHosts.length === 0) {
-        setHostFetchError(
-          "No se encontraron equipos Titan con IP de gestión configurada."
-        );
-      }
-
-      titanHosts.sort((a, b) =>
-        a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: "base" })
-      );
-      console.log("Titan hosts:", titanHosts);
-      setHosts(titanHosts);
-    } catch (error) {
-      setHosts([]);
-      setHostFetchError(`Equipos Titan: ${describeError(error)}`);
-    } finally {
-      setHostsLoading(false);
-    }
-  }, []);
-
+  // Carga de servicios usando los hosts descubiertos
   const loadAll = useCallback(async () => {
+    if (!hosts || hosts.length === 0) {
+      setRows([]);
+      setErrors(hostFetchError ? [hostFetchError] : ["No hay hosts Titan para consultar."]);
+      return;
+    }
+
     setLoading(true);
     setErrors([]);
 
-    const hostMap = new Map(HOSTS.map((item) => [item.ip, item]));
-    const hostIps = HOSTS.map((item) => item.ip);
+    const hostMap = new Map(hosts.map((item) => [item.ip, item]));
+    const hostIps = hosts.map((item) => item.ip);
     let nextRows = [];
     let nextErrors = [];
 
@@ -510,6 +469,7 @@ export default function ServicesMultiHost() {
       nextRows = [...processed.rows];
       nextErrors = [...processed.errors];
 
+      // Fallback: por si alguno no vino en el multi
       const missingHosts = hostIps.filter((ip) => !processed.seenHosts.has(ip));
       if (missingHosts.length > 0) {
         const settled = await Promise.allSettled(
@@ -531,17 +491,16 @@ export default function ServicesMultiHost() {
         });
       }
     } catch (err) {
+      // Fallback total: per-host
       nextRows = [];
       nextErrors = [`Titans multi-host: ${describeError(err)}`];
 
       const settled = await Promise.allSettled(
-        HOSTS.map((host) =>
-          api.getTitanServices(host.ip, TITAN_REQUEST_OPTIONS)
-        )
+        hosts.map((host) => api.getTitanServices(host.ip, TITAN_REQUEST_OPTIONS))
       );
 
       settled.forEach((result, index) => {
-        const hostInfo = HOSTS[index];
+        const hostInfo = hosts[index];
         if (result.status === "fulfilled") {
           pushRowsFromHost(hostInfo, result.value);
         } else {
@@ -555,12 +514,31 @@ export default function ServicesMultiHost() {
     setRows(nextRows);
     setErrors(nextErrors);
     setLoading(false);
-  }, []);
+  }, [hosts, hostFetchError]);
 
+  // 1) Descubrir hosts en el montaje
   useEffect(() => {
-    loadAll();
-  }, [loadAll]);
+    loadHosts();
+  }, [loadHosts]);
 
+  // 2) Cuando cambien los hosts (o terminen de cargar), ejecutar la carga de servicios
+  useEffect(() => {
+    if (!hostsLoading) {
+      // si hubo error al cargar hosts, igual refleja en errores
+      if (hostFetchError) {
+        setErrors((e) => (e.includes(hostFetchError) ? e : [...e, hostFetchError]));
+      }
+      // si hay hosts, cargar servicios
+      if (hosts.length > 0) {
+        loadAll();
+      } else if (!hostFetchError) {
+        // sin hosts y sin error explícito
+        setRows([]);
+      }
+    }
+  }, [hostsLoading, hosts, hostFetchError, loadAll]);
+
+  // 3) Auto-refresh cada 30s, solo si hay hosts
   useEffect(() => {
     if (!autoRefresh) {
       if (timerRef.current) clearInterval(timerRef.current);
@@ -657,31 +635,27 @@ export default function ServicesMultiHost() {
         .btn-orange:hover:not(:disabled) { background: #d97706; border-color: #d97706; }
         .btn-orange:active:not(:disabled) { background: #c76a05; border-color: #c76a05; }
         .btn-orange:disabled {
-          background: #d1d5db !important;  /* gris */
+          background: #d1d5db !important;
           border-color: #d1d5db !important;
           color: #4b5563 !important;
           opacity: 1;
         }
 
-        /* Alias */
-        .btn-clear { }
-
-        /* Buscador: borde gris suave y foco azul suave */
         .search-input {
           flex: 1 1 auto;
           padding: 8px 10px;
-          border: 1px solid #d1d5db;           /* gris suave */
+          border: 1px solid #d1d5db;
           border-radius: 8px;
           background: #ffffff;
           color: #111827;
           transition: border-color 120ms ease, box-shadow 120ms ease, background 120ms ease;
         }
-        .search-input::placeholder { color: #6b7280; } /* gris placeholder */
+        .search-input::placeholder { color: #6b7280; }
         .search-input:hover { border-color: #c7ccd1; }
         .search-input:focus {
           outline: none;
-          border-color: #60a5fa;                /* azul suave */
-          box-shadow: 0 0 0 3px rgba(96,165,250,0.35); /* halo azul suave */
+          border-color: #60a5fa;
+          box-shadow: 0 0 0 3px rgba(96,165,250,0.35);
         }
         .search-input:focus-visible {
           outline: none;
@@ -709,17 +683,29 @@ export default function ServicesMultiHost() {
         >
           Limpiar
         </button>
-        <button onClick={loadAll} disabled={loading} className="btn btn-primary">
+        <button onClick={loadAll} disabled={loading || hostsLoading || hosts.length === 0} className="btn btn-primary">
           {loading ? "Cargando..." : "Refrescar"}
         </button>
         <label style={{ display: "flex", gap: 6, alignItems: "center" }}>
-          <input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} />
+          <input
+            type="checkbox"
+            checked={autoRefresh}
+            onChange={(e) => setAutoRefresh(e.target.checked)}
+            disabled={hostsLoading || hosts.length === 0}
+          />
           Auto 30s
         </label>
         <button onClick={handleExportCsv} disabled={filtered.length === 0} className="btn btn-outline">
           Exportar CSV
         </button>
       </div>
+
+      {/* Estado de carga/errores de hosts */}
+      {(hostsLoading || hostFetchError) && (
+        <div style={{ background: "#fffbea", border: "1px solid #fcd34d", padding: 8, marginBottom: 12 }}>
+          {hostsLoading ? "Descubriendo hosts Titan..." : hostFetchError}
+        </div>
+      )}
 
       {errors.length > 0 && (
         <div style={{ background: "#fff4f4", border: "1px solid #f5c2c7", padding: 8, marginBottom: 12 }}>
@@ -822,7 +808,7 @@ export default function ServicesMultiHost() {
             {filtered.length === 0 ? (
               <tr>
                 <td colSpan={7} style={{ padding: 12, textAlign: "center", color: "#666" }}>
-                  {loading ? "Cargando..." : "Sin datos para mostrar"}
+                  {(loading || hostsLoading) ? "Cargando..." : "Sin datos para mostrar"}
                 </td>
               </tr>
             ) : (
