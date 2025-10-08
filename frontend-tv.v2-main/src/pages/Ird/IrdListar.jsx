@@ -218,7 +218,7 @@ const IrdListar = () => {
                     </div>
                 ) : (
                     <>
-                        <table className="table">
+                        <table className="table list__table">
                             <thead>
                                 <tr>
                                     <th>Nombre Ird</th>
@@ -246,15 +246,15 @@ const IrdListar = () => {
                                                     {x.ipAdminIrd}
                                                 </Link>
                                             </td>
-                                            <td className="button-action">
+                                            <td className="action">
                                                 <button
-                                                    className="btn btn-warning"
+                                                    className="table-btn table-btn-primary"
                                                     onClick={() => showModal(x._id)}
                                                 >
                                                     Editar
                                                 </button>
                                                 <button
-                                                    className="btn btn-danger"
+                                                    className="table-btn table-btn-danger"
                                                     onClick={() => deleteEncoderIrd(x._id)}
                                                 >
                                                     Eliminar
