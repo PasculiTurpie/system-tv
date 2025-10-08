@@ -220,12 +220,12 @@ const IrdListar = () => {
                     <>
                         <table className="table list__table">
                             <thead>
-                                <tr>
+                                <tr style={{textAlign: "center"}}>
                                     <th>Nombre Ird</th>
                                     <th>Marca Ird</th>
                                     <th>Multicast salida</th>
                                     <th>Ip de gestión</th>
-                                    <th className="action">Acciones</th>
+                                    <th>Acciones</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -248,13 +248,13 @@ const IrdListar = () => {
                                             </td>
                                             <td className="action">
                                                 <button
-                                                    className="table-btn table-btn-primary"
+                                                    className="btn btn-warning"
                                                     onClick={() => showModal(x._id)}
                                                 >
                                                     Editar
                                                 </button>
                                                 <button
-                                                    className="table-btn table-btn-danger"
+                                                    className="btn btn-danger"
                                                     onClick={() => deleteEncoderIrd(x._id)}
                                                 >
                                                     Eliminar

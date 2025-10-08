@@ -30,7 +30,7 @@
 .table thead th,
 .list__table thead th {
   padding       : 14px 18px;
-  text-align    : left;
+  text-align    : center;
   font-weight   : 600;
   letter-spacing: 0.02em;
   color         : var(--accent-primary, #2563eb);
