@@ -596,6 +596,8 @@ export default function ServicesMultiHost() {
     }
   }, []);
 
+  const titanSignalsCount = filtered.length;
+
   return (
     <div style={{ padding: 16 }}>
       {/* estilos de botones + buscador */}
@@ -675,7 +677,18 @@ export default function ServicesMultiHost() {
         }
       `}</style>
 
-      <h2 style={{ margin: 0, marginBottom: 8 }}>Listado de señales (Titan)</h2>
+      <h2
+        style={{
+          margin: 0,
+          marginBottom: 8,
+          display: "flex",
+          alignItems: "baseline",
+          gap: 8,
+        }}
+      >
+        <span>Listado de señales (Titan)</span>
+        <span style={{ fontSize: 16, color: "#6b7280" }}>({titanSignalsCount})</span>
+      </h2>
 
       <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12 }}>
         <input
