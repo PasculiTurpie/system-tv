@@ -7,6 +7,7 @@ import api from "../../utils/api";
 import Loader from "../../components/Loader/Loader";
 import ModalEquipment from "./ModalEquipment";
 import "../../components/styles/tables.css";
+import "../../components/styles/forms.css";
 
 const ListEquipment = () => {
     const [equipos, setEquipos] = useState([]);
@@ -237,14 +238,19 @@ const ListEquipment = () => {
                             alignItems: "center",
                         }}
                     >
-                        <input
-                            type="text"
-                            placeholder="Buscar..."
-                            className="form__input"
-                            value={searchTerm}
-                            onChange={(event) => setSearchTerm(event.target.value)}
-                            style={{ minWidth: 220 }}
-                        />
+                        <div className="form__group" style={{ minWidth: 220, margin: 0 }}>
+                            <label htmlFor="equipment-search" className="form__group-label">
+                                Buscar
+                            </label>
+                            <input
+                                id="equipment-search"
+                                type="text"
+                                placeholder="Buscar..."
+                                className="form__group-input"
+                                value={searchTerm}
+                                onChange={(event) => setSearchTerm(event.target.value)}
+                            />
+                        </div>
                         <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
                             Tamaño de página:
                             <select
