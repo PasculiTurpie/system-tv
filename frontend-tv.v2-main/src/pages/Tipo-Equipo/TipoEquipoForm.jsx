@@ -26,7 +26,7 @@ const TipoEquipoForm = () => {
                     </li>
                 </ol>
             </nav>
-            <h1>Registro de Tipo Equipo</h1>
+
 
             <div className={stylesEquipment.tipo__section}>
                 <hr className={stylesEquipment.section__divider} />
