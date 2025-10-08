@@ -687,7 +687,7 @@ export default function ServicesMultiHost() {
         }}
       >
         <span>Listado de señales (Titan)</span>
-        <span style={{ fontSize: 16, color: "#6b7280" }}>({titanSignalsCount})</span>
+        <span style={{ fontSize: 16, color: "#6b7280" }}>({`Total señales: ${titanSignalsCount}`})</span>
       </h2>
 
       <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12 }}>
