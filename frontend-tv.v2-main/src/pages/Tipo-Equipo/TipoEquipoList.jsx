@@ -145,7 +145,7 @@ const TipoEquipoList = () => {
                         <table className={stylesEquipment.type__table} role="grid">
                             <thead>
                                 <tr>
-                                    <th scope="col">#</th>
+                                    
                                     <th scope="col">Nombre</th>
                                     <th scope="col" className={stylesEquipment.type__actionsHeader}>
                                         Acciones
@@ -169,7 +169,6 @@ const TipoEquipoList = () => {
 
                                         return (
                                             <tr key={tipoId || index}>
-                                                <td data-label="#">{index + 1}</td>
                                                 <td data-label="Nombre">
                                                     <span className={stylesEquipment.type__name}>
                                                         {nombre || "(SIN NOMBRE)"}
@@ -179,7 +178,7 @@ const TipoEquipoList = () => {
                                                     <div className={stylesEquipment.type__actions}>
                                                         <button
                                                             type="button"
-                                                            className="button btn-secondary"
+                                                            className="btn btn-warning"
                                                             onClick={() => showModal(tipoId)}
                                                             disabled={!tipoId}
                                                         >
@@ -187,7 +186,7 @@ const TipoEquipoList = () => {
                                                         </button>
                                                         <button
                                                             type="button"
-                                                            className="button btn-danger"
+                                                            className="btn btn-danger"
                                                             onClick={() => deleteTipoEquipo(tipoId)}
                                                             disabled={!tipoId}
                                                         >
