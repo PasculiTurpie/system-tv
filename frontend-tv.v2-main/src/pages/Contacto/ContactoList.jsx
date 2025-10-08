@@ -243,13 +243,13 @@ const ContactoList = () => {
                                             <td>{contact.telefono}</td>
                                             <td className="button-action">
                                                 <button
-                                                    className="table-btn table-btn-primary"
+                                                    className="btn btn-warning"
                                                     onClick={() => showModal(contact._id)}
                                                 >
                                                     Editar
                                                 </button>
                                                 <button
-                                                    className="table-btn table-btn-danger"
+                                                    className="btn btn-danger"
                                                     onClick={() => deleteContact(contact._id)}
                                                 >
                                                     Eliminar
