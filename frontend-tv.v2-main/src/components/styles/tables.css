@@ -14,6 +14,11 @@
   color          : var(--text-strong, #0f172a);
 }
 
+.table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+}
+
 .table caption,
 .list__table caption {
   caption-side: bottom;

@@ -218,49 +218,53 @@ const ChannelList = () => {
                     </div>
                 ) : (
                     <>
-                        <table className="table">
-                            <thead>
-                                <tr>
-                                    <th>Nombre canal</th>
-                                    <th>Número canal Norte</th>
-                                    <th>Número canal Sur</th>
-                                    <th>Tipo de tecnología</th>
-                                    <th className="action">Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {pageItems.length === 0 ? (
+                        <div className="table-wrapper">
+                            <table className="table">
+                                <thead>
                                     <tr>
-                                        <td colSpan={5} style={{ textAlign: "center", color: "#777" }}>
-                                            Sin datos para mostrar.
-                                        </td>
+                                        <th>Nombre canal</th>
+                                        <th>Número canal Norte</th>
+                                        <th>Número canal Sur</th>
+                                        <th>Tipo de tecnología</th>
+                                        <th className="action">Acciones</th>
                                     </tr>
-                                ) : (
-                                    pageItems.map((channel) => (
-                                        <tr key={channel._id} id={channel._id}>
-                                            <td className="text__align">{channel.nameChannel}</td>
-                                            <td>{channel.numberChannelCn}</td>
-                                            <td>{channel.numberChannelSur}</td>
-                                            <td>{channel.tipoTecnologia?.toUpperCase()}</td>
-                                            <td className="button-action">
-                                                <button
-                                                    className="btn btn-warning"
-                                                    onClick={() => showModal(channel._id)}
-                                                >
-                                                    Editar
-                                                </button>
-                                                <button
-                                                    className="btn btn-danger"
-                                                    onClick={() => deleteChannel(channel._id)}
-                                                >
-                                                    Eliminar
-                                                </button>
+                                </thead>
+                                <tbody>
+                                    {pageItems.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={5} style={{ textAlign: "center", color: "#777" }}>
+                                                Sin datos para mostrar.
                                             </td>
                                         </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
+                                    ) : (
+                                        pageItems.map((channel) => (
+                                            <tr key={channel._id} id={channel._id}>
+                                                <td className="text__align">{channel.nameChannel}</td>
+                                                <td>{channel.numberChannelCn}</td>
+                                                <td>{channel.numberChannelSur}</td>
+                                                <td>{channel.tipoTecnologia?.toUpperCase()}</td>
+                                                <td className="action">
+                                                    <div className="button-action">
+                                                        <button
+                                                            className="btn btn-warning"
+                                                            onClick={() => showModal(channel._id)}
+                                                        >
+                                                            Editar
+                                                        </button>
+                                                        <button
+                                                            className="btn btn-danger"
+                                                            onClick={() => deleteChannel(channel._id)}
+                                                        >
+                                                            Eliminar
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
 
                         {/* Controles de paginación */}
                         <div
