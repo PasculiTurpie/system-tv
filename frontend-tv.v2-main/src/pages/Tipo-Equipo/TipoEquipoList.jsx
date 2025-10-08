@@ -2,134 +2,114 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import Swal from "sweetalert2";
 
-import ModalComponent from "../../components/ModalComponent/ModalComponent";
+import Loader from "../../components/Loader/Loader";
 import api from "../../utils/api";
 import stylesEquipment from "../Equipment/Equipment.module.css";
+import ModalTipoEquipo from "./ModalTipoEquipo";
 
 const TipoEquipoList = () => {
     const [tipos, setTipos] = useState([]);
-    const [isLoading, setIsLoading] = useState(false);
-    const [editingTipoId, setEditingTipoId] = useState(null);
-    const [editingTipoNombre, setEditingTipoNombre] = useState("");
-    const [updatingId, setUpdatingId] = useState(null);
-    const [deletingId, setDeletingId] = useState(null);
-    const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-    const [tipoToDelete, setTipoToDelete] = useState(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [itemId, setItemId] = useState("");
 
-    const fetchTipos = useCallback(async () => {
-        try {
-            setIsLoading(true);
-            const { data } = await api.getTipoEquipo();
-            setTipos(data || []);
-        } catch (error) {
-            console.warn("Error getTipoEquipo:", error?.response?.data || error?.message);
-            setTipos([]);
-        } finally {
-            setIsLoading(false);
-        }
+    const refreshList = useCallback(() => {
+        setIsLoading(true);
+        api
+            .getTipoEquipo()
+            .then((response) => {
+                const data = response?.data;
+                const list = Array.isArray(data)
+                    ? data
+                    : Array.isArray(data?.data)
+                    ? data.data
+                    : [];
+                setTipos(list);
+            })
+            .catch((error) => {
+                Swal.fire({
+                    icon: "error",
+                    title: "Oops...",
+                    text:
+                        error?.response?.data?.message ||
+                        "No se pudo obtener la lista de tipos de equipo",
+                    footer: '<a href="#">Contactar a administrador</a>',
+                });
+                setTipos([]);
+            })
+            .finally(() => setIsLoading(false));
     }, []);
 
     useEffect(() => {
-        fetchTipos();
-    }, [fetchTipos]);
+        refreshList();
+    }, [refreshList]);
 
-    const sortedTipos = useMemo(
-        () =>
-            [...(tipos || [])].sort((a, b) =>
-                (a?.tipoNombre || "").localeCompare(b?.tipoNombre || "", undefined, {
-                    sensitivity: "base",
-                })
-            ),
-        [tipos]
-    );
+    const sortedTipos = useMemo(() => {
+        return [...tipos].sort((a, b) => {
+            const nameA = (a?.tipoNombre || "").toLowerCase();
+            const nameB = (b?.tipoNombre || "").toLowerCase();
+            if (nameA < nameB) return -1;
+            if (nameA > nameB) return 1;
+            return 0;
+        });
+    }, [tipos]);
 
-    const handleStartEdit = (tipo) => {
-        setEditingTipoId(tipo?._id || null);
-        setEditingTipoNombre((tipo?.tipoNombre || "").trim());
-    };
+    const deleteTipoEquipo = async (id) => {
+        if (!id) return;
 
-    const handleCancelEdit = () => {
-        setEditingTipoId(null);
-        setEditingTipoNombre("");
-    };
+        const result = await Swal.fire({
+            title: "¿Estás seguro de eliminar el registro?",
+            text: "¡No podrás revertir esto!",
+            icon: "warning",
+            showCancelButton: true,
+            confirmButtonColor: "#3085d6",
+            cancelButtonColor: "#d33",
+            confirmButtonText: "Sí, eliminar",
+            cancelButtonText: "Cancel",
+        });
 
-    const handleSaveEdit = async () => {
-        const normalized = editingTipoNombre.trim().toLowerCase();
-
-        if (!editingTipoId || !normalized) {
-            Swal.fire({
-                title: "Validación",
-                icon: "warning",
-                text: "El tipo de equipo no puede estar vacío.",
-            });
-            return;
-        }
-
-        try {
-            setUpdatingId(editingTipoId);
-            await api.updateTipoEquipo(editingTipoId, { tipoNombre: normalized });
-            Swal.fire({
-                title: "Tipo de equipo actualizado",
-                icon: "success",
-                html: `<p><strong>Tipo:</strong> ${normalized}</p>`,
-            });
-            handleCancelEdit();
-            await fetchTipos();
-        } catch (error) {
-            Swal.fire({
-                title: "Error",
-                icon: "error",
-                text: "No se pudo actualizar el tipo de equipo",
-                footer: `${error.response?.data?.message || "Error desconocido"}`,
-            });
-        } finally {
-            setUpdatingId(null);
-        }
-    };
-
-    const handleRequestDelete = (tipo) => {
-        setTipoToDelete(tipo || null);
-        setDeleteModalOpen(true);
-    };
-
-    const handleToggleDeleteModal = (open) => {
-        if (!open) {
-            setTipoToDelete(null);
-        }
-        setDeleteModalOpen(open);
-    };
-
-    const handleConfirmDelete = async () => {
-        if (!tipoToDelete?._id) {
-            handleToggleDeleteModal(false);
-            return;
-        }
-
-        const displayName = (tipoToDelete?.tipoNombre || "").trim().toUpperCase();
-
-        try {
-            setDeletingId(tipoToDelete._id);
-            await api.deleteTipoEquipo(tipoToDelete._id);
-            Swal.fire({
-                title: "Tipo de equipo eliminado",
-                icon: "success",
-                html: `<p><strong>Tipo:</strong> ${displayName || "(sin nombre)"}</p>`,
-            });
-            if (editingTipoId === tipoToDelete._id) {
-                handleCancelEdit();
+        if (result.isConfirmed) {
+            try {
+                await api.deleteTipoEquipo(id);
+                await Swal.fire({
+                    title: "¡Eliminado!",
+                    text: "El registro ha sido eliminado",
+                    icon: "success",
+                });
+                refreshList();
+            } catch (error) {
+                Swal.fire({
+                    icon: "error",
+                    title: "Error",
+                    text: "Hubo un problema al eliminar el registro",
+                    footer:
+                        error?.response?.data?.message ||
+                        "Inténtalo nuevamente más tarde",
+                });
             }
-            await fetchTipos();
-        } catch (error) {
-            Swal.fire({
-                title: "Error",
-                icon: "error",
-                text: "No se pudo eliminar el tipo de equipo",
-                footer: `${error.response?.data?.message || "Error desconocido"}`,
-            });
-        } finally {
-            setDeletingId(null);
-            handleToggleDeleteModal(false);
         }
+    };
+
+    const showModal = (id) => {
+        setItemId(id);
+        setIsModalOpen(true);
+    };
+
+    const handleOk = () => {
+        setIsModalOpen(false);
+        setItemId("");
+        Swal.fire({
+            position: "center",
+            icon: "success",
+            title: "Registro actualizado",
+            showConfirmButton: false,
+            timer: 1500,
+        });
+    };
+
+    const handleCancel = () => {
+        setIsModalOpen(false);
+        setItemId("");
     };
 
     return (
@@ -144,17 +124,22 @@ const TipoEquipoList = () => {
                     </li>
                 </ol>
             </nav>
-            <h1>Tipos de Equipo Registrados</h1>
 
             <section className={stylesEquipment.tipo__section}>
-                <hr className={stylesEquipment.section__divider} />
+                <div className={stylesEquipment.type__listHeader}>
+                    <h2 className={stylesEquipment.type__listTitle}>
+                        Tipos de equipo registrados
+                    </h2>
+                    <span className={stylesEquipment.type__counter}>
+                        {sortedTipos.length}
+                    </span>
+                </div>
 
-                <div className={stylesEquipment.type__list}>
-                    <div className={stylesEquipment.type__listHeader}>
-                        <h2 className={stylesEquipment.type__listTitle}>Tipos de equipo registrados</h2>
-                        <span className={stylesEquipment.type__counter}>{sortedTipos.length}</span>
+                {isLoading ? (
+                    <div className="loader__spinner">
+                        <Loader />
                     </div>
-
+                ) : (
                     <div className={stylesEquipment.type__tableContainer}>
                         <table className={stylesEquipment.type__table} role="grid">
                             <thead>
@@ -167,95 +152,46 @@ const TipoEquipoList = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {isLoading ? (
+                                {sortedTipos.length === 0 ? (
                                     <tr>
-                                        <td colSpan={3} className={stylesEquipment.type__tableEmpty}>
-                                            Cargando tipos de equipo...
-                                        </td>
-                                    </tr>
-                                ) : sortedTipos.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={3} className={stylesEquipment.type__tableEmpty}>
+                                        <td
+                                            colSpan={3}
+                                            className={stylesEquipment.type__tableEmpty}
+                                        >
                                             Aún no hay tipos de equipo registrados.
                                         </td>
                                     </tr>
                                 ) : (
                                     sortedTipos.map((tipo, index) => {
-                                        const isEditing = editingTipoId === tipo._id;
-                                        const displayName = (tipo?.tipoNombre || "").trim();
-                                        const isSaving = updatingId === tipo._id;
-                                        const isDeleting = deletingId === tipo._id;
+                                        const tipoId = tipo?._id || tipo?.id;
+                                        const nombre = (tipo?.tipoNombre || "").toUpperCase();
 
                                         return (
-                                            <tr key={tipo._id}>
+                                            <tr key={tipoId || index}>
                                                 <td data-label="#">{index + 1}</td>
                                                 <td data-label="Nombre">
-                                                    {isEditing ? (
-                                                        <input
-                                                            type="text"
-                                                            value={editingTipoNombre}
-                                                            onChange={(event) => setEditingTipoNombre(event.target.value)}
-                                                            className={`form__group-input ${stylesEquipment.type__input}`}
-                                                            placeholder="Tipo equipo"
-                                                            onKeyDown={(event) => {
-                                                                if (event.key === "Enter") {
-                                                                    event.preventDefault();
-                                                                    handleSaveEdit();
-                                                                }
-                                                                if (event.key === "Escape") {
-                                                                    event.preventDefault();
-                                                                    handleCancelEdit();
-                                                                }
-                                                            }}
-                                                            autoFocus
-                                                        />
-                                                    ) : (
-                                                        <span className={stylesEquipment.type__name}>
-                                                            {displayName.toUpperCase() || "(SIN NOMBRE)"}
-                                                        </span>
-                                                    )}
+                                                    <span className={stylesEquipment.type__name}>
+                                                        {nombre || "(SIN NOMBRE)"}
+                                                    </span>
                                                 </td>
                                                 <td data-label="Acciones">
                                                     <div className={stylesEquipment.type__actions}>
-                                                        {isEditing ? (
-                                                            <>
-                                                                <button
-                                                                    type="button"
-                                                                    className="button btn-primary"
-                                                                    onClick={handleSaveEdit}
-                                                                    disabled={isSaving || isLoading}
-                                                                >
-                                                                    {isSaving ? "Guardando..." : "Guardar"}
-                                                                </button>
-                                                                <button
-                                                                    type="button"
-                                                                    className="button btn-secondary"
-                                                                    onClick={handleCancelEdit}
-                                                                    disabled={isSaving || isLoading}
-                                                                >
-                                                                    Cancelar
-                                                                </button>
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <button
-                                                                    type="button"
-                                                                    className="button btn-secondary"
-                                                                    onClick={() => handleStartEdit(tipo)}
-                                                                    disabled={Boolean(updatingId) || Boolean(deletingId) || isLoading}
-                                                                >
-                                                                    Editar
-                                                                </button>
-                                                                <button
-                                                                    type="button"
-                                                                    className="button btn-danger"
-                                                                    onClick={() => handleRequestDelete(tipo)}
-                                                                    disabled={isDeleting || Boolean(updatingId) || isLoading}
-                                                                >
-                                                                    {isDeleting ? "Eliminando..." : "Eliminar"}
-                                                                </button>
-                                                            </>
-                                                        )}
+                                                        <button
+                                                            type="button"
+                                                            className="button btn-secondary"
+                                                            onClick={() => showModal(tipoId)}
+                                                            disabled={!tipoId}
+                                                        >
+                                                            Editar
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            className="button btn-danger"
+                                                            onClick={() => deleteTipoEquipo(tipoId)}
+                                                            disabled={!tipoId}
+                                                        >
+                                                            Eliminar
+                                                        </button>
                                                     </div>
                                                 </td>
                                             </tr>
@@ -265,40 +201,21 @@ const TipoEquipoList = () => {
                             </tbody>
                         </table>
                     </div>
-                </div>
+                )}
             </section>
 
-            <ModalComponent
-                modalOpen={deleteModalOpen}
-                setModalOpen={handleToggleDeleteModal}
-                title="Eliminar tipo de equipo"
-            >
-                <p>
-                    {tipoToDelete
-                        ? `¿Estás seguro que deseas eliminar el tipo de equipo "${(tipoToDelete?.tipoNombre || "").trim().toUpperCase() || "(SIN NOMBRE)"}"?`
-                        : "¿Estás seguro que deseas eliminar este tipo de equipo?"}
-                </p>
-                <div className={stylesEquipment.type__actions}>
-                    <button
-                        type="button"
-                        className="button btn-danger"
-                        onClick={handleConfirmDelete}
-                        disabled={Boolean(deletingId) && tipoToDelete?._id === deletingId}
-                    >
-                        {Boolean(deletingId) && tipoToDelete?._id === deletingId ? "Eliminando..." : "Eliminar"}
-                    </button>
-                    <button
-                        type="button"
-                        className="button btn-secondary"
-                        onClick={() => handleToggleDeleteModal(false)}
-                        disabled={Boolean(deletingId) && tipoToDelete?._id === deletingId}
-                    >
-                        Cancelar
-                    </button>
-                </div>
-            </ModalComponent>
+            {isModalOpen && (
+                <ModalTipoEquipo
+                    isModalOpen={isModalOpen}
+                    handleOk={handleOk}
+                    handleCancel={handleCancel}
+                    itemId={itemId}
+                    refreshList={refreshList}
+                />
+            )}
         </div>
     );
 };
 
 export default TipoEquipoList;
+
