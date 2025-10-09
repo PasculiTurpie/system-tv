@@ -331,28 +331,13 @@ class Api {
             ...normalizeTitanOptions(pathOrOptions),
         };
 
-        const path = options.path ?? DEFAULT_TITAN_OPTIONS.path;
-        const username = options.username ?? DEFAULT_TITAN_OPTIONS.username;
-        const password = options.password ?? DEFAULT_TITAN_OPTIONS.password;
-        const protocol = options.protocol ?? DEFAULT_TITAN_OPTIONS.protocol;
-        const timeout = options.timeout ?? DEFAULT_TITAN_OPTIONS.timeout;
+        const params = new URLSearchParams();
+        params.set("host", host);
+        if (options.path) params.set("path", options.path);
+        if (options.protocol) params.set("protocol", options.protocol);
 
-        const baseUrl = `${protocol}://${host}`;
-        const targetUrl = new URL(path, baseUrl).toString();
-
-        const config = {
-            headers: { Accept: "application/json" },
-            timeout,
-        };
-
-        if (username || password) {
-            config.auth = {
-                username: username ?? "",
-                password: password ?? "",
-            };
-        }
-
-        const response = await axios.get(targetUrl, config);
+        const url = `/titans/services?${params.toString()}`;
+        const response = await this._axios.get(url);
         return response.data;
     }
     async getTitanServicesMulti(hosts, pathOrOptions = undefined) {
@@ -367,38 +352,66 @@ class Api {
 
         const uniqueHosts = Array.from(new Set(normalizedHosts));
 
-        const results = await Promise.allSettled(
-            uniqueHosts.map(async (host) => {
-                const payload = await this.getTitanServices(host, pathOrOptions);
-                return { ok: true, host, ip: host, data: payload };
-            })
-        );
+        if (uniqueHosts.length === 0) {
+            return [];
+        }
 
-        return results.map((entry, index) => {
-            const host = uniqueHosts[index];
-            if (entry.status === "fulfilled") {
-                return entry.value;
-            }
+        const options = {
+            ...DEFAULT_TITAN_OPTIONS,
+            ...normalizeTitanOptions(pathOrOptions),
+        };
 
-            const error = entry.reason;
-            const output = { ok: false, host, ip: host };
+        const params = new URLSearchParams();
+        params.set("hosts", uniqueHosts.join(","));
+        if (options.path) params.set("path", options.path);
+        if (options.protocol) params.set("protocol", options.protocol);
 
-            if (error && typeof error === "object") {
-                if (error.response) {
-                    output.status = error.response.status;
-                    output.statusText = error.response.statusText;
-                    output.error = error.response.data ?? error.response.statusText;
-                } else if (error.message) {
-                    output.error = error.message;
-                } else {
-                    output.error = error;
+        try {
+            const response = await this._axios.get(
+                `/titans/services/multi?${params.toString()}`
+            );
+            return Array.isArray(response.data) ? response.data : [];
+        } catch (error) {
+            const multiErrorMessage =
+                error?.response?.data?.error ||
+                error?.response?.data?.message ||
+                error?.response?.statusText ||
+                error?.message ||
+                error;
+            const results = await Promise.allSettled(
+                uniqueHosts.map(async (host) => {
+                    const payload = await this.getTitanServices(host, pathOrOptions);
+                    return { ok: true, host, ip: host, data: payload };
+                })
+            );
+
+            return results.map((entry, index) => {
+                const host = uniqueHosts[index];
+                if (entry.status === "fulfilled") {
+                    return entry.value;
                 }
-            } else {
-                output.error = error;
-            }
 
-            return output;
-        });
+                const errorReason = entry.reason;
+                const output = { ok: false, host, ip: host };
+
+                if (errorReason && typeof errorReason === "object") {
+                    if (errorReason.response) {
+                        output.status = errorReason.response.status;
+                        output.statusText = errorReason.response.statusText;
+                        output.error =
+                            errorReason.response.data ?? errorReason.response.statusText;
+                    } else if (errorReason.message) {
+                        output.error = errorReason.message;
+                    } else {
+                        output.error = errorReason;
+                    }
+                } else {
+                    output.error = errorReason ?? multiErrorMessage;
+                }
+
+                return output;
+            });
+        }
     }
 
     // ====== AUDIT ======

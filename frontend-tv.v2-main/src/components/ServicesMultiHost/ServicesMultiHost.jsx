@@ -10,16 +10,13 @@ import api from "../../utils/api";
  * - Botón Exportar CSV (aplica al filtrado)
  */
 
-const PROTOCOL = "http";
 const TITAN_SERVICES_PATH = "/api/v1/servicesmngt/services";
 const env =
   typeof import.meta !== "undefined" && import.meta?.env ? import.meta.env : {};
-const TITAN_USERNAME = env.VITE_TITAN_USERNAME || "Operator";
-const TITAN_PASSWORD = env.VITE_TITAN_PASSWORD || "titan";
+const TITAN_PROTOCOL = env.VITE_TITAN_PROTOCOL || "http";
 const TITAN_REQUEST_OPTIONS = {
   path: TITAN_SERVICES_PATH,
-  username: TITAN_USERNAME,
-  password: TITAN_PASSWORD,
+  protocol: TITAN_PROTOCOL,
 };
 
 // ───────────────────────── estado de hosts Titan (dinámico vía getEquipo) ─────────────────────────
@@ -428,7 +425,7 @@ function downloadText(filename, text) {
 /* Helpers UI */
 function hostHref(ip) {
   if (!ip) return "#";
-  return `${PROTOCOL}://${ip}`;
+  return `${TITAN_PROTOCOL}://${ip}`;
 }
 
 /* ───────────────────────── Componente ───────────────────────── */
@@ -798,7 +795,7 @@ export default function ServicesMultiHost() {
                         target="_blank"
                         rel="noopener noreferrer"
                         style={{ textDecoration: "underline", whiteSpace: "nowrap" }}
-                        title={`${PROTOCOL}://${r.ip}`}
+                        title={`${TITAN_PROTOCOL}://${r.ip}`}
                       >
                         {r.ip}
                       </a>
@@ -848,7 +845,7 @@ export default function ServicesMultiHost() {
                         target="_blank"
                         rel="noopener noreferrer"
                         style={{ textDecoration: "underline", whiteSpace: "nowrap" }}
-                        title={`${PROTOCOL}://${r.ip}`}
+                        title={`${TITAN_PROTOCOL}://${r.ip}`}
                       >
                         {r.ip}
                       </a>
