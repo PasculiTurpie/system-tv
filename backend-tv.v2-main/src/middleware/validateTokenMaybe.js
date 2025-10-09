@@ -2,12 +2,7 @@
 // pero NUNCA corta el flujo (no responde 401).
 // Soporta Authorization: Bearer, cookie access_token, x-access-token.
 
-const jwt = require("jsonwebtoken");
-
-const JWT_SECRET =
-  process.env.JWT_ACCESS_SECRET ||
-  process.env.JWT_SECRET ||
-  "dev_default_secret_change_me";
+const { verifyAccess } = require("../../utils/jwt");
 
 function getToken(req) {
   const h = req.headers?.authorization || req.headers?.Authorization;
@@ -40,7 +35,7 @@ module.exports = function validateTokenMaybe(req, _res, next) {
       req.user = null;
       return next();
     }
-    const payload = jwt.verify(token, JWT_SECRET);
+    const payload = verifyAccess(token);
     req.user = normalizePayload(payload);
     return next();
   } catch (_e) {

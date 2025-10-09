@@ -120,13 +120,21 @@ class Api {
         return this._axios.post("/auth/logout").then((res) => res.data);
     }
 
-    profile() {
+    profile(options = {}) {
+        const config = { ...options };
         return this._axios
-            .get("/auth/me")
+            .get("/auth/me", config)
             .then((res) => res.data)
             .catch(async (e) => {
+                if (axios.isCancel && axios.isCancel(e)) {
+                    throw e;
+                }
+                if (e?.code === "ERR_CANCELED") {
+                    throw e;
+                }
                 if (e?.response?.status === 404) {
-                    const r = await this._axios.get("/auth/me");
+                    const retryConfig = { ...options };
+                    const r = await this._axios.get("/auth/me", retryConfig);
                     return r.data;
                 }
                 throw e;

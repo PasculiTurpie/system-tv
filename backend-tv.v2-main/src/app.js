@@ -2,11 +2,22 @@ const express = require("express");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const morgan = require("morgan");
+const { errors: celebrateErrors, isCelebrateError } = require("celebrate");
 
 const { attachUserIfPresent } = require("./middleware/attachUserIfPresent");
 const validateTokenMaybe = require("./middleware/validateTokenMaybe");
 const { autoAudit } = require("./middleware/autoAudit");
 const { protectMutating } = require("./middleware/protectMutating");
+const sanitizeRequest = require("./middleware/sanitizeRequest");
+
+function applySecurityHeaders(_req, res, next) {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+  res.setHeader("X-XSS-Protection", "0");
+  next();
+}
 
 const AuthRoutes = require("./routes/auth.routes");
 const UserRoutes = require("./routes/user.routes");
@@ -28,6 +39,7 @@ const API_PREFIX = "/api/v2";
 const app = express();
 
 app.set("trust proxy", true);
+app.disable("x-powered-by");
 
 const defaultOrigins = [
   "http://localhost:5173",
@@ -89,8 +101,15 @@ app.options(
 );
 
 app.use(cookieParser());
-app.use(express.json());
+app.use(
+  express.json({
+    limit: process.env.REQUEST_PAYLOAD_LIMIT || "1mb",
+  })
+);
+app.use(express.urlencoded({ extended: false }));
 app.use(morgan("dev"));
+app.use(applySecurityHeaders);
+app.use(sanitizeRequest);
 
 app.use(attachUserIfPresent);
 app.use(validateTokenMaybe);
@@ -129,8 +148,21 @@ app.use((req, res, next) => {
   return next();
 });
 
+app.use(celebrateErrors());
+
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, _next) => {
+  if (isCelebrateError(err)) {
+    const details = [];
+    for (const segment of err.details.values()) {
+      details.push(...segment.details.map((detail) => detail.message));
+    }
+    return res.status(400).json({
+      message: "Solicitud inválida",
+      errors: details,
+    });
+  }
+
   if (err?.message === "Not allowed by CORS") {
     return res.status(403).json({
       message: "Origen no permitido por CORS",
