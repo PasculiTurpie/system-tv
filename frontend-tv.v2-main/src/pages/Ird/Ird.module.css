@@ -1,6 +1,10 @@
 :global(.form__add).formGrid {
-    width: min(1120px, 100%);
+    width: 100%;
+    max-width: 1120px;
     margin-inline: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
 }
 
 .rows__group {
@@ -13,6 +17,10 @@
 
 .columns__group {
     display: contents;
+}
+
+.submitButton {
+    align-self: flex-end;
 }
 
 @media (max-width: 1200px) {
