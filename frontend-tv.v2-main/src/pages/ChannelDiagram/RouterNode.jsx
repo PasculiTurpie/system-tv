@@ -1,7 +1,7 @@
 // src/pages/ChannelDiagram/RouterNode.jsx
-import React, { useCallback, useContext, useRef, useState } from "react";
-import { Handle, Position, useReactFlow } from "@xyflow/react";
-import { UserContext } from "../../components/context/UserContext";
+import React, { useCallback, useContext, useEffect, useRef, useState } from "react";
+import { Handle, Position } from "@xyflow/react";
+import { DiagramContext } from "./DiagramContext";
 
 const styles = {
   box: {
@@ -27,33 +27,33 @@ const styles = {
   dot: { background: "transparent" },
 };
 
-const vSlots = [6, 17, 28, 39, 50, 61, 72, 83, 94]; // 9 puertos verticales
+const leftSlots = [30, 70];
+const rightSlots = [30, 70];
+const bottomSlots = [25, 50, 75];
 
 export default function RouterNode({ id, data }) {
-  const rf = useReactFlow();
-  const { isAuth } = useContext(UserContext);
+  const { isReadOnly, onNodeLabelChange } = useContext(DiagramContext);
+  const canEdit = !isReadOnly;
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(() => data?.label ?? "Router");
   const inputRef = useRef(null);
 
+  useEffect(() => {
+    setValue(data?.label ?? "Router");
+  }, [data?.label]);
+
   const startEdit = useCallback((e) => {
-    if (!isAuth) return;
+    if (!canEdit) return;
     e.stopPropagation();
     setValue(String(data?.label ?? "Router"));
     setEditing(true);
-  }, [data?.label, isAuth]);
+  }, [data?.label, canEdit]);
 
   const commit = useCallback(() => {
-    if (!isAuth) return;
+    if (!canEdit) return;
     setEditing(false);
-    rf.setNodes((nds) =>
-      nds.map((n) =>
-        n.id === id ? { ...n, data: { ...(n.data || {}), label: value } } : n
-      )
-    );
-    // que el autosave arriba escuche
-    window.dispatchEvent(new Event("flow:save"));
-  }, [id, value, rf, isAuth]);
+    onNodeLabelChange?.(id, value);
+  }, [canEdit, id, onNodeLabelChange, value]);
 
   const onKeyDown = useCallback((e) => {
     if (e.key === "Enter") commit();
@@ -67,43 +67,65 @@ export default function RouterNode({ id, data }) {
     <div style={styles.box} title={data?.tooltip || data?.label || "Router"}>
       {!editing ? (
         <div
-          style={{ ...styles.title, cursor: isAuth ? "text" : "default" }}
+          style={{ ...styles.title, cursor: canEdit ? "text" : "default" }}
           onDoubleClick={startEdit}
-          title={isAuth ? "Doble click para editar" : "Solo lectura"}
+          title={canEdit ? "Doble click para editar" : "Solo lectura"}
         >
           {data?.label ?? "Router"}
         </div>
       ) : (
         <input
-          ref={(el) => { if (el) { el.focus(); el.select(); } inputRef.current = el; }}
+          ref={(el) => {
+            if (el) {
+              el.focus();
+              el.select();
+            }
+            inputRef.current = el;
+          }}
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onBlur={commit}
           onKeyDown={onKeyDown}
           style={styles.input}
+          aria-label="Editar etiqueta del router"
         />
       )}
 
-      {/* 9 IN a la izquierda */}
-      {vSlots.map((p, i) => (
+      {leftSlots.map((p, index) => (
         <Handle
-          key={`in-left-${i + 1}`}
-          id={`in-left-${i + 1}`}
+          key={`in-left-${index + 1}`}
+          id={`in-left-${index + 1}`}
           type="target"
           position={Position.Left}
           style={{ ...styles.dot, top: `${p}%` }}
         />
       ))}
 
-      {/* 9 OUT a la derecha */}
-      {vSlots.map((p, i) => (
+      {rightSlots.map((p, index) => (
         <Handle
-          key={`out-right-${i + 1}`}
-          id={`out-right-${i + 1}`}
+          key={`out-right-${index + 1}`}
+          id={`out-right-${index + 1}`}
           type="source"
           position={Position.Right}
           style={{ ...styles.dot, top: `${p}%` }}
         />
+      ))}
+
+      {bottomSlots.map((p, index) => (
+        <React.Fragment key={`bottom-${index}`}>
+          <Handle
+            id={`in-bottom-${index + 1}`}
+            type="target"
+            position={Position.Bottom}
+            style={{ ...styles.dot, left: `${p}%` }}
+          />
+          <Handle
+            id={`out-bottom-${index + 1}`}
+            type="source"
+            position={Position.Bottom}
+            style={{ ...styles.dot, left: `${p}%` }}
+          />
+        </React.Fragment>
       ))}
     </div>
   );

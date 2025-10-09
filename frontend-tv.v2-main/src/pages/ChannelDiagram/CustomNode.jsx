@@ -1,6 +1,6 @@
-import React, { useCallback, useContext, useRef, useState } from "react";
-import { Handle, Position, useReactFlow } from "@xyflow/react";
-import { UserContext } from "../../components/context/UserContext";
+import React, { useCallback, useContext, useEffect, useRef, useState } from "react";
+import { Handle, Position } from "@xyflow/react";
+import { DiagramContext } from "./DiagramContext";
 
 const box = {
   padding: 10,
@@ -17,34 +17,32 @@ const pctTop = (p) => ({ top: `${p}%` });
 const pctLeft = (p) => ({ left: `${p}%` });
 
 export default function CustomNode({ id, data }) {
-  const rf = useReactFlow();
-  const { isAuth } = useContext(UserContext);
+  const { isReadOnly, onNodeLabelChange } = useContext(DiagramContext);
+  const canEdit = !isReadOnly;
 
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(() => data?.label ?? "");
   const inputRef = useRef(null);
 
+  useEffect(() => {
+    setValue(data?.label ?? "");
+  }, [data?.label]);
+
   const startEdit = useCallback(
     (e) => {
-      if (!isAuth) return; // solo usuarios logueados
+      if (!canEdit) return;
       e.stopPropagation();
       setValue(String(data?.label ?? ""));
       setEditing(true);
     },
-    [data?.label, isAuth]
+    [data?.label, canEdit]
   );
 
   const commit = useCallback(() => {
-    if (!isAuth) return;
+    if (!canEdit) return;
     setEditing(false);
-    rf.setNodes((nds) =>
-      nds.map((n) =>
-        n.id === id ? { ...n, data: { ...(n.data || {}), label: value } } : n
-      )
-    );
-    // avisar para guardar
-    window.dispatchEvent(new Event("flow:save"));
-  }, [id, value, rf, isAuth]);
+    onNodeLabelChange?.(id, value);
+  }, [canEdit, id, onNodeLabelChange, value]);
 
   const onKeyDown = useCallback(
     (e) => {
@@ -77,10 +75,10 @@ export default function CustomNode({ id, data }) {
         <div
           style={{
             fontWeight: "bold",
-            cursor: isAuth ? "text" : "default",
+            cursor: canEdit ? "text" : "default",
             padding: "2px 4px",
           }}
-          title={isAuth ? "Doble click para editar" : "Solo lectura"}
+          title={canEdit ? "Doble click para editar" : "Solo lectura"}
           onDoubleClick={startEdit}
         >
           {data?.label}
@@ -92,6 +90,7 @@ export default function CustomNode({ id, data }) {
           onChange={(e) => setValue(e.target.value)}
           onBlur={commit}
           onKeyDown={onKeyDown}
+          aria-label="Editar etiqueta del nodo"
           style={{
             width: "100%",
             fontWeight: 700,

@@ -15,5 +15,7 @@ router
   .delete(ChannelController.deleteChannel);
 
 router.put("/channels/:id/flow", ChannelController.updateChannelFlow);
+router.patch("/channels/:id/node/:nodeId", ChannelController.patchNode);
+router.patch("/channels/:id/edge/:edgeId", ChannelController.patchEdge);
 
 module.exports = router;
