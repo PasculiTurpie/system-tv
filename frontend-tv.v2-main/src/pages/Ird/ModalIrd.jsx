@@ -1,18 +1,98 @@
-import { useEffect, useState } from "react";
-import api from "../../utils/api";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Formik, Form, Field } from "formik";
 import * as Yup from "yup";
 import Swal from "sweetalert2";
-import stylesIrd from "./Ird.module.css";
+
 import ModalComponent from "../../components/ModalComponent/ModalComponent";
+import api from "../../utils/api";
+import stylesIrd from "./Ird.module.css";
 
 const ipMulticastRegex =
     /^(2+(?:[0-4]\d|5[0-5])\.(?:[0-9]{1,2}|1\d\d|2[0-4]\d|25[0-5])\.(?:[0-9]{1,2}|1\d\d|2[0-4]\d|25[0-5])\.(?:[0-9]{1,2}|1\d\d|2[0-4]\d|25[0-5]))$/;
 
 const ipVideoMulticast = /^(192.168)?\.(\d{1,3}\.)\d{1,3}$/;
 
+const DEFAULT_IRD_VALUES = {
+    urlIrd: "",
+    nombreIrd: "",
+    ipAdminIrd: "",
+    marcaIrd: "",
+    modelIrd: "",
+    versionIrd: "",
+    uaIrd: "",
+    tidReceptor: "",
+    typeReceptor: "",
+    feqReceptor: "",
+    symbolRateIrd: "",
+    fecReceptorIrd: "",
+    modulationReceptorIrd: "",
+    rellOfReceptor: "",
+    nidReceptor: "",
+    cvirtualReceptor: "",
+    vctReceptor: "",
+    outputReceptor: "",
+    swAdmin: "",
+    portSw: "",
+    multicastReceptor: "",
+    ipVideoMulticast: "",
+    locationRow: "",
+    locationCol: "",
+};
+
+const FIELD_GROUPS = [
+    [
+        { name: "urlIrd", label: "Url imagen", placeholder: "Url imagen" },
+        { name: "nombreIrd", label: "Nombre Ird", placeholder: "Nombre Ird" },
+        { name: "marcaIrd", label: "Marca", placeholder: "Marca" },
+        { name: "modelIrd", label: "Modelo", placeholder: "Modelo" },
+        { name: "ipAdminIrd", label: "Ip administración", placeholder: "Ip administración" },
+        { name: "versionIrd", label: "Versión", placeholder: "Versión" },
+    ],
+    [
+        { name: "tidReceptor", label: "TID", placeholder: "TID" },
+        { name: "typeReceptor", label: "Tipo receptor", placeholder: "Tipo receptor" },
+        { name: "feqReceptor", label: "Frecuencia", placeholder: "Frecuencia" },
+        { name: "symbolRateIrd", label: "Symbol Rate", placeholder: "Symbol Rate" },
+        { name: "fecReceptorIrd", label: "FEC", placeholder: "FEC" },
+        { name: "uaIrd", label: "UA", placeholder: "UA" },
+    ],
+    [
+        {
+            name: "modulationReceptorIrd",
+            label: "Modulación",
+            placeholder: "Modulación",
+        },
+        { name: "rellOfReceptor", label: "Roll Of", placeholder: "Roll Of" },
+        { name: "nidReceptor", label: "Nid", placeholder: "Nid" },
+        {
+            name: "cvirtualReceptor",
+            label: "Canal Virtual",
+            placeholder: "Canal Virtual",
+        },
+        { name: "vctReceptor", label: "VCT", placeholder: "VCT" },
+        { name: "swAdmin", label: "SW Admin", placeholder: "SW Admin" },
+        { name: "outputReceptor", label: "Salida", placeholder: "Salida" },
+        {
+            name: "multicastReceptor",
+            label: "Multicast Receptor",
+            placeholder: "Multicast Receptor",
+        },
+        {
+            name: "ipVideoMulticast",
+            label: "Ip Video Multicast",
+            placeholder: "Ip Video Multicast",
+        },
+        { name: "locationRow", label: "Fila", placeholder: "Fila" },
+        { name: "locationCol", label: "Bastidor", placeholder: "Bastidor" },
+        { name: "portSw", label: "SW Port", placeholder: "SW Port" },
+    ],
+];
+
 const UpdateIrdSchema = Yup.object().shape({
-    urlIrd: Yup.string().matches(/(?:https?:\/\/\w+\.\w+\.\w+.+)/, "Ingresa una url válida"),
+    urlIrd: Yup.string().matches(
+        /(?:https?:\/\/\w+\.\w+\.\w+.+)/,
+        "Ingresa una url válida"
+    ),
     ipAdminIrd: Yup.string().matches(
         /^172\.19\.\d{1,3}\.\d{1,3}$/,
         "Ingresa una ip válida"
@@ -49,637 +129,167 @@ const UpdateIrdSchema = Yup.object().shape({
 
 const ModalIrd = ({ itemId, modalOpen, setModalOpen, title, refreshList }) => {
     const [dataIrd, setDataIrd] = useState(null);
+    const [loading, setLoading] = useState(false);
 
     useEffect(() => {
-        if (itemId) {
-             
-            api.getIdIrd(itemId).then((res) => {
-                 
-                setDataIrd(res.data);
-            });
+        if (!modalOpen) {
+            setDataIrd(null);
+            setLoading(false);
+            return;
         }
-    }, [itemId]);
 
-    if (!dataIrd) return null;
-    return (
-        <Formik
-            initialValues={{
-                urlIrd: dataIrd.urlIrd || "",
-                nombreIrd:dataIrd.nombreIrd || "",
-                ipAdminIrd: dataIrd.ipAdminIrd || "",
-                marcaIrd: dataIrd.marcaIrd || "",
-                modelIrd: dataIrd.modelIrd || "",
-                versionIrd: dataIrd.versionIrd || "",
-                uaIrd: dataIrd.uaIrd || "",
-                tidReceptor: dataIrd.tidReceptor || "",
-                typeReceptor: dataIrd.typeReceptor || "",
-                feqReceptor: dataIrd.feqReceptor || "",
-                symbolRateIrd: dataIrd.symbolRateIrd || "",
-                fecReceptorIrd: dataIrd.fecReceptorIrd || "",
-                modulationReceptorIrd: dataIrd.modulationReceptorIrd || "",
-                rellOfReceptor: dataIrd.rellOfReceptor || "",
-                nidReceptor: dataIrd.nidReceptor || "",
-                cvirtualReceptor: dataIrd.cvirtualReceptor || "",
-                vctReceptor: dataIrd.vctReceptor || "",
-                outputReceptor: dataIrd.outputReceptor || "",
-                swAdmin: dataIrd.swAdmin || "",
-                portSw: dataIrd.portSw || "",
-                multicastReceptor: dataIrd.multicastReceptor || "",
-                ipVideoMulticast: dataIrd.ipVideoMulticast || "",
-                locationRow: dataIrd.locationRow || "",
-                locationCol: dataIrd.locationCol || "",
-            }}
-            validationSchema={UpdateIrdSchema}
-            onSubmit={async (values, { resetForm }) => {
-                try {
-                    await api.updateIrd(itemId, values);
-                     
-                    Swal.fire({
-                        icon: "success",
-                        title: "Equipo actualizado",
-                        text: "El equipo se ha actualizado exitosamente!",
-                        footer: `<h4>${values.nombreIrd}</h4>
-                        <h4>${values.modelIrd}</h4>
-                        
-                        `,
-                    });
-                    refreshList();
-                    setModalOpen(false);
-                    resetForm();
-                } catch (error) {
-                    Swal.fire({
-                        icon: "error",
-                        title: "Ups!!",
-                        text: `${
-                            error.response?.data?.message || "Error desconocido"
-                        }`,
-                    });
-                    console.error(error);
+        if (!itemId) {
+            setDataIrd(DEFAULT_IRD_VALUES);
+            return;
+        }
+
+        let active = true;
+
+        const fetchData = async () => {
+            setLoading(true);
+
+            try {
+                const { data } = await api.getIdIrd(itemId);
+
+                if (!active) return;
+
+                setDataIrd(data ?? DEFAULT_IRD_VALUES);
+            } catch (error) {
+                if (!active) return;
+
+                console.error("Error al obtener IRD:", error);
+                Swal.fire({
+                    icon: "error",
+                    title: "Ups!!",
+                    text: `${
+                        error.response?.data?.message || "Error desconocido"
+                    }`,
+                });
+                setDataIrd(DEFAULT_IRD_VALUES);
+            } finally {
+                if (active) {
+                    setLoading(false);
                 }
             }
+        };
+
+        fetchData();
+
+        return () => {
+            active = false;
+        };
+    }, [itemId, modalOpen]);
+
+    const initialValues = useMemo(
+        () => ({ ...DEFAULT_IRD_VALUES, ...(dataIrd ?? {}) }),
+        [dataIrd]
+    );
+
+    const handleSubmit = useCallback(
+        async (values, { resetForm, setSubmitting }) => {
+            if (!itemId) {
+                Swal.fire({
+                    icon: "error",
+                    title: "Ups!!",
+                    text: "No se encontró el identificador del equipo",
+                });
+                setSubmitting(false);
+                return;
             }
+
+            try {
+                await api.updateIrd(itemId, values);
+
+                Swal.fire({
+                    icon: "success",
+                    title: "Equipo actualizado",
+                    html: `<h4>${values.nombreIrd}</h4><h4>${values.modelIrd}</h4><p>El equipo se ha actualizado exitosamente!</p>`,
+                });
+
+                refreshList?.();
+                setModalOpen(false);
+                resetForm({ values });
+            } catch (error) {
+                Swal.fire({
+                    icon: "error",
+                    title: "Ups!!",
+                    text: `${
+                        error.response?.data?.message || "Error desconocido"
+                    }`,
+                });
+                console.error(error);
+            } finally {
+                setSubmitting(false);
+            }
+        },
+        [itemId, refreshList, setModalOpen]
+    );
+
+    const renderField = (field, errors, touched) => {
+        const error = errors[field.name];
+        const isTouched = touched[field.name];
+
+        return (
+            <div className="form__group" key={field.name}>
+                <label htmlFor={field.name} className="form__group-label">
+                    {field.label}
+                    <Field
+                        id={field.name}
+                        name={field.name}
+                        type={field.type || "text"}
+                        className="form__group-input"
+                        placeholder={field.placeholder ?? field.label}
+                    />
+                </label>
+                {error && isTouched ? (
+                    <div className="form__group-error">{error}</div>
+                ) : null}
+            </div>
+        );
+    };
+
+    return (
+        <Formik
+            enableReinitialize
+            initialValues={initialValues}
+            validationSchema={UpdateIrdSchema}
+            onSubmit={handleSubmit}
         >
-            {({ errors, touched }) => (
+            {({ errors, touched, isSubmitting }) => (
                 <ModalComponent
                     modalOpen={modalOpen}
                     title={title}
                     setModalOpen={setModalOpen}
                 >
-                    <Form className={`form__add ${stylesIrd.formGrid}`}>
-                        <div className={stylesIrd.rows__group}>
-                            <div className={stylesIrd.columns__group}>
-                                <div className="form__group">
-                                    <label
-                                        htmlFor="typeReceptor"
-                                        className="form__group-label"
-                                    >
-                                        Url imagen
-                                        <br />
-                                        <Field
-                                            type="text"
-                                            className="form__group-input"
-                                            placeholder="Nombre"
-                                            name="urlIrd"
-                                        />
-                                    </label>
-                                    {errors.urlIrd && touched.urlIrd ? (
-                                        <div className="form__group-error">
-                                            {errors.urlIrd}
-                                        </div>
-                                    ) : null}
-                                </div>
-                                <div className="form__group">
-                                    <label
-                                        htmlFor="nombreIrd"
-                                        className="form__group-label"
-                                    >
-                                        Nombre Ird
-                                        <br />
-                                        <Field
-                                            type="text"
-                                            className="form__group-input"
-                                            placeholder="Nombre Ird"
-                                            name="nombreIrd"
-                                        />
-                                    </label>
-                                    {errors.nombreIrd && touched.nombreIrd ? (
-                                        <div className="form__group-error">
-                                            {errors.nombreIrd}
-                                        </div>
-                                    ) : null}
-                                </div>
-                                <div className="form__group">
-                                    <label
-                                        htmlFor="typeReceptor"
-                                        className="form__group-label"
-                                    >
-                                        Marca
-                                        <br />
-                                        <Field
-                                            type="text"
-                                            className="form__group-input"
-                                            placeholder="Nombre"
-                                            name="marcaIrd"
-                                        />
-                                    </label>
-                                    {errors.marcaIrd && touched.marcaIrd ? (
-                                        <div className="form__group-error">
-                                            {errors.marcaIrd}
-                                        </div>
-                                    ) : null}
-                                </div>
-                                <div className="form__group">
-                                    <label
-                                        htmlFor="modelIrd"
-                                        className="form__group-label"
-                                    >
-                                        Modelo
-                                        <br />
-                                        <Field
-                                            type="text"
-                                            className="form__group-input"
-                                            placeholder="Nombre"
-                                            name="modelIrd"
-                                        />
-                                    </label>
-
-                                    {errors.modelIrd && touched.modelIrd ? (
-                                        <div className="form__group-error">
-                                            {errors.modelIrd}
-                                        </div>
-                                    ) : null}
-                                </div>
-                                <div className="form__group">
-                                    <label
-                                        htmlFor="ipAdminIrd"
-                                        className="form__group-label"
-                                    >
-                                        Ip administración
-                                        <br />
-                                        <Field
-                                            type="text"
-                                            className="form__group-input"
-                                            placeholder="Nombre"
-                                            name="ipAdminIrd"
-                                        />
-                                    </label>
-
-                                    {errors.ipAdminIrd && touched.ipAdminIrd ? (
-                                        <div className="form__group-error">
-                                            {errors.ipAdminIrd}
-                                        </div>
-                                    ) : null}
-                                </div>
-                                <div className="form__group">
-                                    <label
-                                        htmlFor="marcaIrd"
-                                        className="form__group-label"
-                                    >
-                                        Versión
-                                        <br />
-                                        <Field
-                                            type="text"
-                                            className="form__group-input"
-                                            placeholder="Nombre"
-                                            name="versionIrd"
-                                        />
-                                    </label>
-
-                                    {errors.versionIrd && touched.versionIrd ? (
-                                        <div className="form__group-error">
-                                            {errors.versionIrd}
-                                        </div>
-                                    ) : null}
-                                </div>
-                                
-                            </div>
-                            {/* ########################################## */}
-                            <div className={stylesIrd.columns__group}>
-                                <div className="form__group">
-                                    <label
-                                        htmlFor="uaIrd"
-                                        className="form__group-label"
-                                    >
-                                        TID
-                                        <br />
-                                        <Field
-                                            type="text"
-                                            className="form__group-input"
-                                            placeholder="Nombre"
-                                            name="tidReceptor"
-                                        />
-                                    </label>
-
-                                    {errors.tidReceptor &&
-                                    touched.tidReceptor ? (
-                                        <div className="form__group-error">
-                                            {errors.tidReceptor}
-                                        </div>
-                                    ) : null}
-                                </div>
-
-                                <div className="form__group">
-                                    <label
-                                        htmlFor="tidReceptor"
-                                        className="form__group-label"
-                                    >
-                                        Tipo receptor
-                                        <br />
-                                        <Field
-                                            type="text"
-                                            className="form__group-input"
-                                            placeholder="Nombre"
-                                            name="typeReceptor"
-                                        />
-                                    </label>
-
-                                    {errors.typeReceptor &&
-                                    touched.typeReceptor ? (
-                                        <div className="form__group-error">
-                                            {errors.typeReceptor}
-                                        </div>
-                                    ) : null}
-                                </div>
-
-                                <div className="form__group">
-                                    <label
-                                        htmlFor="feqReceptor"
-                                        className="form__group-label"
-                                    >
-                                        Frecuencia
-                                        <br />
-                                        <Field
-                                            type="text"
-                                            className="form__group-input"
-                                            placeholder="Nombre"
-                                            name="feqReceptor"
-                                        />
-                                    </label>
-
-                                    {errors.feqReceptor &&
-                                    touched.feqReceptor ? (
-                                        <div className="form__group-error">
-                                            {errors.feqReceptor}
-                                        </div>
-                                    ) : null}
-                                </div>
-
-                                <div className="form__group">
-                                    <label
-                                        htmlFor="symbolRateIrd"
-                                        className="form__group-label"
-                                    >
-                                        Symbol Rate
-                                        <br />
-                                        <Field
-                                            type="text"
-                                            className="form__group-input"
-                                            placeholder="Nombre"
-                                            name="symbolRateIrd"
-                                        />
-                                    </label>
-
-                                    {errors.symbolRateIrd &&
-                                    touched.symbolRateIrd ? (
-                                        <div className="form__group-error">
-                                            {errors.symbolRateIrd}
-                                        </div>
-                                    ) : null}
-                                </div>
-
-                                <div className="form__group">
-                                    <label
-                                        htmlFor="fecReceptorIrd"
-                                        className="form__group-label"
-                                    >
-                                        FEC
-                                        <br />
-                                        <Field
-                                            type="text"
-                                            className="form__group-input"
-                                            placeholder="Nombre"
-                                            name="fecReceptorIrd"
-                                        />
-                                    </label>
-
-                                    {errors.fecReceptorIrd &&
-                                    touched.fecReceptorIrd ? (
-                                        <div className="form__group-error">
-                                            {errors.fecReceptorIrd}
-                                        </div>
-                                    ) : null}
-                                </div>
-                                <div className="form__group">
-                                    <label
-                                        htmlFor="versionIrd"
-                                        className="form__group-label"
-                                    >
-                                        UA
-                                        <br />
-                                        <Field
-                                            type="text"
-                                            className="form__group-input"
-                                            placeholder="Nombre"
-                                            name="uaIrd"
-                                        />
-                                    </label>
-
-                                    {errors.uaIrd && touched.uaIrd ? (
-                                        <div className="form__group-error">
-                                            {errors.uaIrd}
-                                        </div>
-                                    ) : null}
-                                </div>
-                            </div>
-                            {/* ###################################### */}
-
-                            <div className={stylesIrd.columns__group}>
-                                <div className="form__group">
-                                    <label
-                                        htmlFor="modulationReceptorIrd"
-                                        className="form__group-label"
-                                    >
-                                        Modulación
-                                        <br />
-                                        <Field
-                                            type="text"
-                                            className="form__group-input"
-                                            placeholder="Nombre"
-                                            name="modulationReceptorIrd"
-                                        />
-                                    </label>
-
-                                    {errors.modulationReceptorIrd &&
-                                    touched.modulationReceptorIrd ? (
-                                        <div className="form__group-error">
-                                            {errors.modulationReceptorIrd}
-                                        </div>
-                                    ) : null}
-                                </div>
-
-                                <div className="form__group">
-                                    <label
-                                        htmlFor="rellOfReceptor"
-                                        className="form__group-label"
-                                    >
-                                        Roll Of
-                                        <br />
-                                        <Field
-                                            type="text"
-                                            className="form__group-input"
-                                            placeholder="Nombre"
-                                            name="rellOfReceptor"
-                                        />
-                                    </label>
-
-                                    {errors.rellOfReceptor &&
-                                    touched.rellOfReceptor ? (
-                                        <div className="form__group-error">
-                                            {errors.rellOfReceptor}
-                                        </div>
-                                    ) : null}
-                                </div>
-
-                                <div className="form__group">
-                                    <label
-                                        htmlFor="nidReceptor"
-                                        className="form__group-label"
-                                    >
-                                        Nid
-                                        <br />
-                                        <Field
-                                            type="text"
-                                            className="form__group-input"
-                                            placeholder="Nombre"
-                                            name="nidReceptor"
-                                        />
-                                    </label>
-
-                                    {errors.nidReceptor &&
-                                    touched.nidReceptor ? (
-                                        <div className="form__group-error">
-                                            {errors.nidReceptor}
-                                        </div>
-                                    ) : null}
-                                </div>
-
-                                <div className="form__group">
-                                    <label
-                                        htmlFor="cvirtualReceptor"
-                                        className="form__group-label"
-                                    >
-                                        Canal Virtual
-                                        <br />
-                                        <Field
-                                            type="text"
-                                            className="form__group-input"
-                                            placeholder="Nombre"
-                                            name="cvirtualReceptor"
-                                        />
-                                    </label>
-
-                                    {errors.cvirtualReceptor &&
-                                    touched.cvirtualReceptor ? (
-                                        <div className="form__group-error">
-                                            {errors.cvirtualReceptor}
-                                        </div>
-                                    ) : null}
-                                </div>
-
-                                <div className="form__group">
-                                    <label
-                                        htmlFor="vctReceptor"
-                                        className="form__group-label"
-                                    >
-                                        VCT
-                                        <br />
-                                        <Field
-                                            type="text"
-                                            className="form__group-input"
-                                            placeholder="Nombre"
-                                            name="vctReceptor"
-                                        />
-                                    </label>
-
-                                    {errors.vctReceptor &&
-                                    touched.vctReceptor ? (
-                                        <div className="form__group-error">
-                                            {errors.vctReceptor}
-                                        </div>
-                                    ) : null}
-                                </div>
-                                <div className="form__group">
-                                    <label
-                                        htmlFor="swAdmin"
-                                        className="form__group-label"
-                                    >
-                                        SW Admin
-                                        <br />
-                                        <Field
-                                            type="text"
-                                            className="form__group-input"
-                                            placeholder="SW Admin"
-                                            name="swAdmin"
-                                        />
-                                    </label>
-
-                                    {errors.swAdmin &&
-                                        touched.swAdmin ? (
-                                        <div className="form__group-error">
-                                            {errors.swAdmin}
-                                        </div>
-                                    ) : null}
-                                </div>
-                            </div>
-
-                            {/* ###################################### */}
-                            <div className={stylesIrd.columns__group}>
-                                <div className="form__group">
-                                    <label
-                                        htmlFor="outputReceptor"
-                                        className="form__group-label"
-                                    >
-                                        Salida
-                                        <br />
-                                        <Field
-                                            type="text"
-                                            className="form__group-input"
-                                            placeholder="Nombre"
-                                            name="outputReceptor"
-                                        />
-                                    </label>
-
-                                    {errors.outputReceptor &&
-                                    touched.outputReceptor ? (
-                                        <div className="form__group-error">
-                                            {errors.outputReceptor}
-                                        </div>
-                                    ) : null}
-                                </div>
-
-                                <div className="form__group">
-                                    <label
-                                        htmlFor="multicastReceptor"
-                                        className="form__group-label"
-                                    >
-                                        Multicast Receptor
-                                        <br />
-                                        <Field
-                                            type="text"
-                                            className="form__group-input"
-                                            placeholder="Nombre"
-                                            name="multicastReceptor"
-                                        />
-                                    </label>
-
-                                    {errors.multicastReceptor &&
-                                    touched.multicastReceptor ? (
-                                        <div className="form__group-error">
-                                            {errors.multicastReceptor}
-                                        </div>
-                                    ) : null}
-                                </div>
-
-                                <div className="form__group">
-                                    <label
-                                        htmlFor="ipVideoMulticast"
-                                        className="form__group-label"
-                                    >
-                                        Ip Video Multicast
-                                        <br />
-                                        <Field
-                                            type="text"
-                                            className="form__group-input"
-                                            placeholder="Nombre"
-                                            name="ipVideoMulticast"
-                                        />
-                                    </label>
-
-                                    {errors.ipVideoMulticast &&
-                                    touched.ipVideoMulticast ? (
-                                        <div className="form__group-error">
-                                            {errors.ipVideoMulticast}
-                                        </div>
-                                    ) : null}
-                                </div>
-
-                                <div className="form__group">
-                                    <label
-                                        htmlFor="locationRow"
-                                        className="form__group-label"
-                                    >
-                                        Fila
-                                        <br />
-                                        <Field
-                                            type="text"
-                                            className="form__group-input"
-                                            placeholder="Nombre"
-                                            name="locationRow"
-                                        />
-                                    </label>
-
-                                    {errors.locationRow &&
-                                    touched.locationRow ? (
-                                        <div className="form__group-error">
-                                            {errors.locationRow}
-                                        </div>
-                                    ) : null}
-                                </div>
-
-                                <div className="form__group">
-                                    <label
-                                        htmlFor="locationCol"
-                                        className="form__group-label"
-                                    >
-                                        Bastidor
-                                        <br />
-                                        <Field
-                                            type="text"
-                                            className="form__group-input"
-                                            placeholder="Nombre"
-                                            name="locationCol"
-                                        />
-                                    </label>
-
-                                    {errors.locationCol &&
-                                    touched.locationCol ? (
-                                        <div className="form__group-error">
-                                            {errors.locationCol}
-                                        </div>
-                                    ) : null}
-                                </div>
-                                <div className="form__group">
-                                    <label
-                                        htmlFor="portSw"
-                                        className="form__group-label"
-                                    >
-                                        SW Port
-                                        <br />
-                                        <Field
-                                            type="text"
-                                            className="form__group-input"
-                                            placeholder="SW Port"
-                                            name="portSw"
-                                        />
-                                    </label>
-
-                                    {errors.portSw &&
-                                        touched.portSw ? (
-                                        <div className="form__group-error">
-                                            {errors.portSw}
-                                        </div>
-                                    ) : null}
-                                </div>
-                            </div>
+                    {loading ? (
+                        <div className="modal__body-loading" aria-live="polite">
+                            <span className="loader" aria-hidden="true" />
+                            <span>Cargando información...</span>
                         </div>
+                    ) : (
+                        <Form className={`form__add ${stylesIrd.formGrid}`} noValidate>
+                            <div className={stylesIrd.rows__group}>
+                                {FIELD_GROUPS.map((group, groupIndex) => (
+                                    <div
+                                        className={stylesIrd.columns__group}
+                                        key={`group-${groupIndex}`}
+                                    >
+                                        {group.map((field) =>
+                                            renderField(field, errors, touched)
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
 
-                        <button
-                            type="submit"
-                            className={`${stylesIrd.button} btn-primary`}
-                        >
-                            Enviar
-                        </button>
-                    </Form>
+                            <button
+                                type="submit"
+                                className={`button btn-primary ${stylesIrd.submitButton}`}
+                                disabled={isSubmitting}
+                            >
+                                {isSubmitting ? "Guardando..." : "Enviar"}
+                            </button>
+                        </Form>
+                    )}
                 </ModalComponent>
             )}
         </Formik>
