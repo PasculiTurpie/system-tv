@@ -84,6 +84,12 @@
     background: #ffffff;
 }
 
+.channel-node-label {
+    text-align: center;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+}
+
 .channel-diagram__sidebar {
     width: 360px;
     max-width: 100%;
