@@ -3,7 +3,6 @@ import {
   ReactFlow,
   Background,
   Controls,
-  MiniMap,
   useEdgesState,
   useNodesState,
   addEdge,
@@ -591,8 +590,7 @@ const ChannelDiagram = () => {
               panOnDrag
             >
               <Background variant="dots" gap={16} size={1} />
-              <Controls position="bottom-right" />
-              <MiniMap />
+              <Controls position="bottom-left" />
             </ReactFlow>
           </DiagramContext.Provider>
         </div>
