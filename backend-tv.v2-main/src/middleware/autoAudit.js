@@ -1,8 +1,6 @@
-const jwt = require("jsonwebtoken");
 const AuditLog = require("../models/auditLog.model");
 const User = require("../models/users.model"); // para lookup de email si falta
-
-const JWT_SECRET = process.env.JWT_ACCESS_SECRET || process.env.JWT_SECRET;
+const { verifyAccess } = require("../../utils/jwt");
 
 /* ------------------ Helpers token/usuario ------------------ */
 function getTokenFromReq(req) {
@@ -36,7 +34,7 @@ async function pickUserFromReq(req) {
   const token = getTokenFromReq(req);
   if (token) {
     try {
-      const p = jwt.verify(token, JWT_SECRET);
+      const p = verifyAccess(token);
       const id = p._id || p.id || p.sub || null;
       let userEmail = p.email || p.userEmail || null;
       if (!userEmail && id) {

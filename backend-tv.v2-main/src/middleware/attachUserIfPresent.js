@@ -1,10 +1,5 @@
 // src/middleware/attachUserIfPresent.js
-const jwt = require("jsonwebtoken");
-
-const JWT_SECRET =
-  process.env.JWT_ACCESS_SECRET ||
-  process.env.JWT_SECRET ||
-  "";
+const { verifyAccess } = require("../../utils/jwt");
 
 function extractToken(req) {
   if (req.cookies?.access_token) return req.cookies.access_token;
@@ -20,15 +15,11 @@ function extractToken(req) {
 }
 
 function attachUserIfPresent(req, _res, next) {
-  if (!JWT_SECRET) {
-    return next();
-  }
-
   try {
     const token = extractToken(req);
     if (!token) return next();
 
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = verifyAccess(token);
 
     req.user = {
       _id: decoded.id || decoded._id || decoded.userId || null,

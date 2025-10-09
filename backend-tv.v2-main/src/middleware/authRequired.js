@@ -1,7 +1,5 @@
 // middlewares/authRequired.js
-const jwt = require("jsonwebtoken");
-
-require("dotenv").config();
+const { verifyAccess } = require("../../utils/jwt");
 
 function authRequired(req, res, next) {
   try {
@@ -18,7 +16,7 @@ function authRequired(req, res, next) {
     }
 
     // 2) Verificar firma y expiración
-    const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
+    const decoded = verifyAccess(token);
 
     // 3) Inyectar identidad en req.user
     //    Incluimos los campos más usados; ajusta si guardas más en el access token

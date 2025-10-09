@@ -22,10 +22,27 @@ const sanitizeUser = (userDoc) => {
   };
 };
 
+const pickMutableFields = (payload) => {
+  if (!payload || typeof payload !== "object") {
+    return {};
+  }
+
+  const output = {};
+  const { username, email, password, profilePicture, role } = payload;
+
+  if (username !== undefined) output.username = username;
+  if (email !== undefined) output.email = email;
+  if (password !== undefined) output.password = password;
+  if (profilePicture !== undefined) output.profilePicture = profilePicture;
+  if (role !== undefined) output.role = role;
+
+  return output;
+};
+
 module.exports.getAllUser = async (_req, res) => {
   try {
     const users = await User.find()
-      .select("-password")
+      .select("username email role profilePicture createdAt updatedAt")
       .sort({ username: 1 })
       .lean();
 
@@ -58,18 +75,16 @@ module.exports.createUser = async (req, res) => {
         .json({ message: "Falta el nombre, correo o contraseña" });
     }
 
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ email }).lean();
     if (existingUser) {
       return res
-        .status(400)
+        .status(409)
         .json({ message: "Usuario ya existe con ese correo" });
     }
 
-    const newUser = new User({
-      username,
-      email,
-      password,
-    });
+    const newUser = new User(
+      pickMutableFields({ username, email, password, role: req.body.role })
+    );
 
     const savedUser = await newUser.save();
 
@@ -79,9 +94,12 @@ module.exports.createUser = async (req, res) => {
     });
   } catch (error) {
     console.error("Error al crear usuario:", error);
-    res
-      .status(500)
-      .json({ message: "Error interno del servidor", error: error.message });
+    if (error?.code === 11000) {
+      return res
+        .status(409)
+        .json({ message: "Usuario ya existe con ese correo" });
+    }
+    res.status(500).json({ message: "Error interno del servidor" });
   }
 };
 
@@ -99,12 +117,7 @@ module.exports.deleteUser = async (req, res) => {
 
 module.exports.updateUser = async (req, res) => {
   const { id } = req.params;
-  const updateData = { ...req.body };
-
-  if (!updateData.password) {
-    delete updateData.password;
-    delete updateData.confirmPassword;
-  }
+  const updateData = pickMutableFields(req.body);
 
   try {
     const updatedUser = await User.findByIdAndUpdate(id, updateData, {
@@ -116,12 +129,17 @@ module.exports.updateUser = async (req, res) => {
       return res.status(404).json({ message: "Usuario no encontrado" });
     }
 
-    res.json({
+    return res.json({
       message: "Usuario actualizado exitosamente",
       user: sanitizeUser(updatedUser),
     });
   } catch (error) {
     console.error("Error al actualizar usuario:", error);
+    if (error?.code === 11000) {
+      return res
+        .status(409)
+        .json({ message: "Usuario ya existe con ese correo" });
+    }
     res.status(500).json({ message: "Error al actualizar usuario" });
   }
 };

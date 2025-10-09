@@ -1,18 +1,19 @@
 // controllers/auth.controller.js
 const bcrypt = require("bcrypt");
-const User = require("../models/users.model");
 const jwt = require("jsonwebtoken");
+const User = require("../models/users.model");
 const {
   signAccessToken,
   signRefreshToken,
   verifyRefresh,
   setAuthCookies,
   clearAuthCookies,
-} = require("../../utils/jwt"); // deja este path como lo tienes; si tu utils está en otra carpeta, ajusta
-
-require("dotenv").config();
+} = require("../../utils/jwt");
 
 const isProd = process.env.NODE_ENV === "production";
+const INVALID_CREDENTIALS = {
+  error: "Credenciales inválidas",
+};
 
 // Helper: el `exp` del JWT ya viene en epoch (segundos)
 const expToEpoch = (exp) => exp;
@@ -32,35 +33,53 @@ module.exports.login = async (req, res) => {
     if (!email || !password)
       return res.status(400).json({ error: "Credenciales requeridas" });
 
-    const user = await User.findOne({ email });
-    if (!user) return res.status(404).json({ error: "Usuario no encontrado" });
+    const user = await User.findOne({ email })
+      .select("email password username role profilePicture")
+      .lean();
+
+    if (!user) {
+      return res.status(401).json(INVALID_CREDENTIALS);
+    }
 
     const matched = await bcrypt.compare(password, user.password);
-    if (!matched)
-      return res.status(401).json({ error: "Contraseña incorrecta" });
+    if (!matched) {
+      return res.status(401).json(INVALID_CREDENTIALS);
+    }
+
+    const userId = String(user._id);
 
     const accessToken = signAccessToken({
-      id: user._id,
+      id: userId,
       email: user.email,
       role: user.role,
     });
-    const refreshToken = signRefreshToken({ id: user._id });
-    const { exp } = jwt.decode(accessToken);
+    const refreshToken = signRefreshToken({ id: userId });
+    const { exp: accessExp } = jwt.decode(accessToken);
+    const { exp: refreshExp } = jwt.decode(refreshToken) || {};
 
-    setAuthCookies(res, { accessToken, refreshToken, accessExpEpoch: exp });
+    setAuthCookies(res, {
+      accessToken,
+      refreshToken,
+      accessExpEpoch: accessExp,
+      refreshExpEpoch: refreshExp,
+    });
 
-    req.user = { _id: user._id, email: user.email, role: user.role };
+    req.user = {
+      _id: userId,
+      email: user.email,
+      role: user.role,
+    };
 
     return res.json({
       message: "Login ok",
       user: {
-        id: user._id,
+        id: userId,
         email: user.email,
         username: user.username,
         role: user.role,
         profilePicture: user.profilePicture,
       },
-      access_expires_at: exp,
+      access_expires_at: accessExp,
     });
   } catch (e) {
     console.error("Login error:", e);
@@ -85,25 +104,24 @@ module.exports.refresh = async (req, res) => {
     const devAccessExp = !isProd && req.headers["x-dev-access-exp"];
     const devRefreshExp = !isProd && req.headers["x-dev-refresh-exp"];
 
-    const accessToken = signAccessToken(
-      { id: decoded.id },
-      devAccessExp || undefined
-    );
+    const accessToken = signAccessToken({ id: decoded.id }, devAccessExp || undefined);
     const refreshToken = signRefreshToken(
       { id: decoded.id },
       devRefreshExp || undefined
     );
 
-    const { exp } = jwt.decode(accessToken) || {};
-    if (!exp) return res.status(500).json({ error: "decode_failed" });
+    const { exp: accessExp } = jwt.decode(accessToken) || {};
+    const { exp: refreshExp } = jwt.decode(refreshToken) || {};
+    if (!accessExp) return res.status(500).json({ error: "decode_failed" });
 
     setAuthCookies(res, {
       accessToken,
       refreshToken,
-      accessExpEpoch: expToEpoch(exp),
+      accessExpEpoch: expToEpoch(accessExp),
+      refreshExpEpoch: expToEpoch(refreshExp),
     });
 
-    return res.json({ message: "refreshed", access_expires_at: exp });
+    return res.json({ message: "refreshed", access_expires_at: accessExp });
   } catch (e) {
     // refresh inválido o expirado → limpiar cookies y exigir re-login
     clearAuthCookies(res);
