@@ -476,15 +476,31 @@ const ChannelDiagram = () => {
     setSelectedNodeId(node?.id ?? null);
   }, []);
 
+  const fitViewToContent = useCallback(() => {
+    if (!reactFlowInstance) return;
+    requestAnimationFrame(() => {
+      reactFlowInstance.fitView({ padding: FIT_VIEW_PADDING });
+    });
+  }, [reactFlowInstance]);
+
   const handleInit = useCallback((instance) => {
     setReactFlowInstance(instance);
-    instance.fitView({ padding: FIT_VIEW_PADDING });
+    requestAnimationFrame(() => {
+      instance.fitView({ padding: FIT_VIEW_PADDING });
+    });
   }, []);
 
   useEffect(() => {
     if (!reactFlowInstance || loading) return;
-    reactFlowInstance.fitView({ padding: FIT_VIEW_PADDING });
-  }, [reactFlowInstance, channelId, loading, nodes.length, edges.length]);
+    fitViewToContent();
+  }, [
+    reactFlowInstance,
+    channelId,
+    loading,
+    nodes.length,
+    edges.length,
+    fitViewToContent,
+  ]);
 
   useEffect(() => {
     if (!reactFlowInstance) return;
@@ -590,7 +606,8 @@ const ChannelDiagram = () => {
               panOnDrag
             >
               <Background variant="dots" gap={16} size={1} />
-              <Controls position="bottom-left" />
+              <Controls position="bottom-right" />
+              <MiniMap />
             </ReactFlow>
           </DiagramContext.Provider>
         </div>

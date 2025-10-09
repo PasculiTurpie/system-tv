@@ -44,6 +44,8 @@ export default function EditableEdgeLabel({
   placeholder = "",
   onCommit,
   onPositionChange,
+  style: styleOverride,
+  className,
 }) {
   const rf = useReactFlow();
   const { clampPosition } = useContext(DiagramContext);
@@ -119,6 +121,9 @@ export default function EditableEdgeLabel({
 
   const updatePosition = useCallback(
     (event) => {
+      if (event?.cancelable) {
+        event.preventDefault();
+      }
       const projected = projectClient(event);
       const next = {
         x: projected.x + dragRef.current.startOffset.x,
@@ -169,6 +174,8 @@ export default function EditableEdgeLabel({
 
   const transform = `translate(-50%, -50%) translate(${currentPosition.x}px, ${currentPosition.y}px)`;
 
+  const baseClassName = ["nodrag", "nopan", className].filter(Boolean).join(" ");
+
   return (
     <EdgeLabelRenderer>
       {!editing ? (
@@ -180,12 +187,13 @@ export default function EditableEdgeLabel({
           onDoubleClick={handleDoubleClick}
           style={{
             ...baseBoxStyle,
+            ...(styleOverride || {}),
             transform,
             cursor: canEdit ? (dragging ? "grabbing" : "grab") : "default",
             ...(dragging ? draggingStyle : {}),
             ...(text ? {} : ghostStyle),
           }}
-          className="nodrag nopan"
+          className={baseClassName}
           aria-label={ariaLabel}
           title={canEdit ? "Doble click para editar. Arrastra para mover." : "Solo lectura"}
         >
@@ -199,8 +207,14 @@ export default function EditableEdgeLabel({
           onChange={(event) => setValue(event.target.value)}
           onBlur={commit}
           onKeyDown={handleKeyDown}
-          style={{ ...baseBoxStyle, ...editingStyle, transform, cursor: "text" }}
-          className="nodrag nopan"
+          style={{
+            ...baseBoxStyle,
+            ...editingStyle,
+            ...(styleOverride || {}),
+            transform,
+            cursor: "text",
+          }}
+          className={baseClassName}
           placeholder={placeholder}
         />
       )}
