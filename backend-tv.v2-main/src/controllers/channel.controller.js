@@ -1,5 +1,61 @@
 const Channel = require("../models/channel.model");
 
+const MAX_LABEL_LENGTH = 200;
+
+const clampLabel = (value) => {
+  if (value === undefined || value === null) return "";
+  const str = String(value);
+  return str.length > MAX_LABEL_LENGTH ? str.slice(0, MAX_LABEL_LENGTH) : str;
+};
+
+const sanitizePosition = (point) => {
+  if (!point || typeof point !== "object") return null;
+  const x = Number(point.x);
+  const y = Number(point.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  const clamp = (val) => {
+    const bounded = Math.max(-1_000_000, Math.min(1_000_000, val));
+    return Number.isFinite(bounded) ? bounded : 0;
+  };
+  return { x: clamp(x), y: clamp(y) };
+};
+
+const sanitizeEndpointLabels = (payload = {}) => {
+  const result = {};
+  if (Object.prototype.hasOwnProperty.call(payload, "source")) {
+    const value = payload.source;
+    if (value === null) {
+      result.source = null;
+    } else if (value !== undefined) {
+      const sanitized = clampLabel(value).trim();
+      result.source = sanitized || null;
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(payload, "target")) {
+    const value = payload.target;
+    if (value === null) {
+      result.target = null;
+    } else if (value !== undefined) {
+      const sanitized = clampLabel(value).trim();
+      result.target = sanitized || null;
+    }
+  }
+  return result;
+};
+
+const sanitizeEndpointPositions = (payload = {}) => {
+  const result = {};
+  if (Object.prototype.hasOwnProperty.call(payload, "source")) {
+    const sanitized = sanitizePosition(payload.source);
+    result.source = sanitized;
+  }
+  if (Object.prototype.hasOwnProperty.call(payload, "target")) {
+    const sanitized = sanitizePosition(payload.target);
+    result.target = sanitized;
+  }
+  return result;
+};
+
 // Crear canal
 module.exports.createChannel = async (req, res) => {
   try {
@@ -137,5 +193,160 @@ exports.updateChannelFlow = async (req, res) => {
     res.json(updatedChannel);
   } catch (err) {
     res.status(500).json({ message: err.message });
+  }
+};
+
+exports.patchNode = async (req, res) => {
+  const { id, nodeId } = req.params;
+  const { label, labelPosition } = req.body || {};
+
+  const setUpdate = {};
+  const unsetUpdate = {};
+
+  if (label !== undefined) {
+    const sanitizedLabel = clampLabel(label);
+    setUpdate["nodes.$.data.label"] = sanitizedLabel;
+    setUpdate["nodes.$.label"] = sanitizedLabel;
+  }
+
+  if (labelPosition !== undefined) {
+    if (labelPosition === null) {
+      unsetUpdate["nodes.$.data.labelPosition"] = "";
+    } else {
+      const sanitizedPosition = sanitizePosition(labelPosition);
+      if (sanitizedPosition) {
+        setUpdate["nodes.$.data.labelPosition"] = sanitizedPosition;
+      } else {
+        unsetUpdate["nodes.$.data.labelPosition"] = "";
+      }
+    }
+  }
+
+  const update = {};
+  if (Object.keys(setUpdate).length > 0) update.$set = setUpdate;
+  if (Object.keys(unsetUpdate).length > 0) update.$unset = unsetUpdate;
+
+  if (!update.$set && !update.$unset) {
+    return res.status(400).json({ error: "No hay cambios para aplicar" });
+  }
+
+  try {
+    const updated = await Channel.findOneAndUpdate(
+      { _id: id, "nodes.id": nodeId },
+      update,
+      {
+        new: true,
+        select: { "nodes.$": 1, _id: 1 },
+        runValidators: true,
+      }
+    )
+      .lean()
+      .exec();
+
+    if (!updated || !Array.isArray(updated.nodes) || updated.nodes.length === 0) {
+      return res.status(404).json({ error: "Nodo no encontrado" });
+    }
+
+    return res.json({ node: updated.nodes[0] });
+  } catch (error) {
+    console.error("patchNode error", error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+exports.patchEdge = async (req, res) => {
+  const { id, edgeId } = req.params;
+  const { label, labelPosition, endpointLabels, endpointLabelPositions } = req.body || {};
+
+  const setUpdate = {};
+  const unsetUpdate = {};
+
+  if (label !== undefined) {
+    const sanitizedLabel = clampLabel(label);
+    setUpdate["edges.$.label"] = sanitizedLabel;
+    setUpdate["edges.$.data.label"] = sanitizedLabel;
+  }
+
+  if (labelPosition !== undefined) {
+    if (labelPosition === null) {
+      unsetUpdate["edges.$.labelPosition"] = "";
+      unsetUpdate["edges.$.data.labelPosition"] = "";
+    } else {
+      const sanitizedPosition = sanitizePosition(labelPosition);
+      if (sanitizedPosition) {
+        setUpdate["edges.$.labelPosition"] = sanitizedPosition;
+        setUpdate["edges.$.data.labelPosition"] = sanitizedPosition;
+      } else {
+        unsetUpdate["edges.$.labelPosition"] = "";
+        unsetUpdate["edges.$.data.labelPosition"] = "";
+      }
+    }
+  }
+
+  if (endpointLabels !== undefined) {
+    const sanitized = sanitizeEndpointLabels(endpointLabels);
+    if (Object.prototype.hasOwnProperty.call(sanitized, "source")) {
+      if (sanitized.source === null) {
+        unsetUpdate["edges.$.data.endpointLabels.source"] = "";
+      } else {
+        setUpdate["edges.$.data.endpointLabels.source"] = sanitized.source;
+      }
+    }
+    if (Object.prototype.hasOwnProperty.call(sanitized, "target")) {
+      if (sanitized.target === null) {
+        unsetUpdate["edges.$.data.endpointLabels.target"] = "";
+      } else {
+        setUpdate["edges.$.data.endpointLabels.target"] = sanitized.target;
+      }
+    }
+  }
+
+  if (endpointLabelPositions !== undefined) {
+    const sanitized = sanitizeEndpointPositions(endpointLabelPositions);
+    if (Object.prototype.hasOwnProperty.call(sanitized, "source")) {
+      if (!sanitized.source) {
+        unsetUpdate["edges.$.data.endpointLabelPositions.source"] = "";
+      } else {
+        setUpdate["edges.$.data.endpointLabelPositions.source"] = sanitized.source;
+      }
+    }
+    if (Object.prototype.hasOwnProperty.call(sanitized, "target")) {
+      if (!sanitized.target) {
+        unsetUpdate["edges.$.data.endpointLabelPositions.target"] = "";
+      } else {
+        setUpdate["edges.$.data.endpointLabelPositions.target"] = sanitized.target;
+      }
+    }
+  }
+
+  const update = {};
+  if (Object.keys(setUpdate).length > 0) update.$set = setUpdate;
+  if (Object.keys(unsetUpdate).length > 0) update.$unset = unsetUpdate;
+
+  if (!update.$set && !update.$unset) {
+    return res.status(400).json({ error: "No hay cambios para aplicar" });
+  }
+
+  try {
+    const updated = await Channel.findOneAndUpdate(
+      { _id: id, "edges.id": edgeId },
+      update,
+      {
+        new: true,
+        select: { "edges.$": 1, _id: 1 },
+        runValidators: true,
+      }
+    )
+      .lean()
+      .exec();
+
+    if (!updated || !Array.isArray(updated.edges) || updated.edges.length === 0) {
+      return res.status(404).json({ error: "Enlace no encontrado" });
+    }
+
+    return res.json({ edge: updated.edges[0] });
+  } catch (error) {
+    console.error("patchEdge error", error);
+    return res.status(500).json({ error: error.message });
   }
 };

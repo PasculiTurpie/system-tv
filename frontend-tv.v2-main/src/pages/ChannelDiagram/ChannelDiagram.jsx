@@ -18,124 +18,66 @@ import CustomWaypointEdge from "./CustomWaypointEdge";
 import "./ChannelDiagram.css";
 import { UserContext } from "../../components/context/UserContext";
 import NodeEquipmentSidebar from "./NodeEquipmentSidebar";
+import { DiagramContext } from "./DiagramContext";
+import {
+  mapNodeFromApi,
+  mapEdgeFromApi,
+  toApiNode,
+  toApiEdge,
+  safeArray,
+  getEdgeColor,
+  withMarkerColor,
+  clampPositionWithinBounds,
+  createPatchScheduler,
+  MAX_LABEL_LENGTH,
+} from "./diagramUtils";
 
-/* ───────── utils ───────── */
+const AUTO_SAVE_DELAY = 320;
+const FIT_VIEW_PADDING = 0.2;
+const ZOOM_DURATION = 160;
+const BOUNDS_MARGIN = 480;
+const DEFAULT_BOUNDS = { minX: -4000, maxX: 4000, minY: -4000, maxY: 4000 };
 
-const ARROW_CLOSED = { type: "arrowclosed" };
+const computeBoundsFromNodes = (nodesList) => {
+  if (!Array.isArray(nodesList) || nodesList.length === 0) {
+    return DEFAULT_BOUNDS;
+  }
 
-const toNumberOr = (val, def = 0) => {
-  const n = Number(val);
-  return Number.isFinite(n) ? n : def;
-};
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
 
-const normalizeMarker = (m) => {
-  if (!m || typeof m !== "object") return { type: "arrowclosed" };
-  const t = m.type;
-  if (t === "arrowclosed" || t === "arrow") return { ...m };
-  if (t === 1 || t === "1") return { ...m, type: "arrowclosed" };
-  if (t === 0 || t === "0") return { ...m, type: "arrow" };
-  return { ...m, type: "arrowclosed" };
-};
+  nodesList.forEach((node) => {
+    const x = Number(node?.position?.x);
+    const y = Number(node?.position?.y);
+    if (Number.isFinite(x)) {
+      minX = Math.min(minX, x);
+      maxX = Math.max(maxX, x);
+    }
+    if (Number.isFinite(y)) {
+      minY = Math.min(minY, y);
+      maxY = Math.max(maxY, y);
+    }
+  });
 
-const getEdgeColor = (style, direction) =>
-  style?.stroke || (direction === "vuelta" ? "green" : "red");
-
-const withMarkerColor = (marker, color) => ({
-  ...normalizeMarker(marker || ARROW_CLOSED),
-  color,
-});
-
-const safeArray = (val) => (Array.isArray(val) ? val : []);
-
-/* Map API → React Flow */
-const mapNodeFromApi = (node) => {
-  if (!node) return null;
-  const id = String(node.id ?? node._id ?? node.key ?? "");
-  if (!id) return null;
-
-  const rawData = node.data || {};
-  const getPos = (val, index) => {
-    if (val !== undefined && val !== null) return val;
-    if (Array.isArray(node.position)) return node.position[index];
-    return undefined;
-  };
-
-  return {
-    id,
-    type: node.type || "custom",
-    data: { label: rawData.label || node.label || id, ...rawData },
-    position: {
-      x: toNumberOr(getPos(node.position?.x, 0), 0),
-      y: toNumberOr(getPos(node.position?.y, 1), 0),
-    },
-  };
-};
-
-const mapEdgeFromApi = (edge) => {
-  if (!edge) return null;
-  const id = String(edge.id ?? edge._id ?? "");
-  if (!id || !edge.source || !edge.target) return null;
-
-  const rawData = edge.data || {};
-  const direction = rawData.direction || (edge.style?.stroke === "green" ? "vuelta" : "ida");
-  const label = edge.label || rawData.label || id;
-
-  const color = getEdgeColor(edge.style, direction);
-  const style = edge.style
-    ? { ...edge.style, stroke: edge.style.stroke || color }
-    : { stroke: color, strokeWidth: 2 };
+  if (!Number.isFinite(minX) || !Number.isFinite(maxX) || !Number.isFinite(minY) || !Number.isFinite(maxY)) {
+    return DEFAULT_BOUNDS;
+  }
 
   return {
-    id,
-    source: String(edge.source),
-    target: String(edge.target),
-    sourceHandle: edge.sourceHandle,
-    targetHandle: edge.targetHandle,
-    type: edge.type || "directional",
-    label,
-    data: { ...rawData, label, direction },
-    style,
-    markerEnd: withMarkerColor(edge.markerEnd, color),
-    markerStart: edge.markerStart ? withMarkerColor(edge.markerStart, color) : undefined,
-    animated: edge.animated ?? true,
-    updatable: true,
+    minX: minX - BOUNDS_MARGIN,
+    maxX: maxX + BOUNDS_MARGIN,
+    minY: minY - BOUNDS_MARGIN,
+    maxY: maxY + BOUNDS_MARGIN,
   };
 };
 
-/* Normalización → payload API */
-const toApiNode = (node) => ({
-  id: node.id,
-  type: node.type || "custom",
-  label: node.data?.label ?? node.label ?? node.id,
-  data: { ...(node.data || {}), label: node.data?.label ?? node.label ?? node.id },
-  position: {
-    x: Number.isFinite(+node.position?.x) ? +node.position.x : 0,
-    y: Number.isFinite(+node.position?.y) ? +node.position.y : 0,
-  },
-});
-
-const toApiEdge = (edge) => {
-  const label = edge.data?.label || edge.label || edge.id;
-  const direction = edge.data?.direction || "ida";
-  const color = getEdgeColor(edge.style, direction);
-  return {
-    id: edge.id,
-    source: edge.source,
-    target: edge.target,
-    sourceHandle: edge.sourceHandle,
-    targetHandle: edge.targetHandle,
-    label,
-    type: edge.type || "directional",
-    style: edge.style || { stroke: color, strokeWidth: 2 },
-    markerEnd: withMarkerColor(edge.markerEnd, color),
-    markerStart: edge.markerStart ? withMarkerColor(edge.markerStart, color) : undefined,
-    data: { ...(edge.data || {}), label, direction },
-    animated: true,
-    updatable: true,
-  };
+const clampLabelText = (value) => {
+  if (value === undefined || value === null) return "";
+  const str = String(value);
+  return str.length > MAX_LABEL_LENGTH ? str.slice(0, MAX_LABEL_LENGTH) : str;
 };
-
-/* ───────── componente ───────── */
 
 const ChannelDiagram = () => {
   const { id: signalId } = useParams();
@@ -165,13 +107,15 @@ const ChannelDiagram = () => {
   const [error, setError] = useState(null);
   const [channelId, setChannelId] = useState(null);
   const [selectedNodeId, setSelectedNodeId] = useState(null);
+  const [reactFlowInstance, setReactFlowInstance] = useState(null);
 
-  // refs para leer el estado más reciente dentro del debounce
   const nodesRef = useRef(nodes);
   const edgesRef = useRef(edges);
+
   useEffect(() => {
     nodesRef.current = nodes;
   }, [nodes]);
+
   useEffect(() => {
     edgesRef.current = edges;
   }, [edges]);
@@ -181,11 +125,17 @@ const ChannelDiagram = () => {
     [nodes, selectedNodeId]
   );
 
+  const computeBounds = useCallback(() => computeBoundsFromNodes(nodesRef.current), []);
+
+  const clampPosition = useCallback(
+    (pos) => clampPositionWithinBounds(pos, computeBounds()),
+    [computeBounds]
+  );
+
   const saveTimer = useRef(null);
 
-  // Guardado (debounced) usando tu API
   const saveDiagram = useCallback(async () => {
-    if (!channelId || !signalId) return;
+    if (!channelId || !signalId || !isAuth) return;
     const payload = {
       signal: String(signalId),
       channel: String(channelId),
@@ -196,49 +146,55 @@ const ChannelDiagram = () => {
     };
     try {
       await api.updateChannelFlow(channelId, payload);
-      // console.log("Diagrama guardado");
-    } catch (e) {
-      console.error("Error al guardar diagrama:", e);
+    } catch (errorUpdate) {
+      console.error("Error al guardar diagrama:", errorUpdate);
     }
-  }, [channelId, signalId]);
+  }, [channelId, signalId, isAuth]);
 
   const requestSave = useCallback(() => {
+    if (!isAuth) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(saveDiagram, 500); // debounce 500ms
-  }, [saveDiagram]);
+    saveTimer.current = setTimeout(saveDiagram, AUTO_SAVE_DELAY);
+  }, [isAuth, saveDiagram]);
 
-  useEffect(() => {
-    const handleFlowSave = () => {
-      if (!isAuth) return;
-      requestSave();
-    };
-
-    window.addEventListener("flow:save", handleFlowSave);
-    return () => {
-      window.removeEventListener("flow:save", handleFlowSave);
-    };
-  }, [isAuth, requestSave]);
+  useEffect(
+    () => () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+    },
+    []
+  );
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+
+    const fetchDiagram = async () => {
       try {
         setLoading(true);
         setError(null);
 
-        const res = await api.getChannelDiagramBySignal(String(signalId).trim());
-        const data = res?.data ?? res;
-        const dataChannelDiagram = Array.isArray(data) ? data[0] : data;
-        if (!dataChannelDiagram) throw new Error("No existen diagramas para la señal indicada.");
+        const response = await api.getChannelDiagramBySignal(
+          String(signalId || "").trim()
+        );
+        const payload = response?.data ?? response;
+        const diagram = Array.isArray(payload) ? payload[0] : payload;
 
-        setChannelId(String(dataChannelDiagram._id));
+        if (!diagram) {
+          throw new Error("No existen diagramas para la señal indicada.");
+        }
 
-        const mappedNodes = safeArray(dataChannelDiagram.nodes).map(mapNodeFromApi).filter(Boolean);
-        const mappedEdges = safeArray(dataChannelDiagram.edges).map(mapEdgeFromApi).filter(Boolean);
+        const mappedNodes = safeArray(diagram.nodes)
+          .map(mapNodeFromApi)
+          .filter(Boolean);
+        const mappedEdges = safeArray(diagram.edges)
+          .map(mapEdgeFromApi)
+          .filter(Boolean);
 
         if (cancelled) return;
+
+        setChannelId(String(diagram._id));
         setNodes(mappedNodes);
         setEdges(mappedEdges);
+        setSelectedNodeId(null);
       } catch (err) {
         if (!cancelled) {
           setError(err?.message || "Error al cargar el diagrama");
@@ -246,74 +202,265 @@ const ChannelDiagram = () => {
           setEdges([]);
         }
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
-    })();
+    };
+
+    fetchDiagram();
+
     return () => {
       cancelled = true;
-      if (saveTimer.current) clearTimeout(saveTimer.current);
     };
   }, [signalId, setNodes, setEdges]);
 
-  /* ───────── Handlers edición ───────── */
+  const nodePatchScheduler = useMemo(() => {
+    if (!channelId || !isAuth) return null;
+    return createPatchScheduler((nodeKey, payload) =>
+      api.patchChannelNode(channelId, nodeKey, payload)
+    );
+  }, [channelId, isAuth]);
 
-  // Drag de nodos: guardamos al soltar
+  const edgePatchScheduler = useMemo(() => {
+    if (!channelId || !isAuth) return null;
+    return createPatchScheduler((edgeKey, payload) =>
+      api.patchChannelEdge(channelId, edgeKey, payload)
+    );
+  }, [channelId, isAuth]);
+
+  useEffect(
+    () => () => {
+      nodePatchScheduler?.cancelAll();
+    },
+    [nodePatchScheduler]
+  );
+
+  useEffect(
+    () => () => {
+      edgePatchScheduler?.cancelAll();
+    },
+    [edgePatchScheduler]
+  );
+
+  const scheduleNodePatch = useCallback(
+    (nodeId, patch) => {
+      if (!nodePatchScheduler) return;
+      nodePatchScheduler.schedule(nodeId, patch);
+    },
+    [nodePatchScheduler]
+  );
+
+  const scheduleEdgePatch = useCallback(
+    (edgeId, patch) => {
+      if (!edgePatchScheduler) return;
+      edgePatchScheduler.schedule(edgeId, patch);
+    },
+    [edgePatchScheduler]
+  );
+
+  const handleNodeLabelChange = useCallback(
+    (nodeId, nextLabel) => {
+      const sanitized = clampLabelText(nextLabel);
+      setNodes((current) =>
+        current.map((node) =>
+          node.id === nodeId
+            ? { ...node, data: { ...(node.data || {}), label: sanitized } }
+            : node
+        )
+      );
+      if (isAuth) {
+        scheduleNodePatch(nodeId, { label: sanitized });
+      }
+    },
+    [isAuth, scheduleNodePatch, setNodes]
+  );
+
+  const handleNodeLabelPositionChange = useCallback(
+    (nodeId, position) => {
+      const clamped = position ? clampPosition(position) : null;
+      setNodes((current) =>
+        current.map((node) =>
+          node.id === nodeId
+            ? {
+                ...node,
+                data: {
+                  ...(node.data || {}),
+                  labelPosition: clamped ?? undefined,
+                },
+              }
+            : node
+        )
+      );
+      if (isAuth) {
+        scheduleNodePatch(nodeId, { labelPosition: clamped });
+      }
+    },
+    [clampPosition, isAuth, scheduleNodePatch, setNodes]
+  );
+
+  const handleEdgeLabelChange = useCallback(
+    (edgeId, nextLabel) => {
+      const sanitized = clampLabelText(nextLabel);
+      setEdges((current) =>
+        current.map((edge) =>
+          edge.id === edgeId
+            ? {
+                ...edge,
+                label: sanitized,
+                data: { ...(edge.data || {}), label: sanitized },
+              }
+            : edge
+        )
+      );
+      if (isAuth) {
+        scheduleEdgePatch(edgeId, { label: sanitized });
+      }
+    },
+    [isAuth, scheduleEdgePatch, setEdges]
+  );
+
+  const handleEdgeLabelPositionChange = useCallback(
+    (edgeId, position) => {
+      const clamped = position ? clampPosition(position) : null;
+      setEdges((current) =>
+        current.map((edge) =>
+          edge.id === edgeId
+            ? {
+                ...edge,
+                labelPosition: clamped ?? undefined,
+                data: { ...(edge.data || {}), labelPosition: clamped ?? undefined },
+              }
+            : edge
+        )
+      );
+      if (isAuth) {
+        scheduleEdgePatch(edgeId, { labelPosition: clamped });
+      }
+    },
+    [clampPosition, isAuth, scheduleEdgePatch, setEdges]
+  );
+
+  const handleEdgeEndpointLabelChange = useCallback(
+    (edgeId, endpoint, nextLabel) => {
+      const sanitized = clampLabelText(nextLabel).trim();
+      setEdges((current) =>
+        current.map((edge) => {
+          if (edge.id !== edgeId) return edge;
+          const currentLabels = { ...(edge.data?.endpointLabels || {}) };
+          if (!sanitized) {
+            delete currentLabels[endpoint];
+          } else {
+            currentLabels[endpoint] = sanitized;
+          }
+          return {
+            ...edge,
+            data: {
+              ...(edge.data || {}),
+              endpointLabels: currentLabels,
+            },
+          };
+        })
+      );
+      if (isAuth) {
+        scheduleEdgePatch(edgeId, {
+          endpointLabels: { [endpoint]: sanitized || null },
+        });
+      }
+    },
+    [isAuth, scheduleEdgePatch, setEdges]
+  );
+
+  const handleEdgeEndpointLabelPositionChange = useCallback(
+    (edgeId, endpoint, position) => {
+      const clamped = position ? clampPosition(position) : null;
+      setEdges((current) =>
+        current.map((edge) => {
+          if (edge.id !== edgeId) return edge;
+          const currentPositions = {
+            ...(edge.data?.endpointLabelPositions || {}),
+          };
+          if (!clamped) {
+            delete currentPositions[endpoint];
+          } else {
+            currentPositions[endpoint] = clamped;
+          }
+          return {
+            ...edge,
+            data: {
+              ...(edge.data || {}),
+              endpointLabelPositions: currentPositions,
+            },
+          };
+        })
+      );
+      if (isAuth) {
+        scheduleEdgePatch(edgeId, {
+          endpointLabelPositions: { [endpoint]: clamped || null },
+        });
+      }
+    },
+    [clampPosition, isAuth, scheduleEdgePatch, setEdges]
+  );
+
   const handleNodeDragStop = useCallback(() => {
-    if (!isAuth) return;
     requestSave();
-  }, [isAuth, requestSave]);
+  }, [requestSave]);
 
-  // Reconexión de edges
   const handleEdgeUpdate = useCallback(
     (oldEdge, newConnection) => {
       if (!isAuth) return;
-      setEdges((eds) =>
-        eds.map((e) =>
-          e.id === oldEdge.id
+      setEdges((current) =>
+        current.map((edge) =>
+          edge.id === oldEdge.id
             ? {
-              ...e,
-              source: newConnection.source,
-              target: newConnection.target,
-              sourceHandle: newConnection.sourceHandle,
-              targetHandle: newConnection.targetHandle,
-              updatable: true,
-            }
-            : e
+                ...edge,
+                source: newConnection.source,
+                target: newConnection.target,
+                sourceHandle: newConnection.sourceHandle,
+                targetHandle: newConnection.targetHandle,
+                updatable: true,
+              }
+            : edge
         )
       );
       requestSave();
     },
-    [isAuth, setEdges, requestSave]
+    [isAuth, requestSave, setEdges]
   );
 
-  // Crear nuevos edges
   const handleConnect = useCallback(
     (connection) => {
       if (!isAuth) return;
       const direction = "ida";
       const color = getEdgeColor(undefined, direction);
-      setEdges((eds) =>
+      setEdges((current) =>
         addEdge(
           {
             ...connection,
             id: `edge-${Date.now()}`,
             type: "directional",
-            data: { label: connection.label || "", direction },
-            label: connection.label || "",
+            data: {
+              label: "",
+              direction,
+              labelPosition: null,
+              endpointLabels: {},
+              endpointLabelPositions: {},
+            },
+            label: "",
             style: { stroke: color, strokeWidth: 2 },
             markerEnd: withMarkerColor(undefined, color),
             animated: true,
             updatable: true,
           },
-          eds
+          current
         )
       );
       requestSave();
     },
-    [isAuth, setEdges, requestSave]
+    [isAuth, requestSave, setEdges]
   );
 
-  // Passthrough para que React Flow actualice posiciones
   const handleNodesChange = useCallback((changes) => onNodesChange(changes), [onNodesChange]);
   const handleEdgesChange = useCallback((changes) => onEdgesChange(changes), [onEdgesChange]);
 
@@ -330,7 +477,71 @@ const ChannelDiagram = () => {
     setSelectedNodeId(node?.id ?? null);
   }, []);
 
-  /* ───────── Render ───────── */
+  const handleInit = useCallback((instance) => {
+    setReactFlowInstance(instance);
+    instance.fitView({ padding: FIT_VIEW_PADDING });
+  }, []);
+
+  useEffect(() => {
+    if (!reactFlowInstance || loading) return;
+    reactFlowInstance.fitView({ padding: FIT_VIEW_PADDING });
+  }, [reactFlowInstance, channelId, loading, nodes.length, edges.length]);
+
+  useEffect(() => {
+    if (!reactFlowInstance) return;
+    const handleKey = (event) => {
+      if (event.target instanceof HTMLElement) {
+        const tagName = event.target.tagName.toLowerCase();
+        if (tagName === "input" || tagName === "textarea" || event.target.isContentEditable) {
+          return;
+        }
+      }
+
+      if (event.key === "+" || event.key === "=") {
+        if (typeof reactFlowInstance.zoomIn === "function") {
+          reactFlowInstance.zoomIn({ duration: ZOOM_DURATION });
+        } else {
+          const currentZoom = reactFlowInstance.getZoom?.() ?? 1;
+          reactFlowInstance.zoomTo?.(currentZoom * 1.2, { duration: ZOOM_DURATION });
+        }
+      }
+
+      if (event.key === "-" || event.key === "_") {
+        if (typeof reactFlowInstance.zoomOut === "function") {
+          reactFlowInstance.zoomOut({ duration: ZOOM_DURATION });
+        } else {
+          const currentZoom = reactFlowInstance.getZoom?.() ?? 1;
+          reactFlowInstance.zoomTo?.(currentZoom / 1.2, { duration: ZOOM_DURATION });
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [reactFlowInstance]);
+
+  const contextValue = useMemo(
+    () => ({
+      isReadOnly,
+      onNodeLabelChange: handleNodeLabelChange,
+      onNodeLabelPositionChange: handleNodeLabelPositionChange,
+      onEdgeLabelChange: handleEdgeLabelChange,
+      onEdgeLabelPositionChange: handleEdgeLabelPositionChange,
+      onEdgeEndpointLabelChange: handleEdgeEndpointLabelChange,
+      onEdgeEndpointLabelPositionChange: handleEdgeEndpointLabelPositionChange,
+      clampPosition,
+    }),
+    [
+      clampPosition,
+      handleEdgeEndpointLabelChange,
+      handleEdgeEndpointLabelPositionChange,
+      handleEdgeLabelChange,
+      handleEdgeLabelPositionChange,
+      handleNodeLabelChange,
+      handleNodeLabelPositionChange,
+      isReadOnly,
+    ]
+  );
 
   if (loading) {
     return (
@@ -353,35 +564,37 @@ const ChannelDiagram = () => {
       <div className="channel-diagram__layout">
         <div className="channel-diagram__canvas">
           {isReadOnly && (
-            <div className="diagram-readonly-banner">
-              Modo solo lectura.
-            </div>
+            <div className="diagram-readonly-banner">Modo solo lectura.</div>
           )}
-          <ReactFlow
-            className="channel-diagram__flow"
-            nodes={nodes}
-            edges={edges}
-            nodeTypes={nodeTypes}
-            edgeTypes={edgeTypes}
-            nodesDraggable={isAuth}
-            nodesConnectable={isAuth}
-            elementsSelectable={true}
-            edgesUpdatable={isAuth}
-            edgeUpdaterRadius={20}
-            onNodeDragStop={handleNodeDragStop}
-            onEdgeUpdate={handleEdgeUpdate}
-            onConnect={handleConnect}
-            onNodesChange={handleNodesChange}
-            onEdgesChange={handleEdgesChange}
-            onNodeClick={handleNodeClick}
-            onPaneClick={handlePaneClick}
-            onSelectionChange={handleSelectionChange}
-            fitView
-          >
-            <Background variant="dots" gap={16} size={1} />
-            <Controls position="bottom-right" />
-            <MiniMap />
-          </ReactFlow>
+          <DiagramContext.Provider value={contextValue}>
+            <ReactFlow
+              className="channel-diagram__flow"
+              nodes={nodes}
+              edges={edges}
+              nodeTypes={nodeTypes}
+              edgeTypes={edgeTypes}
+              nodesDraggable={!isReadOnly}
+              nodesConnectable={!isReadOnly}
+              elementsSelectable
+              edgesUpdatable={!isReadOnly}
+              edgeUpdaterRadius={20}
+              onNodeDragStop={handleNodeDragStop}
+              onEdgeUpdate={handleEdgeUpdate}
+              onConnect={handleConnect}
+              onNodesChange={handleNodesChange}
+              onEdgesChange={handleEdgesChange}
+              onNodeClick={handleNodeClick}
+              onPaneClick={handlePaneClick}
+              onSelectionChange={handleSelectionChange}
+              onInit={handleInit}
+              zoomOnScroll
+              panOnDrag
+            >
+              <Background variant="dots" gap={16} size={1} />
+              <Controls position="bottom-right" />
+              <MiniMap />
+            </ReactFlow>
+          </DiagramContext.Provider>
         </div>
         <NodeEquipmentSidebar node={selectedNode} />
       </div>

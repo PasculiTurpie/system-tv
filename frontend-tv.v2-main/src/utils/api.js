@@ -328,6 +328,18 @@ class Api {
             .then((r) => r.data);
     }
 
+    patchChannelNode(channelId, nodeId, payload) {
+        return this._axios
+            .patch(`/channels/${channelId}/node/${nodeId}`, payload)
+            .then((r) => r.data);
+    }
+
+    patchChannelEdge(channelId, edgeId, payload) {
+        return this._axios
+            .patch(`/channels/${channelId}/edge/${edgeId}`, payload)
+            .then((r) => r.data);
+    }
+
     // ====== TITANS ======
     async getTitanServices(host, pathOrOptions = undefined) {
         if (!host) {
