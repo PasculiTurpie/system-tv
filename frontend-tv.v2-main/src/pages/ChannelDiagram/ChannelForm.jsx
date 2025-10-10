@@ -138,6 +138,7 @@ const ChannelForm = () => {
     const [selectedEquipoValue, setSelectedEquipoValue] = useState(null);
     const [selectedIdEquipo, setSelectedIdEquipo] = useState(null);
     const [selectedEquipoTipo, setSelectedEquipoTipo] = useState(null);
+    const [equiposLoaded, setEquiposLoaded] = useState(false);
 
     // Borradores
     const [draftNodes, setDraftNodes] = useState([]);
@@ -389,6 +390,8 @@ const ChannelForm = () => {
                 if (mounted) setOptionSelectEquipo(grouped);
             } catch (e) {
                 console.warn("Error cargando equipos:", e?.message);
+            } finally {
+                if (mounted) setEquiposLoaded(true);
             }
         })();
 
@@ -396,6 +399,16 @@ const ChannelForm = () => {
             mounted = false;
         };
     }, []);
+
+    useEffect(() => {
+        if (!equiposLoaded) return;
+        if (!selectedEquipoValue) return;
+        if (selectedEquipoOption) return;
+
+        setSelectedEquipoValue(null);
+        setSelectedIdEquipo(null);
+        setSelectedEquipoTipo(null);
+    }, [equiposLoaded, selectedEquipoOption, selectedEquipoValue]);
 
     const handleSelectedChannel = (e) => {
         setSelectedValue(e?.value || null);
@@ -431,10 +444,13 @@ const ChannelForm = () => {
     }, [optionsSelectEquipo, selectedEquipoValue]);
 
     useEffect(() => {
-        if (!selectedValue || selectedSignalOption) return;
-        // Si la señal seleccionada ya no existe, limpiar label asociado.
+        if (signalsLoading || !selectedValue) return;
+        if (selectedSignalOption) return;
+
+        // Si la señal seleccionada ya no existe, limpiar selección y etiqueta asociada.
+        setSelectedValue(null);
         setSelectedId(null);
-    }, [selectedSignalOption, selectedValue]);
+    }, [selectedSignalOption, selectedValue, signalsLoading]);
 
     const handleFormValuesChange = useCallback((vals) => {
         setFormValues(vals);
