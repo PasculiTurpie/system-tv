@@ -1,6 +1,6 @@
 // src/pages/ChannelDiagram/ChannelForm.jsx
-import { Field, Formik, Form } from "formik";
-import { useEffect, useMemo, useState } from "react";
+import { Field, Formik, Form, useFormikContext } from "formik";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import api from "../../utils/api";
 import Select from "react-select";
@@ -28,6 +28,37 @@ const selectStyles = {
     dropdownIndicator: (base) => ({ ...base, padding: "6px 8px" }),
     clearIndicator: (base) => ({ ...base, padding: "6px 8px" }),
     menu: (base) => ({ ...base, zIndex: 20 }),
+};
+
+const STORAGE_KEY = "channel-form-draft";
+
+const defaultFormikValues = {
+    // Nodo
+    id: "",
+    label: "",
+    posX: "",
+    posY: "",
+    // Enlace
+    edgeId: "",
+    source: "",
+    target: "",
+    edgeLabel: "",
+    edgeMulticast: "",
+};
+
+const EDGE_DIR_OPTIONS = [
+    { value: "ida", label: "Ida (source → target)" },
+    { value: "vuelta", label: "Vuelta (target ← source)" },
+];
+
+const FormValuesObserver = ({ onChange }) => {
+    const { values } = useFormikContext();
+
+    useEffect(() => {
+        onChange(values);
+    }, [values, onChange]);
+
+    return null;
 };
 
 // Helpers
@@ -116,12 +147,133 @@ const ChannelForm = () => {
     const [edgeSourceSel, setEdgeSourceSel] = useState(null);
     const [edgeTargetSel, setEdgeTargetSel] = useState(null);
 
-    // Dirección
-    const edgeDirOptions = [
-        { value: "ida", label: "Ida (source → target)" },
-        { value: "vuelta", label: "Vuelta (target ← source)" },
-    ];
-    const [edgeDirection, setEdgeDirection] = useState(edgeDirOptions[0]);
+    const [initialValues, setInitialValues] = useState(defaultFormikValues);
+    const [formValues, setFormValues] = useState(defaultFormikValues);
+    const [edgeDirection, setEdgeDirection] = useState(EDGE_DIR_OPTIONS[0]);
+    const [isRestoring, setIsRestoring] = useState(true);
+
+    const persistDraft = useCallback(
+        (payload) => {
+            if (typeof window === "undefined") return;
+            try {
+                window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+            } catch (err) {
+                console.warn("No se pudo guardar el borrador del formulario:", err);
+            }
+        },
+        []
+    );
+
+    const clearDraft = useCallback(() => {
+        if (typeof window === "undefined") return;
+        try {
+            window.localStorage.removeItem(STORAGE_KEY);
+        } catch (err) {
+            console.warn("No se pudo limpiar el borrador del formulario:", err);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (typeof window === "undefined") {
+            setIsRestoring(false);
+            return;
+        }
+
+        try {
+            const raw = window.localStorage.getItem(STORAGE_KEY);
+            if (!raw) {
+                setIsRestoring(false);
+                return;
+            }
+
+            const stored = JSON.parse(raw);
+
+            if (stored?.formValues && typeof stored.formValues === "object") {
+                const mergedValues = { ...defaultFormikValues, ...stored.formValues };
+                setInitialValues(mergedValues);
+                setFormValues(mergedValues);
+            }
+
+            if (stored?.selectedValue) setSelectedValue(stored.selectedValue);
+            if (stored?.selectedId) setSelectedId(stored.selectedId);
+            if (stored?.selectedEquipoValue) setSelectedEquipoValue(stored.selectedEquipoValue);
+            if (stored?.selectedIdEquipo) setSelectedIdEquipo(stored.selectedIdEquipo);
+            if (stored?.selectedEquipoTipo) setSelectedEquipoTipo(stored.selectedEquipoTipo);
+            if (Array.isArray(stored?.draftNodes)) setDraftNodes(stored.draftNodes);
+            if (Array.isArray(stored?.draftEdges)) setDraftEdges(stored.draftEdges);
+            if (stored?.edgeSourceSel) setEdgeSourceSel(stored.edgeSourceSel);
+            if (stored?.edgeTargetSel) setEdgeTargetSel(stored.edgeTargetSel);
+
+            const dirValue = stored?.edgeDirectionValue || stored?.edgeDirection?.value;
+            if (dirValue) {
+                const dirOpt = EDGE_DIR_OPTIONS.find((opt) => opt.value === dirValue);
+                if (dirOpt) setEdgeDirection(dirOpt);
+            }
+        } catch (err) {
+            console.warn("No se pudo restaurar el borrador del formulario:", err);
+        } finally {
+            setIsRestoring(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (isRestoring) return;
+
+        const hasFormValues = Object.values(formValues || {}).some((val) => {
+            if (typeof val === "number") return !Number.isNaN(val) && val !== 0;
+            if (typeof val === "string") return val.trim() !== "";
+            return Boolean(val);
+        });
+
+        const shouldPersist =
+            hasFormValues ||
+            Boolean(
+                selectedValue ||
+                    selectedId ||
+                    selectedEquipoValue ||
+                    selectedIdEquipo ||
+                    selectedEquipoTipo ||
+                    draftNodes.length ||
+                    draftEdges.length ||
+                    edgeSourceSel ||
+                    edgeTargetSel ||
+                    (edgeDirection?.value && edgeDirection.value !== EDGE_DIR_OPTIONS[0].value)
+            );
+
+        if (!shouldPersist) {
+            clearDraft();
+            return;
+        }
+
+        persistDraft({
+            formValues,
+            selectedValue,
+            selectedId,
+            selectedEquipoValue,
+            selectedIdEquipo,
+            selectedEquipoTipo,
+            draftNodes,
+            draftEdges,
+            edgeSourceSel,
+            edgeTargetSel,
+            edgeDirectionValue: edgeDirection?.value || null,
+        });
+    }, [
+        draftEdges,
+        draftNodes,
+        edgeDirection,
+        edgeSourceSel,
+        edgeTargetSel,
+        formValues,
+        clearDraft,
+        persistDraft,
+        selectedEquipoTipo,
+        selectedEquipoValue,
+        selectedId,
+        selectedIdEquipo,
+        selectedValue,
+        isRestoring,
+    ]);
 
     // Cargar señales y filtrar disponibles
     useEffect(() => {
@@ -151,15 +303,30 @@ const ChannelForm = () => {
                 if (!mounted) return;
                 setOptionSelectChannel(opts);
 
-                const preId = searchParams.get("signalId");
-                if (preId && opts.some((o) => String(o.value) === String(preId))) {
-                    const found = opts.find((o) => String(o.value) === String(preId));
-                    setSelectedValue(found.value);
-                    setSelectedId(found.label);
-                } else {
-                    setSelectedValue(null);
+                setSelectedValue((prevSelectedValue) => {
+                    const preId = searchParams.get("signalId");
+
+                    if (preId) {
+                        const found = opts.find((o) => String(o.value) === String(preId));
+                        if (found) {
+                            setSelectedId(found.label);
+                            return found.value;
+                        }
+                        setSelectedId(null);
+                        return null;
+                    }
+
+                    if (prevSelectedValue) {
+                        const match = opts.find((o) => String(o.value) === String(prevSelectedValue));
+                        if (match) {
+                            setSelectedId(match.label);
+                            return prevSelectedValue;
+                        }
+                    }
+
                     setSelectedId(null);
-                }
+                    return null;
+                });
             } catch (e) {
                 if (!mounted) return;
                 setSignalsError(e);
@@ -249,6 +416,30 @@ const ChannelForm = () => {
         [draftNodes]
     );
 
+    const selectedSignalOption = useMemo(
+        () => optionsSelectChannel.find((opt) => String(opt.value) === String(selectedValue)) || null,
+        [optionsSelectChannel, selectedValue]
+    );
+
+    const selectedEquipoOption = useMemo(() => {
+        if (!selectedEquipoValue) return null;
+        for (const group of optionsSelectEquipo) {
+            const found = group.options?.find((opt) => String(opt.value) === String(selectedEquipoValue));
+            if (found) return found;
+        }
+        return null;
+    }, [optionsSelectEquipo, selectedEquipoValue]);
+
+    useEffect(() => {
+        if (!selectedValue || selectedSignalOption) return;
+        // Si la señal seleccionada ya no existe, limpiar label asociado.
+        setSelectedId(null);
+    }, [selectedSignalOption, selectedValue]);
+
+    const handleFormValuesChange = useCallback((vals) => {
+        setFormValues(vals);
+    }, []);
+
     const availableSignals = optionsSelectChannel.length;
 
     return (
@@ -267,19 +458,8 @@ const ChannelForm = () => {
             <h2 className="chf__title">Crear un diagrama</h2>
 
             <Formik
-                initialValues={{
-                    // Nodo
-                    id: "",
-                    label: "",
-                    posX: "",
-                    posY: "",
-                    // Enlace
-                    edgeId: "",
-                    source: "",
-                    target: "",
-                    edgeLabel: "",
-                    edgeMulticast: "",
-                }}
+                initialValues={initialValues}
+                enableReinitialize
                 onSubmit={async (_, { resetForm }) => {
                     try {
                         if (!selectedValue) {
@@ -356,7 +536,15 @@ const ChannelForm = () => {
                         setDraftEdges([]);
                         setEdgeSourceSel(null);
                         setEdgeTargetSel(null);
-                        setEdgeDirection(edgeDirOptions[0]);
+                        setEdgeDirection(EDGE_DIR_OPTIONS[0]);
+                        setSelectedValue(null);
+                        setSelectedId(null);
+                        setSelectedEquipoValue(null);
+                        setSelectedIdEquipo(null);
+                        setSelectedEquipoTipo(null);
+                        setInitialValues(defaultFormikValues);
+                        setFormValues(defaultFormikValues);
+                        clearDraft();
                         resetForm();
                         // navigate("/channel_diagram-list");
                     } catch (e) {
@@ -378,6 +566,7 @@ const ChannelForm = () => {
             >
                 {({ values, setFieldValue }) => (
                     <Form className="chf__form">
+                        <FormValuesObserver onChange={handleFormValuesChange} />
                         {/* ---- Señal ---- */}
                         <fieldset className="chf__fieldset">
                             <legend className="chf__legend">Señal</legend>
@@ -414,6 +603,7 @@ const ChannelForm = () => {
                                                 isSearchable
                                                 options={optionsSelectChannel}
                                                 onChange={handleSelectedChannel}
+                                                value={selectedSignalOption}
                                                 placeholder="Seleccione una señal"
                                                 noOptionsMessage={() => "No hay señales disponibles"}
                                                 styles={selectStyles}
@@ -447,6 +637,7 @@ const ChannelForm = () => {
                                         placeholder="Equipos"
                                         options={optionsSelectEquipo}
                                         onChange={handleSelectedEquipo}
+                                        value={selectedEquipoOption}
                                         styles={selectStyles}
                                     />
                                 </label>
@@ -577,7 +768,7 @@ const ChannelForm = () => {
                                     Dirección
                                     <Select
                                         className="chf__select"
-                                        options={edgeDirOptions}
+                                        options={EDGE_DIR_OPTIONS}
                                         value={edgeDirection}
                                         onChange={(opt) => setEdgeDirection(opt)}
                                         placeholder="Dirección"
@@ -675,7 +866,7 @@ const ChannelForm = () => {
                                         setFieldValue("edgeMulticast", "");
                                         setEdgeSourceSel(null);
                                         setEdgeTargetSel(null);
-                                        setEdgeDirection(edgeDirOptions[0]);
+                                        setEdgeDirection(EDGE_DIR_OPTIONS[0]);
                                     }}
                                 >
                                     + Agregar enlace
