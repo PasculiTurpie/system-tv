@@ -177,16 +177,16 @@ const ChannelForm = () => {
   const [optionsSelectChannel, setOptionSelectChannel] = useState([]);
   const [signalsLoading, setSignalsLoading] = useState(true);
   const [signalsError, setSignalsError] = useState(null);
-
+  const [allEquipoOptions, setAllEquipoOptions] = useState([]); // ✅ copia maestra para "Vaciar todo"
   const [selectedValue, setSelectedValue] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
 
-  // Equipos agrupados
-  const [optionsSelectEquipo, setOptionSelectEquipo] = useState([]);
-  const [allEquipoOptions, setAllEquipoOptions] = useState([]); // ✅ copia maestra para "Vaciar todo"
-  const [selectedEquipoValue, setSelectedEquipoValue] = useState(null);
-  const [selectedIdEquipo, setSelectedIdEquipo] = useState(null);
-  const [selectedEquipoTipo, setSelectedEquipoTipo] = useState(null);
+    // Equipos agrupados
+    const [optionsSelectEquipo, setOptionSelectEquipo] = useState([]);
+    const [selectedEquipoValue, setSelectedEquipoValue] = useState(null);
+    const [selectedIdEquipo, setSelectedIdEquipo] = useState(null);
+    const [selectedEquipoTipo, setSelectedEquipoTipo] = useState(null);
+    const [equiposLoaded, setEquiposLoaded] = useState(false);
 
   // Borradores
   const [draftNodes, setDraftNodes] = useState([]);
@@ -435,21 +435,16 @@ const ChannelForm = () => {
           { label: "Otros equipos", options: otros },
         ].filter((g) => g.options.length > 0);
 
-        if (mounted) {
-          setOptionSelectEquipo(grouped);
-          // ✅ guarda copia maestra para poder restaurar con "Vaciar todo"
-          const clone = grouped.map((g) => ({ label: g.label, options: [...g.options] }));
-          setAllEquipoOptions(clone);
-        }
-      } catch (e) {
-        console.warn("Error cargando equipos:", e?.message);
-      }
-    })();
+                if (mounted) setOptionSelectEquipo(grouped);
+            } catch (e) {
+                console.warn("Error cargando equipos:", e?.message);
+            }
+        })();
 
-    return () => {
-      mounted = false;
-    };
-  }, []);
+        return () => {
+            mounted = false;
+        };
+    }, []);
 
   const handleSelectedChannel = (e) => {
     setSelectedValue(e?.value || null);
@@ -606,11 +601,11 @@ const ChannelForm = () => {
     return null;
   }, [optionsSelectEquipo, selectedEquipoValue]);
 
-  useEffect(() => {
-    if (!selectedValue || selectedSignalOption) return;
-    // Si la señal seleccionada ya no existe, limpiar label asociado.
-    setSelectedId(null);
-  }, [selectedSignalOption, selectedValue]);
+    useEffect(() => {
+        if (!selectedValue || selectedSignalOption) return;
+        // Si la señal seleccionada ya no existe, limpiar label asociado.
+        setSelectedId(null);
+    }, [selectedSignalOption, selectedValue]);
 
   const handleFormValuesChange = useCallback((vals) => {
     setFormValues(vals);
