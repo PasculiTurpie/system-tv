@@ -794,7 +794,7 @@ export default function ServicesMultiHost() {
                         href={hostHref(r.ip)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        style={{ textDecoration: "underline", whiteSpace: "nowrap" }}
+                        style={{ whiteSpace: "nowrap" }}
                         title={`${TITAN_PROTOCOL}://${r.ip}`}
                       >
                         {r.ip}
@@ -844,7 +844,7 @@ export default function ServicesMultiHost() {
                         href={hostHref(r.ip)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        style={{ textDecoration: "underline", whiteSpace: "nowrap" }}
+                        style={{ whiteSpace: "nowrap" }}
                         title={`${TITAN_PROTOCOL}://${r.ip}`}
                       >
                         {r.ip}
