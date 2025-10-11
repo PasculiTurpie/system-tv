@@ -607,7 +607,6 @@ const ChannelDiagram = () => {
             >
               <Background variant="dots" gap={16} size={1} />
               <Controls position="bottom-right" />
-              <MiniMap />
             </ReactFlow>
           </DiagramContext.Provider>
         </div>

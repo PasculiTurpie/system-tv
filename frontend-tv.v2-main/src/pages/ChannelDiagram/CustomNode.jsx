@@ -1,76 +1,160 @@
+// src/components/CustomNode.jsx
 import React, { useCallback, useContext, useMemo } from "react";
+import PropTypes from "prop-types";
 import { Handle, Position, useStore } from "@xyflow/react";
+import { shallow } from "zustand/shallow";
 import EditableEdgeLabel from "./EditableEdgeLabel";
 import { DiagramContext } from "./DiagramContext";
 
-const box = {
-  padding: 10,
-  border: "1px solid #444",
-  borderRadius: 10,
-  background: "#fff",
-  width: 170,
-  position: "relative",
-  textAlign: "center",
+const DEFAULT_SLOTS = {
+  top: [20, 50, 80],
+  bottom: [20, 50, 80],
+  left: [30, 70],
+  right: [30, 70],
 };
 
-const dot = { background: "transparent" };
-const pctTop = (p) => ({ top: `${p}%` });
-const pctLeft = (p) => ({ left: `${p}%` });
-
-export default function CustomNode({ id, data }) {
+function CustomNode({ id, data }) {
   const { isReadOnly, onNodeLabelChange, onNodeLabelPositionChange } =
     useContext(DiagramContext);
 
-  const selectNode = useCallback((state) => state.nodeInternals.get(id), [id]);
-  const nodeState = useStore(selectNode);
-
-  const handleLabelCommit = useCallback(
-    (nextLabel) => {
-      onNodeLabelChange?.(id, nextLabel);
-    },
-    [id, onNodeLabelChange]
+  const { xAbs, yAbs, width, ready } = useStore(
+    useCallback(
+      (state) => {
+        const map = state?.nodeInternals;
+        if (!map || typeof map.get !== "function") {
+          return { xAbs: null, yAbs: null, width: 0, ready: false };
+        }
+        const node = map.get(id);
+        const pos = node?.positionAbsolute;
+        return {
+          xAbs: Number.isFinite(pos?.x) ? pos.x : null,
+          yAbs: Number.isFinite(pos?.y) ? pos.y : null,
+          width: Number.isFinite(node?.width) ? node.width : 0,
+          ready: true,
+        };
+      },
+      [id]
+    ),
+    shallow
   );
-
-  const handleLabelPositionChange = useCallback(
-    (position) => {
-      onNodeLabelPositionChange?.(id, position);
-    },
-    [id, onNodeLabelPositionChange]
-  );
-
-  const defaultLabelPosition = useMemo(() => {
-    if (!nodeState?.positionAbsolute) {
-      return null;
-    }
-    const width = Number.isFinite(nodeState.width) ? nodeState.width : 0;
-    const x = nodeState.positionAbsolute.x + width / 2;
-    const y = nodeState.positionAbsolute.y - 24;
-    return { x, y };
-  }, [
-    nodeState?.positionAbsolute?.x,
-    nodeState?.positionAbsolute?.y,
-    nodeState?.width,
-  ]);
 
   const hasStoredLabelPosition =
     data?.labelPosition &&
     Number.isFinite(data.labelPosition.x) &&
     Number.isFinite(data.labelPosition.y);
 
-  const leftSlots = [30, 70];
-  const rightSlots = [30, 70];
-  const topSlots = [20, 50, 80];
-  const bottomSlots = [20, 50, 80];
+  const defaultLabelPosition = useMemo(() => {
+    if (!ready || !Number.isFinite(xAbs) || !Number.isFinite(yAbs)) return null;
+    const cx = xAbs + (Number.isFinite(width) ? width : 0) / 2;
+    const cy = yAbs - 24;
+    return { x: cx, y: cy };
+  }, [ready, xAbs, yAbs, width]);
+
+  const effectiveLabelDefault = useMemo(() => {
+    if (hasStoredLabelPosition) return data.labelPosition;
+    if (defaultLabelPosition) return defaultLabelPosition;
+    return { x: 0, y: 0 };
+  }, [hasStoredLabelPosition, data?.labelPosition, defaultLabelPosition]);
+
+  const slots = useMemo(() => {
+    const s = data?.slots ?? {};
+    return {
+      top: Array.isArray(s.top) && s.top.length ? s.top : DEFAULT_SLOTS.top,
+      bottom:
+        Array.isArray(s.bottom) && s.bottom.length
+          ? s.bottom
+          : DEFAULT_SLOTS.bottom,
+      left:
+        Array.isArray(s.left) && s.left.length ? s.left : DEFAULT_SLOTS.left,
+      right:
+        Array.isArray(s.right) && s.right.length ? s.right : DEFAULT_SLOTS.right,
+    };
+  }, [data?.slots]);
+
+  const boxStyle = useMemo(
+    () => ({
+      padding: 10,
+      border: "1px solid #444",
+      borderRadius: 10,
+      background: "#fff",
+      width: 170,
+      position: "relative",
+      textAlign: "center",
+      cursor: isReadOnly ? "default" : "grab",
+      userSelect: "none",
+    }),
+    [isReadOnly]
+  );
+
+  const titleText = useMemo(
+    () => data?.tooltip || data?.description || data?.label || "Nodo",
+    [data?.tooltip, data?.description, data?.label]
+  );
+
+  const dotBase = useMemo(() => ({ background: "transparent" }), []);
+  const pctTop = useCallback((p) => ({ top: `${p}%` }), []);
+  const pctLeft = useCallback((p) => ({ left: `${p}%` }), []);
+
+  const handleLabelCommit = useCallback(
+    (nextLabel) => onNodeLabelChange?.(id, nextLabel),
+    [id, onNodeLabelChange]
+  );
+
+  const handleLabelPositionChange = useCallback(
+    (position) => onNodeLabelPositionChange?.(id, position),
+    [id, onNodeLabelPositionChange]
+  );
+
+  const renderHandles = useCallback(
+    (side, list) =>
+      list.map((p, i) => {
+        const idx = i + 1;
+        const key = `${side}-${idx}`;
+        const style =
+          side === "top" || side === "bottom"
+            ? { ...dotBase, ...pctLeft(p) }
+            : { ...dotBase, ...pctTop(p) };
+
+        const pos =
+          side === "top"
+            ? Position.Top
+            : side === "bottom"
+            ? Position.Bottom
+            : side === "left"
+            ? Position.Left
+            : Position.Right;
+
+        return (
+          <React.Fragment key={key}>
+            <Handle
+              id={`in-${side}-${idx}`}
+              type="target"
+              position={pos}
+              style={style}
+              isConnectableStart={!isReadOnly}
+              isConnectableEnd={!isReadOnly}
+              aria-label={`Entrada ${side} ${idx}`}
+            />
+            <Handle
+              id={`out-${side}-${idx}`}
+              type="source"
+              position={pos}
+              style={style}
+              isConnectableStart={!isReadOnly}
+              isConnectableEnd={!isReadOnly}
+              aria-label={`Salida ${side} ${idx}`}
+            />
+          </React.Fragment>
+        );
+      }),
+    [dotBase, pctLeft, pctTop, isReadOnly]
+  );
 
   return (
     <>
-      <div title={data?.tooltip || data?.description || data?.label} style={box}>
+      <div title={titleText} style={boxStyle} role="group" aria-label="Nodo">
         <div
-          style={{
-            fontWeight: "bold",
-            padding: "2px 4px",
-            cursor: isReadOnly ? "default" : "grab",
-          }}
+          style={{ fontWeight: "bold", padding: "2px 4px" }}
           title={
             isReadOnly
               ? "Solo lectura"
@@ -81,86 +165,24 @@ export default function CustomNode({ id, data }) {
         </div>
 
         {/* TOP */}
-        {topSlots.map((p, i) => (
-          <React.Fragment key={`top-${i}`}>
-            <Handle
-              id={`in-top-${i + 1}`}
-              type="target"
-              position={Position.Top}
-              style={{ ...dot, ...pctLeft(p) }}
-            />
-            <Handle
-              id={`out-top-${i + 1}`}
-              type="source"
-              position={Position.Top}
-              style={{ ...dot, ...pctLeft(p) }}
-            />
-          </React.Fragment>
-        ))}
+        {renderHandles("top", slots.top)}
 
         {/* BOTTOM */}
-        {bottomSlots.map((p, i) => (
-          <React.Fragment key={`bottom-${i}`}>
-            <Handle
-              id={`in-bottom-${i + 1}`}
-              type="target"
-              position={Position.Bottom}
-              style={{ ...dot, ...pctLeft(p) }}
-            />
-            <Handle
-              id={`out-bottom-${i + 1}`}
-              type="source"
-              position={Position.Bottom}
-              style={{ ...dot, ...pctLeft(p) }}
-            />
-          </React.Fragment>
-        ))}
+        {renderHandles("bottom", slots.bottom)}
 
         {/* LEFT */}
-        {leftSlots.map((p, i) => (
-          <React.Fragment key={`left-${i}`}>
-            <Handle
-              id={`in-left-${i + 1}`}
-              type="target"
-              position={Position.Left}
-              style={{ ...dot, ...pctTop(p) }}
-            />
-            <Handle
-              id={`out-left-${i + 1}`}
-              type="source"
-              position={Position.Left}
-              style={{ ...dot, ...pctTop(p) }}
-            />
-          </React.Fragment>
-        ))}
+        {renderHandles("left", slots.left)}
 
         {/* RIGHT */}
-        {rightSlots.map((p, i) => (
-          <React.Fragment key={`right-${i}`}>
-            <Handle
-              id={`in-right-${i + 1}`}
-              type="target"
-              position={Position.Right}
-              style={{ ...dot, ...pctTop(p) }}
-            />
-            <Handle
-              id={`out-right-${i + 1}`}
-              type="source"
-              position={Position.Right}
-              style={{ ...dot, ...pctTop(p) }}
-            />
-          </React.Fragment>
-        ))}
+        {renderHandles("right", slots.right)}
       </div>
 
       {(defaultLabelPosition || hasStoredLabelPosition) && (
         <EditableEdgeLabel
           text={data?.label || ""}
-          position={data?.labelPosition}
-          defaultPosition={
-            defaultLabelPosition || data?.labelPosition || { x: 0, y: 0 }
-          }
-          readOnly={isReadOnly}
+          position={hasStoredLabelPosition ? data.labelPosition : undefined}
+          defaultPosition={effectiveLabelDefault}
+          readOnly={!!isReadOnly}
           ariaLabel="Etiqueta del nodo"
           placeholder="Etiqueta del nodo"
           onCommit={handleLabelCommit}
@@ -172,3 +194,39 @@ export default function CustomNode({ id, data }) {
     </>
   );
 }
+
+CustomNode.propTypes = {
+  id: PropTypes.string.isRequired,
+  data: PropTypes.shape({
+    label: PropTypes.string,
+    tooltip: PropTypes.string,
+    description: PropTypes.string,
+    labelPosition: PropTypes.shape({
+      x: PropTypes.number,
+      y: PropTypes.number,
+    }),
+    slots: PropTypes.shape({
+      top: PropTypes.arrayOf(PropTypes.number),
+      bottom: PropTypes.arrayOf(PropTypes.number),
+      left: PropTypes.arrayOf(PropTypes.number),
+      right: PropTypes.arrayOf(PropTypes.number),
+    }),
+  }),
+};
+
+export default React.memo(
+  CustomNode,
+  (prev, next) => {
+    const a = prev;
+    const b = next;
+    return (
+      a.id === b.id &&
+      a.data?.label === b.data?.label &&
+      a.data?.tooltip === b.data?.tooltip &&
+      a.data?.description === b.data?.description &&
+      a.data?.labelPosition?.x === b.data?.labelPosition?.x &&
+      a.data?.labelPosition?.y === b.data?.labelPosition?.y &&
+      JSON.stringify(a.data?.slots ?? {}) === JSON.stringify(b.data?.slots ?? {})
+    );
+  }
+);
