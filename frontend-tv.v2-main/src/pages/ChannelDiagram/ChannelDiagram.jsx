@@ -80,6 +80,8 @@ const clampLabelText = (value) => {
 const ChannelDiagram = () => {
   const { id: signalId } = useParams();
 
+  console.log(signalId)
+
   const nodeTypes = useMemo(
     () => ({
       custom: CustomNode,
@@ -162,6 +164,14 @@ const ChannelDiagram = () => {
     []
   );
 
+   api.getChannelDiagramById("68d2b93ac38e2aff66d535fb")
+    .then((res) => {
+      console.log(res.data)
+    })
+
+  
+
+
   useEffect(() => {
     let cancelled = false;
 
@@ -170,12 +180,14 @@ const ChannelDiagram = () => {
         setLoading(true);
         setError(null);
 
-        const response = await api.getChannelDiagramBySignal(
+        const response = await api.getChannelDiagramById(
           String(signalId || "").trim()
+          
         );
+        console.log(response)
         const payload = response?.data ?? response;
         const diagram = Array.isArray(payload) ? payload[0] : payload;
-
+        
         if (!diagram) {
           throw new Error("No existen diagramas para la señal indicada.");
         }
