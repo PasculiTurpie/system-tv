@@ -6,6 +6,7 @@ import {
   useEdgesState,
   useNodesState,
   addEdge,
+  applyNodeChanges,
   ReactFlowProvider,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
@@ -102,8 +103,8 @@ const ChannelDiagram = () => {
   const isReadOnly = !isAuth;
 
   const [loading, setLoading] = useState(true);
-  const [nodes, setNodes, onNodesChange] = useNodesState([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [nodes, setNodesState] = useNodesState([]);
+  const [edges, setEdgesState, onEdgesChange] = useEdgesState([]);
   const [error, setError] = useState(null);
   const [channelId, setChannelId] = useState(null);
   const [selectedNodeId, setSelectedNodeId] = useState(null);
@@ -112,13 +113,29 @@ const ChannelDiagram = () => {
   const nodesRef = useRef(nodes);
   const edgesRef = useRef(edges);
 
-  useEffect(() => {
-    nodesRef.current = nodes;
-  }, [nodes]);
+  const updateNodes = useCallback(
+    (updater) => {
+      setNodesState((current) => {
+        const next =
+          typeof updater === "function" ? updater(current) : Array.isArray(updater) ? updater : current;
+        nodesRef.current = next;
+        return next;
+      });
+    },
+    [setNodesState]
+  );
 
-  useEffect(() => {
-    edgesRef.current = edges;
-  }, [edges]);
+  const updateEdges = useCallback(
+    (updater) => {
+      setEdgesState((current) => {
+        const next =
+          typeof updater === "function" ? updater(current) : Array.isArray(updater) ? updater : current;
+        edgesRef.current = next;
+        return next;
+      });
+    },
+    [setEdgesState]
+  );
 
   const selectedNode = useMemo(
     () => nodes.find((node) => node.id === selectedNodeId) || null,
@@ -164,14 +181,6 @@ const ChannelDiagram = () => {
     []
   );
 
-   api.getChannelDiagramById("68d2b93ac38e2aff66d535fb")
-    .then((res) => {
-      console.log(res.data)
-    })
-
-  
-
-
   useEffect(() => {
     let cancelled = false;
 
@@ -198,14 +207,14 @@ const ChannelDiagram = () => {
         if (cancelled) return;
 
         setChannelId(String(diagram._id));
-        setNodes(normalizedNodes);
-        setEdges(normalizedEdges);
+        updateNodes(() => normalizedNodes);
+        updateEdges(() => normalizedEdges);
         setSelectedNodeId(null);
       } catch (err) {
         if (!cancelled) {
           setError(err?.message || "Error al cargar el diagrama");
-          setNodes([]);
-          setEdges([]);
+          updateNodes(() => []);
+          updateEdges(() => []);
         }
       } finally {
         if (!cancelled) {
@@ -219,7 +228,7 @@ const ChannelDiagram = () => {
     return () => {
       cancelled = true;
     };
-  }, [signalId, setNodes, setEdges]);
+  }, [signalId, updateNodes, updateEdges]);
 
   const nodePatchScheduler = useMemo(() => {
     if (!channelId || !isAuth) return null;
@@ -268,7 +277,7 @@ const ChannelDiagram = () => {
   const handleNodeLabelChange = useCallback(
     (nodeId, nextLabel) => {
       const sanitized = clampLabelText(nextLabel);
-      setNodes((current) =>
+      updateNodes((current) =>
         current.map((node) =>
           node.id === nodeId
             ? { ...node, data: { ...(node.data || {}), label: sanitized } }
@@ -278,14 +287,15 @@ const ChannelDiagram = () => {
       if (isAuth) {
         scheduleNodePatch(nodeId, { label: sanitized });
       }
+      requestSave();
     },
-    [isAuth, scheduleNodePatch, setNodes]
+    [isAuth, scheduleNodePatch, updateNodes, requestSave]
   );
 
   const handleNodeLabelPositionChange = useCallback(
     (nodeId, position) => {
       const clamped = position ? clampPosition(position) : null;
-      setNodes((current) =>
+      updateNodes((current) =>
         current.map((node) =>
           node.id === nodeId
             ? {
@@ -301,14 +311,15 @@ const ChannelDiagram = () => {
       if (isAuth) {
         scheduleNodePatch(nodeId, { labelPosition: clamped });
       }
+      requestSave();
     },
-    [clampPosition, isAuth, scheduleNodePatch, setNodes]
+    [clampPosition, isAuth, scheduleNodePatch, updateNodes, requestSave]
   );
 
   const handleEdgeLabelChange = useCallback(
     (edgeId, nextLabel) => {
       const sanitized = clampLabelText(nextLabel);
-      setEdges((current) =>
+      updateEdges((current) =>
         current.map((edge) =>
           edge.id === edgeId
             ? {
@@ -322,14 +333,15 @@ const ChannelDiagram = () => {
       if (isAuth) {
         scheduleEdgePatch(edgeId, { label: sanitized });
       }
+      requestSave();
     },
-    [isAuth, scheduleEdgePatch, setEdges]
+    [isAuth, scheduleEdgePatch, updateEdges, requestSave]
   );
 
   const handleEdgeLabelPositionChange = useCallback(
     (edgeId, position) => {
       const clamped = position ? clampPosition(position) : null;
-      setEdges((current) =>
+      updateEdges((current) =>
         current.map((edge) =>
           edge.id === edgeId
             ? {
@@ -343,14 +355,15 @@ const ChannelDiagram = () => {
       if (isAuth) {
         scheduleEdgePatch(edgeId, { labelPosition: clamped });
       }
+      requestSave();
     },
-    [clampPosition, isAuth, scheduleEdgePatch, setEdges]
+    [clampPosition, isAuth, scheduleEdgePatch, updateEdges, requestSave]
   );
 
   const handleEdgeEndpointLabelChange = useCallback(
     (edgeId, endpoint, nextLabel) => {
       const sanitized = clampLabelText(nextLabel).trim();
-      setEdges((current) =>
+      updateEdges((current) =>
         current.map((edge) => {
           if (edge.id !== edgeId) return edge;
           const currentLabels = { ...(edge.data?.endpointLabels || {}) };
@@ -373,14 +386,15 @@ const ChannelDiagram = () => {
           endpointLabels: { [endpoint]: sanitized || null },
         });
       }
+      requestSave();
     },
-    [isAuth, scheduleEdgePatch, setEdges]
+    [isAuth, scheduleEdgePatch, updateEdges, requestSave]
   );
 
   const handleEdgeEndpointLabelPositionChange = useCallback(
     (edgeId, endpoint, position) => {
       const clamped = position ? clampPosition(position) : null;
-      setEdges((current) =>
+      updateEdges((current) =>
         current.map((edge) => {
           if (edge.id !== edgeId) return edge;
           const currentPositions = {
@@ -405,8 +419,9 @@ const ChannelDiagram = () => {
           endpointLabelPositions: { [endpoint]: clamped || null },
         });
       }
+      requestSave();
     },
-    [clampPosition, isAuth, scheduleEdgePatch, setEdges]
+    [clampPosition, isAuth, scheduleEdgePatch, updateEdges, requestSave]
   );
 
   const handleNodeDragStop = useCallback(() => {
@@ -416,7 +431,7 @@ const ChannelDiagram = () => {
   const handleEdgeUpdate = useCallback(
     (oldEdge, newConnection) => {
       if (!isAuth) return;
-      setEdges((current) =>
+      updateEdges((current) =>
         current.map((edge) =>
           edge.id === oldEdge.id
             ? {
@@ -432,7 +447,7 @@ const ChannelDiagram = () => {
       );
       requestSave();
     },
-    [isAuth, requestSave, setEdges]
+    [isAuth, requestSave, updateEdges]
   );
 
   const handleConnect = useCallback(
@@ -440,7 +455,7 @@ const ChannelDiagram = () => {
       if (!isAuth) return;
       const direction = "ida";
       const color = getEdgeColor(undefined, direction);
-      setEdges((current) =>
+      updateEdges((current) =>
         addEdge(
           {
             ...connection,
@@ -464,10 +479,21 @@ const ChannelDiagram = () => {
       );
       requestSave();
     },
-    [isAuth, requestSave, setEdges]
+    [isAuth, requestSave, updateEdges]
   );
 
-  const handleNodesChange = useCallback((changes) => onNodesChange(changes), [onNodesChange]);
+  const handleNodesChange = useCallback(
+    (changes) => {
+      updateNodes((current) => applyNodeChanges(changes, current));
+      const hasFinalPositionChange = changes.some(
+        (change) => change.type === "position" && change.dragging === false
+      );
+      if (hasFinalPositionChange) {
+        requestSave();
+      }
+    },
+    [updateNodes, requestSave]
+  );
   const handleEdgesChange = useCallback((changes) => onEdgesChange(changes), [onEdgesChange]);
 
   const handleNodeClick = useCallback((_, node) => {
