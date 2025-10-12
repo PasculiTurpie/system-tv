@@ -72,21 +72,20 @@ const ChannelListDiagram = () => {
     });
   };
 
-  // Ir a editar el diagrama por ID de la señal
+  // Ir a editar el diagrama por ID del canal
   const handleEdit = (channel) => {
-    console.log(channel._id)
-    const signal = channel?.signal;
-    console.log(signal)
-    const signalId =
-      (typeof signal === "string" && signal) ||
-      (typeof signal === "object" && (signal._id || signal.id));
+    const channelId = channel?._id;
 
-    if (!signalId) {
-      Swal.fire("Sin señal", "No se encontró la señal asociada a este diagrama.", "warning");
+    if (!channelId) {
+      Swal.fire(
+        "Canal no disponible",
+        "No se encontró el identificador del canal para abrir el diagrama.",
+        "warning"
+      );
       return;
     }
 
-    navigate(`/channels/${String(signalId)}`);
+    navigate(`/channels/${String(channelId)}`);
   };
 
   const totalPages = Math.ceil(filteredChannels.length / PAGE_SIZE);
