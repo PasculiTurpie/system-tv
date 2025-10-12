@@ -6,6 +6,7 @@ import {
   useEdgesState,
   useNodesState,
   addEdge,
+  ReactFlowProvider,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useParams } from "react-router-dom";
@@ -19,16 +20,14 @@ import { UserContext } from "../../components/context/UserContext";
 import NodeEquipmentSidebar from "./NodeEquipmentSidebar";
 import { DiagramContext } from "./DiagramContext";
 import {
-  mapNodeFromApi,
-  mapEdgeFromApi,
   toApiNode,
   toApiEdge,
-  safeArray,
   getEdgeColor,
   withMarkerColor,
   clampPositionWithinBounds,
   createPatchScheduler,
   MAX_LABEL_LENGTH,
+  prepareDiagramState,
 } from "./diagramUtils";
 
 const AUTO_SAVE_DELAY = 320;
@@ -181,18 +180,14 @@ const ChannelDiagram = () => {
           throw new Error("No existen diagramas para la señal indicada.");
         }
 
-        const mappedNodes = safeArray(diagram.nodes)
-          .map(mapNodeFromApi)
-          .filter(Boolean);
-        const mappedEdges = safeArray(diagram.edges)
-          .map(mapEdgeFromApi)
-          .filter(Boolean);
+        const { nodes: normalizedNodes, edges: normalizedEdges } =
+          prepareDiagramState(diagram);
 
         if (cancelled) return;
 
         setChannelId(String(diagram._id));
-        setNodes(mappedNodes);
-        setEdges(mappedEdges);
+        setNodes(normalizedNodes);
+        setEdges(normalizedEdges);
         setSelectedNodeId(null);
       } catch (err) {
         if (!cancelled) {
@@ -575,44 +570,46 @@ const ChannelDiagram = () => {
   }
 
   return (
-    <div className="channel-diagram__wrapper">
-      <div className="channel-diagram__layout">
-        <div className="channel-diagram__canvas">
-          {isReadOnly && (
-            <div className="diagram-readonly-banner">Modo solo lectura.</div>
-          )}
-          <DiagramContext.Provider value={contextValue}>
-            <ReactFlow
-              className="channel-diagram__flow"
-              nodes={nodes}
-              edges={edges}
-              nodeTypes={nodeTypes}
-              edgeTypes={edgeTypes}
-              nodesDraggable={!isReadOnly}
-              nodesConnectable={!isReadOnly}
-              elementsSelectable
-              edgesUpdatable={!isReadOnly}
-              edgeUpdaterRadius={20}
-              onNodeDragStop={handleNodeDragStop}
-              onEdgeUpdate={handleEdgeUpdate}
-              onConnect={handleConnect}
-              onNodesChange={handleNodesChange}
-              onEdgesChange={handleEdgesChange}
-              onNodeClick={handleNodeClick}
-              onPaneClick={handlePaneClick}
-              onSelectionChange={handleSelectionChange}
-              onInit={handleInit}
-              zoomOnScroll
-              panOnDrag
-            >
-              <Background variant="dots" gap={16} size={1} />
-              <Controls position="bottom-right" />
-            </ReactFlow>
-          </DiagramContext.Provider>
+    <ReactFlowProvider>
+      <div className="channel-diagram__wrapper">
+        <div className="channel-diagram__layout">
+          <div className="channel-diagram__canvas">
+            {isReadOnly && (
+              <div className="diagram-readonly-banner">Modo solo lectura.</div>
+            )}
+            <DiagramContext.Provider value={contextValue}>
+              <ReactFlow
+                className="channel-diagram__flow"
+                nodes={nodes}
+                edges={edges}
+                nodeTypes={nodeTypes}
+                edgeTypes={edgeTypes}
+                nodesDraggable={!isReadOnly}
+                nodesConnectable={!isReadOnly}
+                elementsSelectable
+                edgesUpdatable={!isReadOnly}
+                edgeUpdaterRadius={20}
+                onNodeDragStop={handleNodeDragStop}
+                onEdgeUpdate={handleEdgeUpdate}
+                onConnect={handleConnect}
+                onNodesChange={handleNodesChange}
+                onEdgesChange={handleEdgesChange}
+                onNodeClick={handleNodeClick}
+                onPaneClick={handlePaneClick}
+                onSelectionChange={handleSelectionChange}
+                onInit={handleInit}
+                zoomOnScroll
+                panOnDrag
+              >
+                <Background variant="dots" gap={16} size={1} />
+                <Controls position="bottom-right" />
+              </ReactFlow>
+            </DiagramContext.Provider>
+          </div>
+          <NodeEquipmentSidebar node={selectedNode} />
         </div>
-        <NodeEquipmentSidebar node={selectedNode} />
       </div>
-    </div>
+    </ReactFlowProvider>
   );
 };
 

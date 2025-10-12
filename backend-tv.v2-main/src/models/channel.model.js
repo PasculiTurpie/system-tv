@@ -64,8 +64,22 @@ const ChannelSchema = new mongoose.Schema(
 
 // Validación: edges deben referenciar nodes existentes
 ChannelSchema.pre("validate", function (next) {
-  const nodeIds = this.nodes.map((node) => node.id);
-  for (const edge of this.edges) {
+  const nodesList = Array.isArray(this.nodes) ? this.nodes : [];
+  const edgesList = Array.isArray(this.edges) ? this.edges : [];
+
+  const nodeIds = nodesList.map((node) => node.id);
+  const uniqueNodeIds = new Set(nodeIds);
+  if (uniqueNodeIds.size !== nodeIds.length) {
+    return next(new Error("Duplicate node ids are not allowed within a channel"));
+  }
+
+  const edgeIds = edgesList.map((edge) => edge.id);
+  const uniqueEdgeIds = new Set(edgeIds);
+  if (uniqueEdgeIds.size !== edgeIds.length) {
+    return next(new Error("Duplicate edge ids are not allowed within a channel"));
+  }
+
+  for (const edge of edgesList) {
     if (!nodeIds.includes(edge.source)) {
       return next(
         new Error(`Edge source "${edge.source}" does not exist in nodes`)

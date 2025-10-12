@@ -1,4 +1,10 @@
 const Channel = require("../models/channel.model");
+const {
+  normalizeChannel,
+  normalizeChannels,
+  normalizeNode,
+  normalizeEdge,
+} = require("../services/channelNormalizer");
 
 const MAX_LABEL_LENGTH = 200;
 
@@ -56,12 +62,24 @@ const sanitizeEndpointPositions = (payload = {}) => {
   return result;
 };
 
+const buildChannelFilter = (query = {}) => {
+  const filter = {};
+  const signal = query.signal || query.signalId;
+  if (signal) {
+    filter.signal = String(signal).trim();
+  }
+  return filter;
+};
+
 // Crear canal
 module.exports.createChannel = async (req, res) => {
   try {
     const channel = new Channel(req.body);
-    await channel.save();
-    res.status(201).json(channel);
+    const saved = await channel.save();
+    const payload = normalizeChannel(
+      saved.toObject({ getters: true, virtuals: true })
+    );
+    res.status(201).json(payload);
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
@@ -70,7 +88,8 @@ module.exports.createChannel = async (req, res) => {
 // Obtener todos los canales
 module.exports.getChannel =  async (req, res) => {
   try {
-    const channels = await Channel.find()
+    const filter = buildChannelFilter(req.query);
+    const channels = await Channel.find(filter)
       .populate({
         path: "signal",
         populate: [{ path: "contact" }],
@@ -90,8 +109,9 @@ module.exports.getChannel =  async (req, res) => {
         path: "nodes",
         populate: [{ path: "equipo" }],
       })
-      .lean();
-    res.json(channels);
+      .sort({ updatedAt: -1, _id: 1 })
+      .lean({ getters: true, virtuals: true });
+    res.json(normalizeChannels(channels));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -106,13 +126,13 @@ exports.updateChannel = async (req, res) => {
       id,
       { signal, nodes, edges },
       { new: true, runValidators: true }
-    );
+    ).lean({ getters: true, virtuals: true });
 
     if (!updated) {
       return res.status(404).json({ error: "Channel no encontrado" });
     }
 
-    res.json(updated);
+    res.json(normalizeChannel(updated));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -141,14 +161,14 @@ module.exports.getChannelId = async (req, res) => {
           },
         ],
       })
-      .lean()
+      .lean({ getters: true, virtuals: true })
       .exec();
 
     if (!channel) {
       return res.status(404).json({ error: "Channel not found" });
     }
 
-    res.json(channel);
+    res.json(normalizeChannel(channel));
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: error.message });
@@ -188,9 +208,16 @@ exports.updateChannelFlow = async (req, res) => {
     const updatedChannel = await Channel.findByIdAndUpdate(
       req.params.id,
       { nodes, edges },
-      { new: true }
-    );
-    res.json(updatedChannel);
+      { new: true, runValidators: true }
+    )
+      .lean({ getters: true, virtuals: true })
+      .exec();
+
+    if (!updatedChannel) {
+      return res.status(404).json({ error: "Channel no encontrado" });
+    }
+
+    res.json(normalizeChannel(updatedChannel));
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -240,14 +267,14 @@ exports.patchNode = async (req, res) => {
         runValidators: true,
       }
     )
-      .lean()
+      .lean({ getters: true, virtuals: true })
       .exec();
 
     if (!updated || !Array.isArray(updated.nodes) || updated.nodes.length === 0) {
       return res.status(404).json({ error: "Nodo no encontrado" });
     }
 
-    return res.json({ node: updated.nodes[0] });
+    return res.json({ node: normalizeNode(updated.nodes[0]) });
   } catch (error) {
     console.error("patchNode error", error);
     return res.status(500).json({ error: error.message });
@@ -337,14 +364,14 @@ exports.patchEdge = async (req, res) => {
         runValidators: true,
       }
     )
-      .lean()
+      .lean({ getters: true, virtuals: true })
       .exec();
 
     if (!updated || !Array.isArray(updated.edges) || updated.edges.length === 0) {
       return res.status(404).json({ error: "Enlace no encontrado" });
     }
 
-    return res.json({ edge: updated.edges[0] });
+    return res.json({ edge: normalizeEdge(updated.edges[0]) });
   } catch (error) {
     console.error("patchEdge error", error);
     return res.status(500).json({ error: error.message });

@@ -34,10 +34,32 @@ export const withMarkerColor = (marker, color) => ({
 
 export const safeArray = (val) => (Array.isArray(val) ? val : []);
 
+const compareById = (a, b) => {
+  const idA = String(a?.id ?? "").trim();
+  const idB = String(b?.id ?? "").trim();
+  if (!idA && !idB) return 0;
+  if (!idA) return -1;
+  if (!idB) return 1;
+  return idA.localeCompare(idB, undefined, { numeric: true, sensitivity: "base" });
+};
+
+export const sortNodesById = (nodes) =>
+  safeArray(nodes)
+    .map((node) => ({ ...node }))
+    .sort(compareById);
+
+export const sortEdgesById = (edges) =>
+  safeArray(edges)
+    .map((edge) => ({ ...edge }))
+    .sort(compareById);
+
 const clampLabel = (value) => {
   if (value === undefined || value === null) return "";
   const str = String(value);
-  return str.length > MAX_LABEL_LENGTH ? str.slice(0, MAX_LABEL_LENGTH) : str;
+  const trimmed = str.trim();
+  return trimmed.length > MAX_LABEL_LENGTH
+    ? trimmed.slice(0, MAX_LABEL_LENGTH)
+    : trimmed;
 };
 
 export const mapNodeFromApi = (node) => {
@@ -221,6 +243,28 @@ export const toApiEdge = (edge) => {
   }
 
   return payload;
+};
+
+export const prepareDiagramState = (diagram) => {
+  if (!diagram) {
+    return { nodes: [], edges: [] };
+  }
+
+  const mappedNodes = safeArray(diagram.nodes)
+    .map(mapNodeFromApi)
+    .filter(Boolean);
+  const mappedEdges = safeArray(diagram.edges)
+    .map(mapEdgeFromApi)
+    .filter(Boolean);
+
+  const sortedNodes = sortNodesById(mappedNodes);
+  const validNodeIds = new Set(sortedNodes.map((node) => node.id));
+
+  const sortedEdges = sortEdgesById(mappedEdges).filter(
+    (edge) => validNodeIds.has(edge.source) && validNodeIds.has(edge.target)
+  );
+
+  return { nodes: sortedNodes, edges: sortedEdges };
 };
 
 export const clampPositionWithinBounds = (pos, bounds) => {
