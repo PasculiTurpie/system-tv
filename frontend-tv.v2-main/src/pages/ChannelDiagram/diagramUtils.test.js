@@ -1,0 +1,93 @@
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
+
+import {
+  prepareDiagramState,
+  mapNodeFromApi,
+  mapEdgeFromApi,
+  sortNodesById,
+  sortEdgesById,
+} from "./diagramUtils.js";
+
+describe("diagramUtils", () => {
+  it("sortNodesById orders deterministically", () => {
+    const nodes = [
+      { id: "node-10", position: { x: 1, y: 1 }, data: {} },
+      { id: "node-2", position: { x: 1, y: 1 }, data: {} },
+      { id: "node-1", position: { x: 1, y: 1 }, data: {} },
+    ];
+    const sorted = sortNodesById(nodes);
+    assert.deepStrictEqual(
+      sorted.map((node) => node.id),
+      ["node-1", "node-2", "node-10"]
+    );
+  });
+
+  it("sortEdgesById orders deterministically", () => {
+    const edges = [
+      { id: "edge-3", source: "a", target: "b" },
+      { id: "edge-1", source: "a", target: "b" },
+    ];
+    const sorted = sortEdgesById(edges);
+    assert.deepStrictEqual(
+      sorted.map((edge) => edge.id),
+      ["edge-1", "edge-3"]
+    );
+  });
+
+  it("prepareDiagramState filters invalid entries and keeps output stable", () => {
+    const diagram = {
+      _id: "channel-1",
+      nodes: [
+        { id: "b", position: { x: 200, y: 10 }, data: { label: "B" } },
+        { id: "a", position: { x: 100, y: 5 }, data: { label: "A" } },
+        { id: null },
+      ],
+      edges: [
+        { id: "edge-2", source: "b", target: "a" },
+        { id: "edge-1", source: "a", target: "b" },
+        { id: "edge-x", source: "ghost", target: "a" },
+      ],
+    };
+
+    const first = prepareDiagramState(diagram);
+    const second = prepareDiagramState({ ...diagram });
+
+    assert.deepStrictEqual(first, second);
+    assert.deepStrictEqual(
+      first.nodes.map((node) => node.id),
+      ["a", "b"]
+    );
+    assert.deepStrictEqual(
+      first.edges.map((edge) => edge.id),
+      ["edge-1", "edge-2"]
+    );
+  });
+
+  it("mapNodeFromApi and mapEdgeFromApi are idempotent", () => {
+    const nodePayload = {
+      id: "node-1",
+      data: { label: " label ", labelPosition: { x: "10", y: "20" } },
+      position: ["100", "50"],
+    };
+    const edgePayload = {
+      id: "edge-1",
+      source: "node-1",
+      target: "node-2",
+      data: {
+        label: " label ",
+        endpointLabels: { source: " foo " },
+      },
+    };
+
+    const nodeFirst = mapNodeFromApi(nodePayload);
+    const nodeSecond = mapNodeFromApi(nodePayload);
+    assert.deepStrictEqual(nodeFirst, nodeSecond);
+    assert.equal(nodeFirst.data.label, "label");
+
+    const edgeFirst = mapEdgeFromApi(edgePayload);
+    const edgeSecond = mapEdgeFromApi(edgePayload);
+    assert.deepStrictEqual(edgeFirst, edgeSecond);
+    assert.equal(edgeFirst.data.endpointLabels.source, "foo");
+  });
+});
