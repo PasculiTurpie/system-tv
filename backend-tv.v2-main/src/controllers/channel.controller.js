@@ -225,7 +225,7 @@ exports.updateChannelFlow = async (req, res) => {
 
 exports.patchNode = async (req, res) => {
   const { id, nodeId } = req.params;
-  const { label, labelPosition } = req.body || {};
+  const { label, labelPosition, position } = req.body || {};
 
   const setUpdate = {};
   const unsetUpdate = {};
@@ -247,6 +247,15 @@ exports.patchNode = async (req, res) => {
         unsetUpdate["nodes.$.data.labelPosition"] = "";
       }
     }
+  }
+
+  if (position !== undefined) {
+    const sanitizedPosition = sanitizePosition(position);
+    if (!sanitizedPosition) {
+      return res.status(400).json({ error: "Posición de nodo inválida" });
+    }
+    setUpdate["nodes.$.position.x"] = sanitizedPosition.x;
+    setUpdate["nodes.$.position.y"] = sanitizedPosition.y;
   }
 
   const update = {};
