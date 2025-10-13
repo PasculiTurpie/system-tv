@@ -4,6 +4,9 @@
 - Double-click any node label or edge label while authenticated to enter inline edit mode.
 - Press `Enter` or move focus away to save the value. Press `Esc` to cancel and revert.
 
+## Node backgrounds
+- Nodes accept a `data.backgroundImage` URL (falling back to `data.icon` when present) which renders as a blended background under the existing content so labels stay legible.
+
 ## Dragging labels
 - When authenticated, drag the floating node captions, node multicast badges, and central edge labels to reposition them. The cursor changes to indicate dragging mode.
 - Label positions are clamped to the visible diagram bounds and persisted automatically. Multicast badges reuse the same flow coordinates, so they stay attached to the diagram regardless of zoom.

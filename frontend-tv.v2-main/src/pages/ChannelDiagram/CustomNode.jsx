@@ -80,20 +80,35 @@ function CustomNode({ id, data }) {
     };
   }, [data?.slots]);
 
-  const boxStyle = useMemo(
-    () => ({
+  const backgroundSource = data?.backgroundImage || data?.icon || null;
+
+  const boxStyle = useMemo(() => {
+    const baseStyle = {
       padding: 10,
       border: "1px solid #444",
       borderRadius: 10,
-      background: "#fff",
       width: 170,
       position: "relative",
       textAlign: "center",
       cursor: isReadOnly ? "default" : "grab",
       userSelect: "none",
-    }),
-    [isReadOnly]
-  );
+      overflow: "hidden",
+      color: "#0f172a",
+      background: "#fff",
+    };
+
+    if (!backgroundSource) {
+      return baseStyle;
+    }
+
+    return {
+      ...baseStyle,
+      backgroundImage: `linear-gradient(rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.82)), url(${backgroundSource})`,
+      backgroundSize: "cover",
+      backgroundPosition: "center",
+      backgroundRepeat: "no-repeat",
+    };
+  }, [backgroundSource, isReadOnly]);
 
   const titleText = useMemo(
     () => data?.tooltip || data?.description || data?.label || "Nodo",
@@ -201,7 +216,14 @@ CustomNode.propTypes = {
     label: PropTypes.string,
     tooltip: PropTypes.string,
     description: PropTypes.string,
+    icon: PropTypes.string,
+    backgroundImage: PropTypes.string,
     labelPosition: PropTypes.shape({
+      x: PropTypes.number,
+      y: PropTypes.number,
+    }),
+    multicast: PropTypes.string,
+    multicastPosition: PropTypes.shape({
       x: PropTypes.number,
       y: PropTypes.number,
     }),
@@ -224,8 +246,13 @@ export default React.memo(
       a.data?.label === b.data?.label &&
       a.data?.tooltip === b.data?.tooltip &&
       a.data?.description === b.data?.description &&
+      a.data?.icon === b.data?.icon &&
+      a.data?.backgroundImage === b.data?.backgroundImage &&
       a.data?.labelPosition?.x === b.data?.labelPosition?.x &&
       a.data?.labelPosition?.y === b.data?.labelPosition?.y &&
+      a.data?.multicast === b.data?.multicast &&
+      a.data?.multicastPosition?.x === b.data?.multicastPosition?.x &&
+      a.data?.multicastPosition?.y === b.data?.multicastPosition?.y &&
       JSON.stringify(a.data?.slots ?? {}) === JSON.stringify(b.data?.slots ?? {})
     );
   }

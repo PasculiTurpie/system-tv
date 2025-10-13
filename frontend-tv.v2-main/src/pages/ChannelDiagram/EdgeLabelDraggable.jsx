@@ -25,6 +25,7 @@ const baseStyle = {
   userSelect: "none",
   whiteSpace: "nowrap",
   zIndex: 20,
+  touchAction: "none",
 };
 
 const draggingStyle = {
@@ -161,6 +162,7 @@ export default function EdgeLabelDraggable({
           role={allowEditing || allowDragging ? "button" : "presentation"}
           tabIndex={readOnly ? -1 : 0}
           onMouseDown={handlePointerDown}
+          onPointerDown={handlePointerDown}
           onTouchStart={handlePointerDown}
           onDoubleClick={handleDoubleClick}
           aria-label={ariaLabel}

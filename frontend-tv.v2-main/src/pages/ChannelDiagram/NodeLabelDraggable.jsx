@@ -19,6 +19,7 @@ const baseStyle = {
   userSelect: "none",
   whiteSpace: "nowrap",
   zIndex: 15,
+  touchAction: "none",
 };
 
 export default function NodeLabelDraggable({
@@ -76,13 +77,15 @@ export default function NodeLabelDraggable({
         role="button"
         tabIndex={readOnly ? -1 : 0}
         onMouseDown={handlePointerDown}
+        onPointerDown={handlePointerDown}
         onTouchStart={handlePointerDown}
         style={{
           ...baseStyle,
           transform: transform,
           cursor: readOnly ? "default" : isDragging ? "grabbing" : "grab",
         }}
-        className="channel-node-floating-label"
+        className="nodrag nopan channel-node-floating-label"
+        draggable={false}
         aria-label="Etiqueta del nodo"
       >
         {text}

@@ -2,6 +2,7 @@ import React, { useCallback, useContext, useMemo } from "react";
 import { BaseEdge, getSmoothStepPath } from "@xyflow/react";
 import { DiagramContext } from "./DiagramContext";
 import EdgeLabelDraggable from "./EdgeLabelDraggable";
+import EditableEdgeLabel from "./EditableEdgeLabel";
 
 export default function CustomWaypointEdge(props) {
   const {

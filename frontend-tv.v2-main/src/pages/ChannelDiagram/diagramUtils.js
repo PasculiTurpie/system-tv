@@ -1,5 +1,5 @@
 import { getSmoothStepPath } from "@xyflow/react";
-import normalizeHandle from "../../utils/normalizeHandle";
+import normalizeHandle from "../../utils/normalizeHandle.js";
 
 export const ARROW_CLOSED = { type: "arrowclosed" };
 

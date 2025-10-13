@@ -21,6 +21,7 @@ const baseStyle = {
   boxShadow: "0 2px 10px rgba(15, 23, 42, 0.25)",
   border: "1px solid rgba(17, 24, 39, 0.8)",
   zIndex: 16,
+  touchAction: "none",
 };
 
 export default function NodeMulticastDraggable({
@@ -78,13 +79,15 @@ export default function NodeMulticastDraggable({
         role="button"
         tabIndex={readOnly ? -1 : 0}
         onMouseDown={handlePointerDown}
+        onPointerDown={handlePointerDown}
         onTouchStart={handlePointerDown}
         style={{
           ...baseStyle,
           transform,
           cursor: readOnly ? "default" : isDragging ? "grabbing" : "grab",
         }}
-        className="channel-node-multicast-badge"
+        className="nodrag nopan channel-node-multicast-badge"
+        draggable={false}
         aria-label="Etiqueta multicast del nodo"
       >
         {text}

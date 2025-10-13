@@ -37,6 +37,7 @@ export default function useDraggableLabel({
   const stateRef = useRef({
     offset: { x: 0, y: 0 },
     start: toPosition(initial),
+    dragging: false,
   });
   const positionRef = useRef(position);
 
@@ -75,6 +76,9 @@ export default function useDraggableLabel({
         event.preventDefault();
       }
       stateRef.current.dragging = false;
+      window.removeEventListener("pointermove", handleMove);
+      window.removeEventListener("pointerup", finalizeDrag);
+      window.removeEventListener("pointercancel", finalizeDrag);
       window.removeEventListener("mousemove", handleMove);
       window.removeEventListener("mouseup", finalizeDrag);
       window.removeEventListener("touchmove", handleMove);
@@ -120,6 +124,7 @@ export default function useDraggableLabel({
   const startDragging = useCallback(
     (event) => {
       if (disabled) return;
+      if (stateRef.current.dragging) return;
       const pointerEvent = getPointerEvent(event);
       if (pointerEvent && "button" in pointerEvent && pointerEvent.button !== 0) {
         return;
@@ -140,17 +145,29 @@ export default function useDraggableLabel({
       stateRef.current.dragging = true;
       setDragging(true);
 
-      window.addEventListener("mousemove", handleMove);
-      window.addEventListener("mouseup", finalizeDrag);
-      window.addEventListener("touchmove", handleMove, { passive: false });
-      window.addEventListener("touchend", finalizeDrag);
-      window.addEventListener("touchcancel", finalizeDrag);
+      const supportsPointerEvents =
+        typeof window !== "undefined" && "PointerEvent" in window;
+
+      if (supportsPointerEvents) {
+        window.addEventListener("pointermove", handleMove, { passive: false });
+        window.addEventListener("pointerup", finalizeDrag);
+        window.addEventListener("pointercancel", finalizeDrag);
+      } else {
+        window.addEventListener("mousemove", handleMove);
+        window.addEventListener("mouseup", finalizeDrag);
+        window.addEventListener("touchmove", handleMove, { passive: false });
+        window.addEventListener("touchend", finalizeDrag);
+        window.addEventListener("touchcancel", finalizeDrag);
+      }
     },
     [clampPosition, disabled, finalizeDrag, handleMove, projectPointer]
   );
 
   useEffect(
     () => () => {
+      window.removeEventListener("pointermove", handleMove);
+      window.removeEventListener("pointerup", finalizeDrag);
+      window.removeEventListener("pointercancel", finalizeDrag);
       window.removeEventListener("mousemove", handleMove);
       window.removeEventListener("mouseup", finalizeDrag);
       window.removeEventListener("touchmove", handleMove);
