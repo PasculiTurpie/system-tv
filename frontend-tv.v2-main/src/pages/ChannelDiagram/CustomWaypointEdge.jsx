@@ -1,6 +1,7 @@
 import React, { useCallback, useContext, useMemo } from "react";
-import { BaseEdge, EdgeLabelRenderer, getSmoothStepPath } from "@xyflow/react";
+import { BaseEdge, getSmoothStepPath } from "@xyflow/react";
 import { DiagramContext } from "./DiagramContext";
+import EdgeLabelDraggable from "./EdgeLabelDraggable";
 import EditableEdgeLabel from "./EditableEdgeLabel";
 
 export default function CustomWaypointEdge(props) {
@@ -24,6 +25,7 @@ export default function CustomWaypointEdge(props) {
     onEdgeLabelPositionChange,
     onEdgeEndpointLabelChange,
     onEdgeEndpointLabelPositionChange,
+    persistLabelPositions,
   } = useContext(DiagramContext);
 
   const [edgePath, defaultLabelX, defaultLabelY] = useMemo(() => {
@@ -68,6 +70,28 @@ export default function CustomWaypointEdge(props) {
     [id, onEdgeLabelPositionChange]
   );
 
+  const handleCentralPersist = useCallback(
+    (nextPosition, meta) => {
+      if (!meta?.moved || isReadOnly || !persistLabelPositions) {
+        return;
+      }
+      persistLabelPositions({
+        edges: [
+          {
+            id,
+            data: { labelPosition: nextPosition },
+          },
+        ],
+      }).catch((error) => {
+        console.error("Persist waypoint label position failed", error);
+        if (meta?.initial) {
+          onEdgeLabelPositionChange?.(id, meta.initial);
+        }
+      });
+    },
+    [id, isReadOnly, onEdgeLabelPositionChange, persistLabelPositions]
+  );
+
   const handleEndpointLabelCommit = useCallback(
     (endpoint, nextLabel) => onEdgeEndpointLabelChange?.(id, endpoint, nextLabel),
     [id, onEdgeEndpointLabelChange]
@@ -82,14 +106,16 @@ export default function CustomWaypointEdge(props) {
   return (
     <>
       <BaseEdge id={id} path={edgePath} style={style} markerEnd={markerEnd} />
-      <EditableEdgeLabel
+      <EdgeLabelDraggable
         text={label || data?.label || ""}
         position={data?.labelPosition}
         defaultPosition={centralLabelPosition}
         readOnly={isReadOnly}
         ariaLabel="Etiqueta del enlace"
-        onCommit={handleCentralLabelCommit}
+        placeholder="Etiqueta del enlace"
+        onTextCommit={handleCentralLabelCommit}
         onPositionChange={handleCentralPositionChange}
+        onPersist={handleCentralPersist}
       />
 
       {(endpointLabels.source || !isReadOnly) && (

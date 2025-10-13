@@ -1,5 +1,12 @@
 // src/pages/ChannelDiagram/RouterNode.jsx
-import React, { useCallback, useContext, useEffect, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Handle, Position } from "@xyflow/react";
 import { DiagramContext } from "./DiagramContext";
 
@@ -13,6 +20,7 @@ const styles = {
     position: "relative",
     textAlign: "center",
     boxShadow: "0 2px 8px rgba(0,0,0,.06)",
+    overflow: "hidden",
   },
   title: { fontWeight: 800, color: "#1f2937", cursor: "text", padding: "2px 4px" },
   input: {
@@ -37,6 +45,26 @@ export default function RouterNode({ id, data }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(() => data?.label ?? "Router");
   const inputRef = useRef(null);
+
+  const backgroundSource = data?.backgroundImage || data?.icon || null;
+
+  const boxStyle = useMemo(() => {
+    const base = {
+      ...styles.box,
+    };
+
+    if (!backgroundSource) {
+      return base;
+    }
+
+    return {
+      ...base,
+      backgroundImage: `linear-gradient(rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.82)), url(${backgroundSource})`,
+      backgroundSize: "cover",
+      backgroundPosition: "center",
+      backgroundRepeat: "no-repeat",
+    };
+  }, [backgroundSource]);
 
   useEffect(() => {
     setValue(data?.label ?? "Router");
@@ -64,7 +92,7 @@ export default function RouterNode({ id, data }) {
   }, [commit, data?.label]);
 
   return (
-    <div style={styles.box} title={data?.tooltip || data?.label || "Router"}>
+    <div style={boxStyle} title={data?.tooltip || data?.label || "Router"}>
       {!editing ? (
         <div
           style={{ ...styles.title, cursor: canEdit ? "text" : "default" }}

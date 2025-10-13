@@ -3,8 +3,9 @@ import React, { useCallback, useContext, useMemo } from "react";
 import PropTypes from "prop-types";
 import { Handle, Position, useStore } from "@xyflow/react";
 import { shallow } from "zustand/shallow";
-import EditableEdgeLabel from "./EditableEdgeLabel";
 import { DiagramContext } from "./DiagramContext";
+import NodeLabelDraggable from "./NodeLabelDraggable";
+import NodeMulticastDraggable from "./NodeMulticastDraggable";
 
 const DEFAULT_SLOTS = {
   top: [20, 50, 80],
@@ -14,8 +15,7 @@ const DEFAULT_SLOTS = {
 };
 
 function CustomNode({ id, data }) {
-  const { isReadOnly, onNodeLabelChange, onNodeLabelPositionChange } =
-    useContext(DiagramContext);
+  const { isReadOnly } = useContext(DiagramContext);
 
   const { xAbs, yAbs, width, ready } = useStore(
     useCallback(
@@ -53,8 +53,17 @@ function CustomNode({ id, data }) {
   const effectiveLabelDefault = useMemo(() => {
     if (hasStoredLabelPosition) return data.labelPosition;
     if (defaultLabelPosition) return defaultLabelPosition;
-    return { x: 0, y: 0 };
+    return null;
   }, [hasStoredLabelPosition, data?.labelPosition, defaultLabelPosition]);
+
+  const multicastDefaultPosition = useMemo(() => {
+    if (!ready || !Number.isFinite(xAbs) || !Number.isFinite(yAbs)) return null;
+    const offsetX = Number.isFinite(width) ? width : 0;
+    return {
+      x: xAbs + offsetX + 28,
+      y: yAbs + 18,
+    };
+  }, [ready, xAbs, yAbs, width]);
 
   const slots = useMemo(() => {
     const s = data?.slots ?? {};
@@ -71,20 +80,35 @@ function CustomNode({ id, data }) {
     };
   }, [data?.slots]);
 
-  const boxStyle = useMemo(
-    () => ({
+  const backgroundSource = data?.backgroundImage || data?.icon || null;
+
+  const boxStyle = useMemo(() => {
+    const baseStyle = {
       padding: 10,
       border: "1px solid #444",
       borderRadius: 10,
-      background: "#fff",
       width: 170,
       position: "relative",
       textAlign: "center",
       cursor: isReadOnly ? "default" : "grab",
       userSelect: "none",
-    }),
-    [isReadOnly]
-  );
+      overflow: "hidden",
+      color: "#0f172a",
+      background: "#fff",
+    };
+
+    if (!backgroundSource) {
+      return baseStyle;
+    }
+
+    return {
+      ...baseStyle,
+      backgroundImage: `linear-gradient(rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.82)), url(${backgroundSource})`,
+      backgroundSize: "cover",
+      backgroundPosition: "center",
+      backgroundRepeat: "no-repeat",
+    };
+  }, [backgroundSource, isReadOnly]);
 
   const titleText = useMemo(
     () => data?.tooltip || data?.description || data?.label || "Nodo",
@@ -94,16 +118,6 @@ function CustomNode({ id, data }) {
   const dotBase = useMemo(() => ({ background: "transparent" }), []);
   const pctTop = useCallback((p) => ({ top: `${p}%` }), []);
   const pctLeft = useCallback((p) => ({ left: `${p}%` }), []);
-
-  const handleLabelCommit = useCallback(
-    (nextLabel) => onNodeLabelChange?.(id, nextLabel),
-    [id, onNodeLabelChange]
-  );
-
-  const handleLabelPositionChange = useCallback(
-    (position) => onNodeLabelPositionChange?.(id, position),
-    [id, onNodeLabelPositionChange]
-  );
 
   const renderHandles = useCallback(
     (side, list) =>
@@ -177,20 +191,21 @@ function CustomNode({ id, data }) {
         {renderHandles("right", slots.right)}
       </div>
 
-      {/* {(defaultLabelPosition || hasStoredLabelPosition) && (
-        <EditableEdgeLabel
-          text={data?.label || ""}
-          position={hasStoredLabelPosition ? data.labelPosition : undefined}
-          defaultPosition={effectiveLabelDefault}
-          readOnly={!!isReadOnly}
-          ariaLabel="Etiqueta del nodo"
-          placeholder="Etiqueta del nodo"
-          onCommit={handleLabelCommit}
-          onPositionChange={handleLabelPositionChange}
-          style={{ fontSize: 14, fontWeight: 600, zIndex: 10 }}
-          className="channel-node-label"
-        />
-      )} */}
+      <NodeLabelDraggable
+        nodeId={id}
+        text={data?.label || ""}
+        position={data?.labelPosition}
+        defaultPosition={effectiveLabelDefault}
+        readOnly={!!isReadOnly}
+      />
+
+      <NodeMulticastDraggable
+        nodeId={id}
+        text={data?.multicast || ""}
+        position={data?.multicastPosition}
+        defaultPosition={multicastDefaultPosition}
+        readOnly={!!isReadOnly}
+      />
     </>
   );
 }
@@ -201,7 +216,14 @@ CustomNode.propTypes = {
     label: PropTypes.string,
     tooltip: PropTypes.string,
     description: PropTypes.string,
+    icon: PropTypes.string,
+    backgroundImage: PropTypes.string,
     labelPosition: PropTypes.shape({
+      x: PropTypes.number,
+      y: PropTypes.number,
+    }),
+    multicast: PropTypes.string,
+    multicastPosition: PropTypes.shape({
       x: PropTypes.number,
       y: PropTypes.number,
     }),
@@ -224,8 +246,13 @@ export default React.memo(
       a.data?.label === b.data?.label &&
       a.data?.tooltip === b.data?.tooltip &&
       a.data?.description === b.data?.description &&
+      a.data?.icon === b.data?.icon &&
+      a.data?.backgroundImage === b.data?.backgroundImage &&
       a.data?.labelPosition?.x === b.data?.labelPosition?.x &&
       a.data?.labelPosition?.y === b.data?.labelPosition?.y &&
+      a.data?.multicast === b.data?.multicast &&
+      a.data?.multicastPosition?.x === b.data?.multicastPosition?.x &&
+      a.data?.multicastPosition?.y === b.data?.multicastPosition?.y &&
       JSON.stringify(a.data?.slots ?? {}) === JSON.stringify(b.data?.slots ?? {})
     );
   }

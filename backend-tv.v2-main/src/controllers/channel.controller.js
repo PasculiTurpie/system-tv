@@ -461,3 +461,166 @@ exports.patchEdge = async (req, res) => {
     return res.status(500).json({ error: error.message });
   }
 };
+
+module.exports.patchLabelPositions = async (req, res) => {
+  const channelId = req.params.id || req.params.channelId;
+  const payload = req.body || {};
+
+  if (!channelId) {
+    return res.status(400).json({ error: "ChannelId es requerido" });
+  }
+
+  const nodesInput = Array.isArray(payload.nodes) ? payload.nodes : [];
+  const edgesInput = Array.isArray(payload.edges) ? payload.edges : [];
+
+  const setOperations = {};
+  const unsetOperations = {};
+  const arrayFilters = [];
+  let nodeFilterIndex = 0;
+  let edgeFilterIndex = 0;
+  let nodesUpdated = 0;
+  let edgesUpdated = 0;
+
+  const ensureId = (value) => {
+    if (value === undefined || value === null) return "";
+    return String(value).trim();
+  };
+
+  nodesInput.forEach((node) => {
+    const nodeId = ensureId(node?.id);
+    if (!nodeId) return;
+    const dataPayload =
+      node?.data && typeof node.data === "object" && !Array.isArray(node.data)
+        ? node.data
+        : {};
+
+    const setPaths = {};
+    const unsetPaths = [];
+
+    if (Object.prototype.hasOwnProperty.call(dataPayload, "labelPosition")) {
+      const sanitized = sanitizePosition(dataPayload.labelPosition);
+      if (sanitized) {
+        setPaths["data.labelPosition"] = sanitized;
+      } else {
+        unsetPaths.push("data.labelPosition");
+      }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(dataPayload, "multicastPosition")) {
+      const sanitized = sanitizePosition(dataPayload.multicastPosition);
+      if (sanitized) {
+        setPaths["data.multicastPosition"] = sanitized;
+      } else {
+        unsetPaths.push("data.multicastPosition");
+      }
+    }
+
+    if (!Object.keys(setPaths).length && !unsetPaths.length) {
+      return;
+    }
+
+    const filterName = `ni${nodeFilterIndex++}`;
+    arrayFilters.push({ [`${filterName}.id`]: nodeId });
+
+    Object.entries(setPaths).forEach(([path, value]) => {
+      setOperations[`nodes.$[${filterName}].${path}`] = value;
+    });
+    unsetPaths.forEach((path) => {
+      unsetOperations[`nodes.$[${filterName}].${path}`] = "";
+    });
+
+    nodesUpdated += 1;
+  });
+
+  edgesInput.forEach((edge) => {
+    const edgeId = ensureId(edge?.id);
+    if (!edgeId) return;
+    const dataPayload =
+      edge?.data && typeof edge.data === "object" && !Array.isArray(edge.data)
+        ? edge.data
+        : {};
+
+    const setPaths = {};
+    const unsetPaths = [];
+
+    if (Object.prototype.hasOwnProperty.call(dataPayload, "labelPosition")) {
+      const sanitized = sanitizePosition(dataPayload.labelPosition);
+      if (sanitized) {
+        setPaths["data.labelPosition"] = sanitized;
+        setPaths.labelPosition = sanitized;
+      } else {
+        unsetPaths.push("data.labelPosition");
+        unsetPaths.push("labelPosition");
+      }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(dataPayload, "multicastPosition")) {
+      const sanitized = sanitizePosition(dataPayload.multicastPosition);
+      if (sanitized) {
+        setPaths["data.multicastPosition"] = sanitized;
+      } else {
+        unsetPaths.push("data.multicastPosition");
+      }
+    }
+
+    if (!Object.keys(setPaths).length && !unsetPaths.length) {
+      return;
+    }
+
+    const filterName = `ei${edgeFilterIndex++}`;
+    arrayFilters.push({ [`${filterName}.id`]: edgeId });
+
+    Object.entries(setPaths).forEach(([path, value]) => {
+      const basePath = path.startsWith("data") ? `edges.$[${filterName}].${path}` : `edges.$[${filterName}].${path}`;
+      setOperations[basePath] = value;
+    });
+    unsetPaths.forEach((path) => {
+      const basePath = `edges.$[${filterName}].${path}`;
+      unsetOperations[basePath] = "";
+    });
+
+    edgesUpdated += 1;
+  });
+
+  const updatePayload = {};
+  if (Object.keys(setOperations).length) {
+    updatePayload.$set = setOperations;
+  }
+  if (Object.keys(unsetOperations).length) {
+    updatePayload.$unset = unsetOperations;
+  }
+
+  if (!updatePayload.$set && !updatePayload.$unset) {
+    return res
+      .status(400)
+      .json({ error: "No hay posiciones válidas para actualizar" });
+  }
+
+  try {
+    const result = await Channel.updateOne(
+      { _id: channelId },
+      updatePayload,
+      { arrayFilters, runValidators: true }
+    ).exec();
+
+    const matchedCount =
+      typeof result.matchedCount === "number"
+        ? result.matchedCount
+        : result.n || 0;
+
+    if (!matchedCount) {
+      return res.status(404).json({ error: "Channel no encontrado" });
+    }
+
+    return res.json({
+      ok: true,
+      updated: {
+        nodes: nodesUpdated,
+        edges: edgesUpdated,
+      },
+    });
+  } catch (error) {
+    console.error("patchLabelPositions error", error);
+    return res.status(500).json({ error: error.message });
+  }
+};
