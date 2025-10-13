@@ -340,9 +340,9 @@ class Api {
             .then((r) => r.data);
     }
 
-    patchChannelLabelPositions(channelId, payload) {
+    patchChannelLabelPositions(channelId, payload, config = {}) {
         return this._axios
-            .patch(`/channels/${channelId}/label-positions`, payload)
+            .patch(`/channels/${channelId}/label-positions`, payload, config)
             .then((r) => r.data);
     }
 
@@ -502,7 +502,8 @@ class Api {
     }
 }
 
-const api = new Api(
-    import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api/v2"
-);
+const apiBaseUrl =
+    env.VITE_API_BASE_URL || process.env.VITE_API_BASE_URL || "http://localhost:3000/api/v2";
+
+const api = new Api(apiBaseUrl);
 export default api;

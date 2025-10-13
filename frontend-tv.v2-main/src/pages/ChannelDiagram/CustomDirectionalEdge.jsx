@@ -103,12 +103,9 @@ export default function CustomDirectionalEdge(props) {
         return;
       }
       persistLabelPositions({
-        edges: [
-          {
-            id,
-            data: { labelPosition: nextPosition },
-          },
-        ],
+        edges: {
+          [id]: { labelPosition: nextPosition },
+        },
       }).catch((error) => {
         console.error("Persist edge label position failed", error);
         if (meta?.initial) {
@@ -136,12 +133,9 @@ export default function CustomDirectionalEdge(props) {
         return;
       }
       persistLabelPositions({
-        edges: [
-          {
-            id,
-            data: { multicastPosition: nextPosition },
-          },
-        ],
+        edges: {
+          [id]: { multicastPosition: nextPosition },
+        },
       }).catch((error) => {
         console.error("Persist edge multicast position failed", error);
         if (meta?.initial) {

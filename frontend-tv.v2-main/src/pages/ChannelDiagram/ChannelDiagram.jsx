@@ -12,7 +12,6 @@ import {
 import "@xyflow/react/dist/style.css";
 import { useParams } from "react-router-dom";
 import api from "../../utils/api";
-import { patchLabelPositions as patchLabelPositionsApi } from "../../services/channel.api";
 import CustomNode from "./CustomNode";
 import RouterNode from "./RouterNode";
 import CustomDirectionalEdge from "./CustomDirectionalEdge";
@@ -31,6 +30,7 @@ import {
   MAX_LABEL_LENGTH,
   prepareDiagramState,
 } from "./diagramUtils";
+import { createPersistLabelPositions } from "./persistLabelPositions";
 
 const AUTO_SAVE_DELAY = 320;
 const FIT_VIEW_PADDING = 0.2;
@@ -100,9 +100,7 @@ const cloneEndpointPositions = (positions) => {
 };
 
 const ChannelDiagram = () => {
-  const { id: signalId } = useParams();
-
-  console.log(signalId)
+  const { id: channelIdParam } = useParams();
 
   const nodeTypes = useMemo(
     () => ({
@@ -219,11 +217,8 @@ const ChannelDiagram = () => {
   const saveTimer = useRef(null);
 
   const saveDiagram = useCallback(async () => {
-    if (!channelId || !signalId || !isAuth) return;
+    if (!channelId || !channelIdParam || !isAuth) return;
     const payload = {
-      signal: String(signalId),
-      channel: String(channelId),
-      signalId: String(signalId),
       channelId: String(channelId),
       nodes: nodesRef.current.map(toApiNode),
       edges: edgesRef.current.map(toApiEdge),
@@ -233,7 +228,7 @@ const ChannelDiagram = () => {
     } catch (errorUpdate) {
       console.error("Error al guardar diagrama:", errorUpdate);
     }
-  }, [channelId, signalId, isAuth]);
+  }, [channelId, channelIdParam, isAuth]);
 
   const requestSave = useCallback(() => {
     if (!isAuth) return;
@@ -256,16 +251,17 @@ const ChannelDiagram = () => {
         setLoading(true);
         setError(null);
 
-        const response = await api.getChannelDiagramById(
-          String(signalId || "").trim()
-          
-        );
-        console.log(response)
+        const requestedId = String(channelIdParam || "").trim();
+        if (!requestedId) {
+          throw new Error("El identificador del canal es obligatorio.");
+        }
+
+        const response = await api.getChannelDiagramById(requestedId);
         const payload = response?.data ?? response;
         const diagram = Array.isArray(payload) ? payload[0] : payload;
-        
+
         if (!diagram) {
-          throw new Error("No existen diagramas para la señal indicada.");
+          throw new Error("No existe un diagrama para el canal indicado.");
         }
 
         const { nodes: normalizedNodes, edges: normalizedEdges } =
@@ -301,7 +297,7 @@ const ChannelDiagram = () => {
       cancelled = true;
     };
   }, [
-    signalId,
+    channelIdParam,
     updateNodes,
     updateEdges,
     syncConfirmedNodePositions,
@@ -353,116 +349,15 @@ const ChannelDiagram = () => {
     [edgePatchScheduler]
   );
 
-  const persistLabelPositions = useCallback(
-    async (payload = {}) => {
-      const nodesPayload = Array.isArray(payload.nodes)
-        ? payload.nodes
-            .map((node) => {
-              if (!node || typeof node !== "object") return null;
-              const id = String(node.id ?? "").trim();
-              if (!id) return null;
-              const data = node.data && typeof node.data === "object" ? node.data : {};
-              const nextData = {};
-              let hasData = false;
-              if (Object.prototype.hasOwnProperty.call(data, "labelPosition")) {
-                nextData.labelPosition = data.labelPosition;
-                hasData = true;
-              }
-              if (Object.prototype.hasOwnProperty.call(data, "multicastPosition")) {
-                nextData.multicastPosition = data.multicastPosition;
-                hasData = true;
-              }
-              return hasData ? { id, data: nextData } : null;
-            })
-            .filter(Boolean)
-        : [];
-
-      const edgesPayload = Array.isArray(payload.edges)
-        ? payload.edges
-            .map((edge) => {
-              if (!edge || typeof edge !== "object") return null;
-              const id = String(edge.id ?? "").trim();
-              if (!id) return null;
-              const data = edge.data && typeof edge.data === "object" ? edge.data : {};
-              const nextData = {};
-              let hasData = false;
-              if (Object.prototype.hasOwnProperty.call(data, "labelPosition")) {
-                nextData.labelPosition = data.labelPosition;
-                hasData = true;
-              }
-              if (Object.prototype.hasOwnProperty.call(data, "multicastPosition")) {
-                nextData.multicastPosition = data.multicastPosition;
-                hasData = true;
-              }
-              return hasData ? { id, data: nextData } : null;
-            })
-            .filter(Boolean)
-        : [];
-
-      if (!nodesPayload.length && !edgesPayload.length) {
-        return { ok: false, updated: { nodes: 0, edges: 0 } };
-      }
-
-      if (!channelId || !isAuth) {
-        return { ok: false, updated: { nodes: 0, edges: 0 } };
-      }
-
-      try {
-        const result = await patchLabelPositionsApi(channelId, {
-          nodes: nodesPayload,
-          edges: edgesPayload,
-        });
-
-        const nodeStore = confirmedNodeLabelPositionsRef.current;
-        nodesPayload.forEach((node) => {
-          const existing = nodeStore.get(node.id) || {
-            labelPosition: null,
-            multicastPosition: null,
-          };
-          const nextEntry = { ...existing };
-          if (Object.prototype.hasOwnProperty.call(node.data, "labelPosition")) {
-            const value = node.data.labelPosition;
-            nextEntry.labelPosition = value ? { ...value } : null;
-          }
-          if (Object.prototype.hasOwnProperty.call(node.data, "multicastPosition")) {
-            const value = node.data.multicastPosition;
-            nextEntry.multicastPosition = value ? { ...value } : null;
-          }
-          nodeStore.set(node.id, nextEntry);
-        });
-
-        const edgeStore = confirmedEdgePositionsRef.current;
-        edgesPayload.forEach((edge) => {
-          const existing = edgeStore.get(edge.id) || {
-            labelPosition: null,
-            endpointLabelPositions: {},
-            multicastPosition: null,
-          };
-          const nextEntry = {
-            labelPosition: existing.labelPosition,
-            endpointLabelPositions: {
-              ...(existing.endpointLabelPositions || {}),
-            },
-            multicastPosition: existing.multicastPosition,
-          };
-          if (Object.prototype.hasOwnProperty.call(edge.data, "labelPosition")) {
-            const value = edge.data.labelPosition;
-            nextEntry.labelPosition = value ? { ...value } : null;
-          }
-          if (Object.prototype.hasOwnProperty.call(edge.data, "multicastPosition")) {
-            const value = edge.data.multicastPosition;
-            nextEntry.multicastPosition = value ? { ...value } : null;
-          }
-          edgeStore.set(edge.id, nextEntry);
-        });
-
-        requestSave();
-        return result;
-      } catch (error) {
-        console.error("patchLabelPositions error", error);
-        throw error;
-      }
-    },
+  const persistLabelPositions = useMemo(
+    () =>
+      createPersistLabelPositions({
+        getChannelId: () => channelId,
+        getIsAuth: () => isAuth,
+        requestSave,
+        confirmedNodeLabelPositionsRef,
+        confirmedEdgePositionsRef,
+      }),
     [channelId, isAuth, requestSave]
   );
 
