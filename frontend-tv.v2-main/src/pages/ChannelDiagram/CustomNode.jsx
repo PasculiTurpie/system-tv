@@ -177,7 +177,7 @@ function CustomNode({ id, data }) {
         {renderHandles("right", slots.right)}
       </div>
 
-      {(defaultLabelPosition || hasStoredLabelPosition) && (
+      {/* {(defaultLabelPosition || hasStoredLabelPosition) && (
         <EditableEdgeLabel
           text={data?.label || ""}
           position={hasStoredLabelPosition ? data.labelPosition : undefined}
@@ -190,7 +190,7 @@ function CustomNode({ id, data }) {
           style={{ fontSize: 14, fontWeight: 600, zIndex: 10 }}
           className="channel-node-label"
         />
-      )}
+      )} */}
     </>
   );
 }

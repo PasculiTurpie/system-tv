@@ -121,7 +121,7 @@ export default function CustomDirectionalEdge(props) {
         onPositionChange={handleCentralPositionChange}
       />
 
-      {(endpointLabels.source || !isReadOnly) && (
+    {/*   {(endpointLabels.source || !isReadOnly) && (
         <EditableEdgeLabel
           text={endpointLabels.source || ""}
           position={endpointLabelPositions.source}
@@ -149,7 +149,7 @@ export default function CustomDirectionalEdge(props) {
             handleEndpointPositionChange("target", position)
           }
         />
-      )}
+      )} */}
 
       {multicast && multicastDefaultPosition && (
         <EditableEdgeLabel
