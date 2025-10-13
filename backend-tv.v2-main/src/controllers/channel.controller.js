@@ -5,62 +5,13 @@ const {
   normalizeNode,
   normalizeEdge,
 } = require("../services/channelNormalizer");
-
-const MAX_LABEL_LENGTH = 200;
-
-const clampLabel = (value) => {
-  if (value === undefined || value === null) return "";
-  const str = String(value);
-  return str.length > MAX_LABEL_LENGTH ? str.slice(0, MAX_LABEL_LENGTH) : str;
-};
-
-const sanitizePosition = (point) => {
-  if (!point || typeof point !== "object") return null;
-  const x = Number(point.x);
-  const y = Number(point.y);
-  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
-  const clamp = (val) => {
-    const bounded = Math.max(-1_000_000, Math.min(1_000_000, val));
-    return Number.isFinite(bounded) ? bounded : 0;
-  };
-  return { x: clamp(x), y: clamp(y) };
-};
-
-const sanitizeEndpointLabels = (payload = {}) => {
-  const result = {};
-  if (Object.prototype.hasOwnProperty.call(payload, "source")) {
-    const value = payload.source;
-    if (value === null) {
-      result.source = null;
-    } else if (value !== undefined) {
-      const sanitized = clampLabel(value).trim();
-      result.source = sanitized || null;
-    }
-  }
-  if (Object.prototype.hasOwnProperty.call(payload, "target")) {
-    const value = payload.target;
-    if (value === null) {
-      result.target = null;
-    } else if (value !== undefined) {
-      const sanitized = clampLabel(value).trim();
-      result.target = sanitized || null;
-    }
-  }
-  return result;
-};
-
-const sanitizeEndpointPositions = (payload = {}) => {
-  const result = {};
-  if (Object.prototype.hasOwnProperty.call(payload, "source")) {
-    const sanitized = sanitizePosition(payload.source);
-    result.source = sanitized;
-  }
-  if (Object.prototype.hasOwnProperty.call(payload, "target")) {
-    const sanitized = sanitizePosition(payload.target);
-    result.target = sanitized;
-  }
-  return result;
-};
+const {
+  clampLabel,
+  sanitizePosition,
+  sanitizeEndpointLabels,
+  sanitizeEndpointPositions,
+  sanitizeDiagramPayload,
+} = require("../services/diagramSanitizer");
 
 const buildChannelFilter = (query = {}) => {
   const filter = {};
@@ -204,7 +155,12 @@ module.exports.deleteChannel = async (req, res) => {
 
 exports.updateChannelFlow = async (req, res) => {
   try {
-    const { nodes, edges } = req.body;
+    const { nodes: rawNodes, edges: rawEdges } = req.body || {};
+    const { nodes, edges } = sanitizeDiagramPayload({
+      nodes: rawNodes,
+      edges: rawEdges,
+    });
+
     const updatedChannel = await Channel.findByIdAndUpdate(
       req.params.id,
       { nodes, edges },
