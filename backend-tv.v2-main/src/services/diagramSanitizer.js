@@ -89,6 +89,18 @@ const sanitizeNodePayload = (node) => {
     }
   }
 
+  const multicastPositionInput =
+    data.multicastPosition !== undefined ? data.multicastPosition : undefined;
+
+  if (multicastPositionInput !== undefined) {
+    const sanitized = sanitizePosition(multicastPositionInput);
+    if (sanitized) {
+      data.multicastPosition = sanitized;
+    } else {
+      delete data.multicastPosition;
+    }
+  }
+
   const payload = {
     ...node,
     id,

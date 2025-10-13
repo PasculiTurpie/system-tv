@@ -1,14 +1,18 @@
 // server/models/channel.model.js
 const mongoose = require("mongoose");
 
+const positionDefinition = {
+  x: { type: Number },
+  y: { type: Number },
+};
+
 const NodeDataSchema = new mongoose.Schema(
   {
     label: { type: String, required: true },
     image: String,
-    labelPosition: {
-      x: { type: Number },
-      y: { type: Number },
-    },
+    labelPosition: { ...positionDefinition },
+    multicast: { type: String },
+    multicastPosition: { ...positionDefinition },
   },
   { _id: false, strict: false, minimize: false }
 );
@@ -28,6 +32,18 @@ const NodeSchema = new mongoose.Schema({
   data: { type: NodeDataSchema, required: true },
 });
 
+const EdgeDataSchema = new mongoose.Schema(
+  {
+    label: { type: String },
+    labelPosition: { ...positionDefinition },
+    endpointLabels: { type: mongoose.Schema.Types.Mixed, default: {} },
+    endpointLabelPositions: { type: mongoose.Schema.Types.Mixed, default: {} },
+    multicast: { type: String },
+    multicastPosition: { ...positionDefinition },
+  },
+  { _id: false, strict: false, minimize: false }
+);
+
 const EdgeSchema = new mongoose.Schema({
   id: { type: String, required: true },
   source: { type: String, required: true },
@@ -46,7 +62,7 @@ const EdgeSchema = new mongoose.Schema({
   },
 
   // 👇 necesario para guardar multicast y otros campos del front
-  data: { type: mongoose.Schema.Types.Mixed, default: {} },
+  data: { type: EdgeDataSchema, default: {} },
 });
 
 const ChannelSchema = new mongoose.Schema(

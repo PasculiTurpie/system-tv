@@ -12,6 +12,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import { useParams } from "react-router-dom";
 import api from "../../utils/api";
+import { patchLabelPositions as patchLabelPositionsApi } from "../../services/channel.api";
 import CustomNode from "./CustomNode";
 import RouterNode from "./RouterNode";
 import CustomDirectionalEdge from "./CustomDirectionalEdge";
@@ -133,6 +134,7 @@ const ChannelDiagram = () => {
   const nodesRef = useRef(nodes);
   const edgesRef = useRef(edges);
   const confirmedNodePositionsRef = useRef(new Map());
+  const confirmedNodeLabelPositionsRef = useRef(new Map());
   const confirmedEdgePositionsRef = useRef(new Map());
 
   const syncConfirmedNodePositions = useCallback((nodesList) => {
@@ -141,6 +143,20 @@ const ChannelDiagram = () => {
     nodesList.forEach((node) => {
       const position = toPositionOrNull(node?.position) || { x: 0, y: 0 };
       store.set(node.id, position);
+    });
+  }, []);
+
+  const syncConfirmedNodeLabelPositions = useCallback((nodesList) => {
+    const store = confirmedNodeLabelPositionsRef.current;
+    store.clear();
+    nodesList.forEach((node) => {
+      const data = node?.data || {};
+      const labelPosition = toPositionOrNull(data.labelPosition) || null;
+      const multicastPosition = toPositionOrNull(data.multicastPosition) || null;
+      store.set(node.id, {
+        labelPosition,
+        multicastPosition,
+      });
     });
   }, []);
 
@@ -261,6 +277,7 @@ const ChannelDiagram = () => {
         updateNodes(() => normalizedNodes);
         updateEdges(() => normalizedEdges);
         syncConfirmedNodePositions(normalizedNodes);
+        syncConfirmedNodeLabelPositions(normalizedNodes);
         syncConfirmedEdgePositions(normalizedEdges);
         setSelectedNodeId(null);
       } catch (err) {
@@ -288,6 +305,7 @@ const ChannelDiagram = () => {
     updateNodes,
     updateEdges,
     syncConfirmedNodePositions,
+    syncConfirmedNodeLabelPositions,
     syncConfirmedEdgePositions,
   ]);
 
@@ -335,6 +353,119 @@ const ChannelDiagram = () => {
     [edgePatchScheduler]
   );
 
+  const persistLabelPositions = useCallback(
+    async (payload = {}) => {
+      const nodesPayload = Array.isArray(payload.nodes)
+        ? payload.nodes
+            .map((node) => {
+              if (!node || typeof node !== "object") return null;
+              const id = String(node.id ?? "").trim();
+              if (!id) return null;
+              const data = node.data && typeof node.data === "object" ? node.data : {};
+              const nextData = {};
+              let hasData = false;
+              if (Object.prototype.hasOwnProperty.call(data, "labelPosition")) {
+                nextData.labelPosition = data.labelPosition;
+                hasData = true;
+              }
+              if (Object.prototype.hasOwnProperty.call(data, "multicastPosition")) {
+                nextData.multicastPosition = data.multicastPosition;
+                hasData = true;
+              }
+              return hasData ? { id, data: nextData } : null;
+            })
+            .filter(Boolean)
+        : [];
+
+      const edgesPayload = Array.isArray(payload.edges)
+        ? payload.edges
+            .map((edge) => {
+              if (!edge || typeof edge !== "object") return null;
+              const id = String(edge.id ?? "").trim();
+              if (!id) return null;
+              const data = edge.data && typeof edge.data === "object" ? edge.data : {};
+              const nextData = {};
+              let hasData = false;
+              if (Object.prototype.hasOwnProperty.call(data, "labelPosition")) {
+                nextData.labelPosition = data.labelPosition;
+                hasData = true;
+              }
+              if (Object.prototype.hasOwnProperty.call(data, "multicastPosition")) {
+                nextData.multicastPosition = data.multicastPosition;
+                hasData = true;
+              }
+              return hasData ? { id, data: nextData } : null;
+            })
+            .filter(Boolean)
+        : [];
+
+      if (!nodesPayload.length && !edgesPayload.length) {
+        return { ok: false, updated: { nodes: 0, edges: 0 } };
+      }
+
+      if (!channelId || !isAuth) {
+        return { ok: false, updated: { nodes: 0, edges: 0 } };
+      }
+
+      try {
+        const result = await patchLabelPositionsApi(channelId, {
+          nodes: nodesPayload,
+          edges: edgesPayload,
+        });
+
+        const nodeStore = confirmedNodeLabelPositionsRef.current;
+        nodesPayload.forEach((node) => {
+          const existing = nodeStore.get(node.id) || {
+            labelPosition: null,
+            multicastPosition: null,
+          };
+          const nextEntry = { ...existing };
+          if (Object.prototype.hasOwnProperty.call(node.data, "labelPosition")) {
+            const value = node.data.labelPosition;
+            nextEntry.labelPosition = value ? { ...value } : null;
+          }
+          if (Object.prototype.hasOwnProperty.call(node.data, "multicastPosition")) {
+            const value = node.data.multicastPosition;
+            nextEntry.multicastPosition = value ? { ...value } : null;
+          }
+          nodeStore.set(node.id, nextEntry);
+        });
+
+        const edgeStore = confirmedEdgePositionsRef.current;
+        edgesPayload.forEach((edge) => {
+          const existing = edgeStore.get(edge.id) || {
+            labelPosition: null,
+            endpointLabelPositions: {},
+            multicastPosition: null,
+          };
+          const nextEntry = {
+            labelPosition: existing.labelPosition,
+            endpointLabelPositions: {
+              ...(existing.endpointLabelPositions || {}),
+            },
+            multicastPosition: existing.multicastPosition,
+          };
+          if (Object.prototype.hasOwnProperty.call(edge.data, "labelPosition")) {
+            const value = edge.data.labelPosition;
+            nextEntry.labelPosition = value ? { ...value } : null;
+          }
+          if (Object.prototype.hasOwnProperty.call(edge.data, "multicastPosition")) {
+            const value = edge.data.multicastPosition;
+            nextEntry.multicastPosition = value ? { ...value } : null;
+          }
+          edgeStore.set(edge.id, nextEntry);
+        });
+
+        requestSave();
+        return result;
+      } catch (error) {
+        console.error("patchLabelPositions error", error);
+        throw error;
+      }
+    },
+    [channelId, isAuth, requestSave]
+  );
+
   const handleNodeLabelChange = useCallback(
     (nodeId, nextLabel) => {
       const sanitized = clampLabelText(nextLabel);
@@ -369,12 +500,28 @@ const ChannelDiagram = () => {
             : node
         )
       );
-      if (isAuth) {
-        scheduleNodePatch(nodeId, { labelPosition: clamped });
-      }
-      requestSave();
     },
-    [clampPosition, isAuth, scheduleNodePatch, updateNodes, requestSave]
+    [clampPosition, updateNodes]
+  );
+
+  const handleNodeMulticastPositionChange = useCallback(
+    (nodeId, position) => {
+      const clamped = position ? clampPosition(position) : null;
+      updateNodes((current) =>
+        current.map((node) =>
+          node.id === nodeId
+            ? {
+                ...node,
+                data: {
+                  ...(node.data || {}),
+                  multicastPosition: clamped ?? undefined,
+                },
+              }
+            : node
+        )
+      );
+    },
+    [clampPosition, updateNodes]
   );
 
   const handleEdgeLabelChange = useCallback(
@@ -402,19 +549,6 @@ const ChannelDiagram = () => {
   const handleEdgeLabelPositionChange = useCallback(
     (edgeId, position) => {
       const clamped = position ? clampPosition(position) : null;
-      const previousEdge = edgesRef.current.find((edge) => edge.id === edgeId);
-      const fallbackState =
-        confirmedEdgePositionsRef.current.get(edgeId) || {
-          labelPosition:
-            toPositionOrNull(previousEdge?.data?.labelPosition) ||
-            toPositionOrNull(previousEdge?.labelPosition) ||
-            null,
-          endpointLabelPositions: cloneEndpointPositions(
-            previousEdge?.data?.endpointLabelPositions
-          ),
-          multicastPosition:
-            toPositionOrNull(previousEdge?.data?.multicastPosition) || null,
-        };
       updateEdges((current) =>
         current.map((edge) =>
           edge.id === edgeId
@@ -426,50 +560,8 @@ const ChannelDiagram = () => {
             : edge
         )
       );
-      if (isAuth) {
-        scheduleEdgePatch(edgeId, { labelPosition: clamped }, {
-          onSuccess: () => {
-            const existing = confirmedEdgePositionsRef.current.get(edgeId);
-            const endpointPositions = {
-              ...((existing && existing.endpointLabelPositions) ||
-                fallbackState.endpointLabelPositions || {}),
-            };
-            confirmedEdgePositionsRef.current.set(edgeId, {
-              labelPosition: clamped ? { ...clamped } : null,
-              endpointLabelPositions: endpointPositions,
-              multicastPosition:
-                (existing && existing.multicastPosition) ||
-                fallbackState.multicastPosition ||
-                null,
-            });
-          },
-          onError: () => {
-            updateEdges((current) =>
-              current.map((edge) => {
-                if (edge.id !== edgeId) return edge;
-                const fallback = fallbackState.labelPosition;
-                return {
-                  ...edge,
-                  labelPosition: fallback || undefined,
-                  data: {
-                    ...(edge.data || {}),
-                    labelPosition: fallback || undefined,
-                  },
-                };
-              })
-            );
-          },
-        });
-      }
-      requestSave();
     },
-    [
-      clampPosition,
-      isAuth,
-      scheduleEdgePatch,
-      updateEdges,
-      requestSave,
-    ]
+    [clampPosition, updateEdges]
   );
 
   const handleEdgeEndpointLabelChange = useCallback(
@@ -605,20 +697,6 @@ const ChannelDiagram = () => {
   const handleEdgeMulticastPositionChange = useCallback(
     (edgeId, position) => {
       const clamped = position ? clampPosition(position) : null;
-      const previousEdge = edgesRef.current.find((edge) => edge.id === edgeId);
-      const fallbackState =
-        confirmedEdgePositionsRef.current.get(edgeId) || {
-          labelPosition:
-            toPositionOrNull(previousEdge?.data?.labelPosition) ||
-            toPositionOrNull(previousEdge?.labelPosition) ||
-            null,
-          endpointLabelPositions: cloneEndpointPositions(
-            previousEdge?.data?.endpointLabelPositions
-          ),
-          multicastPosition:
-            toPositionOrNull(previousEdge?.data?.multicastPosition) || null,
-        };
-
       updateEdges((current) =>
         current.map((edge) => {
           if (edge.id !== edgeId) return edge;
@@ -631,56 +709,8 @@ const ChannelDiagram = () => {
           return { ...edge, data: nextData };
         })
       );
-
-      if (isAuth) {
-        scheduleEdgePatch(
-          edgeId,
-          { data: { multicastPosition: clamped } },
-          {
-            onSuccess: () => {
-              const existing = confirmedEdgePositionsRef.current.get(edgeId);
-              const labelPosition =
-                (existing && existing.labelPosition) ||
-                fallbackState.labelPosition ||
-                null;
-              const endpointPositions = {
-                ...((existing && existing.endpointLabelPositions) ||
-                  fallbackState.endpointLabelPositions || {}),
-              };
-              confirmedEdgePositionsRef.current.set(edgeId, {
-                labelPosition,
-                endpointLabelPositions: endpointPositions,
-                multicastPosition: clamped ? { ...clamped } : null,
-              });
-            },
-            onError: () => {
-              updateEdges((current) =>
-                current.map((edge) => {
-                  if (edge.id !== edgeId) return edge;
-                  const nextData = { ...(edge.data || {}) };
-                  const fallback = fallbackState.multicastPosition;
-                  if (fallback) {
-                    nextData.multicastPosition = fallback;
-                  } else {
-                    delete nextData.multicastPosition;
-                  }
-                  return { ...edge, data: nextData };
-                })
-              );
-            },
-          }
-        );
-      }
-
-      requestSave();
     },
-    [
-      clampPosition,
-      isAuth,
-      scheduleEdgePatch,
-      updateEdges,
-      requestSave,
-    ]
+    [clampPosition, updateEdges]
   );
 
   const handleNodeDragStop = useCallback(() => {
@@ -874,11 +904,13 @@ const ChannelDiagram = () => {
       isReadOnly,
       onNodeLabelChange: handleNodeLabelChange,
       onNodeLabelPositionChange: handleNodeLabelPositionChange,
+      onNodeMulticastPositionChange: handleNodeMulticastPositionChange,
       onEdgeLabelChange: handleEdgeLabelChange,
       onEdgeLabelPositionChange: handleEdgeLabelPositionChange,
       onEdgeEndpointLabelChange: handleEdgeEndpointLabelChange,
       onEdgeEndpointLabelPositionChange: handleEdgeEndpointLabelPositionChange,
       onEdgeMulticastPositionChange: handleEdgeMulticastPositionChange,
+      persistLabelPositions,
       clampPosition,
     }),
     [
@@ -890,6 +922,8 @@ const ChannelDiagram = () => {
       handleEdgeMulticastPositionChange,
       handleNodeLabelChange,
       handleNodeLabelPositionChange,
+      handleNodeMulticastPositionChange,
+      persistLabelPositions,
       isReadOnly,
     ]
   );
