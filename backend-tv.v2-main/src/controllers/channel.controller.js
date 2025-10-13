@@ -307,6 +307,8 @@ exports.patchEdge = async (req, res) => {
     labelPosition,
     endpointLabels,
     endpointLabelPositions,
+    multicast,
+    multicastPosition,
     data: rawData,
   } = req.body || {};
 
@@ -340,6 +342,21 @@ exports.patchEdge = async (req, res) => {
       : dataPayload &&
         Object.prototype.hasOwnProperty.call(dataPayload, "endpointLabelPositions")
       ? dataPayload.endpointLabelPositions
+      : undefined;
+
+  const resolvedMulticast =
+    multicast !== undefined
+      ? multicast
+      : dataPayload && Object.prototype.hasOwnProperty.call(dataPayload, "multicast")
+      ? dataPayload.multicast
+      : undefined;
+
+  const resolvedMulticastPosition =
+    multicastPosition !== undefined
+      ? multicastPosition
+      : dataPayload &&
+        Object.prototype.hasOwnProperty.call(dataPayload, "multicastPosition")
+      ? dataPayload.multicastPosition
       : undefined;
 
   const setUpdate = {};
@@ -403,13 +420,37 @@ exports.patchEdge = async (req, res) => {
     }
   }
 
+  if (resolvedMulticast !== undefined) {
+    const sanitized = clampLabel(resolvedMulticast).trim();
+    if (!sanitized) {
+      unsetUpdate["edges.$.data.multicast"] = "";
+    } else {
+      setUpdate["edges.$.data.multicast"] = sanitized;
+    }
+  }
+
+  if (resolvedMulticastPosition !== undefined) {
+    if (resolvedMulticastPosition === null) {
+      unsetUpdate["edges.$.data.multicastPosition"] = "";
+    } else {
+      const sanitizedPosition = sanitizePosition(resolvedMulticastPosition);
+      if (sanitizedPosition) {
+        setUpdate["edges.$.data.multicastPosition"] = sanitizedPosition;
+      } else {
+        unsetUpdate["edges.$.data.multicastPosition"] = "";
+      }
+    }
+  }
+
   if (dataPayload) {
     Object.keys(dataPayload).forEach((key) => {
       if (
         key === "label" ||
         key === "labelPosition" ||
         key === "endpointLabels" ||
-        key === "endpointLabelPositions"
+        key === "endpointLabelPositions" ||
+        key === "multicast" ||
+        key === "multicastPosition"
       ) {
         return;
       }
