@@ -302,23 +302,61 @@ exports.patchNode = async (req, res) => {
 
 exports.patchEdge = async (req, res) => {
   const { id, edgeId } = req.params;
-  const { label, labelPosition, endpointLabels, endpointLabelPositions } = req.body || {};
+  const {
+    label,
+    labelPosition,
+    endpointLabels,
+    endpointLabelPositions,
+    data: rawData,
+  } = req.body || {};
+
+  const dataPayload =
+    rawData && typeof rawData === "object" && !Array.isArray(rawData) ? rawData : null;
+
+  const resolvedLabel =
+    label !== undefined
+      ? label
+      : dataPayload && Object.prototype.hasOwnProperty.call(dataPayload, "label")
+      ? dataPayload.label
+      : undefined;
+
+  const resolvedLabelPosition =
+    labelPosition !== undefined
+      ? labelPosition
+      : dataPayload && Object.prototype.hasOwnProperty.call(dataPayload, "labelPosition")
+      ? dataPayload.labelPosition
+      : undefined;
+
+  const resolvedEndpointLabels =
+    endpointLabels !== undefined
+      ? endpointLabels
+      : dataPayload && Object.prototype.hasOwnProperty.call(dataPayload, "endpointLabels")
+      ? dataPayload.endpointLabels
+      : undefined;
+
+  const resolvedEndpointLabelPositions =
+    endpointLabelPositions !== undefined
+      ? endpointLabelPositions
+      : dataPayload &&
+        Object.prototype.hasOwnProperty.call(dataPayload, "endpointLabelPositions")
+      ? dataPayload.endpointLabelPositions
+      : undefined;
 
   const setUpdate = {};
   const unsetUpdate = {};
 
-  if (label !== undefined) {
-    const sanitizedLabel = clampLabel(label);
+  if (resolvedLabel !== undefined) {
+    const sanitizedLabel = clampLabel(resolvedLabel);
     setUpdate["edges.$.label"] = sanitizedLabel;
     setUpdate["edges.$.data.label"] = sanitizedLabel;
   }
 
-  if (labelPosition !== undefined) {
-    if (labelPosition === null) {
+  if (resolvedLabelPosition !== undefined) {
+    if (resolvedLabelPosition === null) {
       unsetUpdate["edges.$.labelPosition"] = "";
       unsetUpdate["edges.$.data.labelPosition"] = "";
     } else {
-      const sanitizedPosition = sanitizePosition(labelPosition);
+      const sanitizedPosition = sanitizePosition(resolvedLabelPosition);
       if (sanitizedPosition) {
         setUpdate["edges.$.labelPosition"] = sanitizedPosition;
         setUpdate["edges.$.data.labelPosition"] = sanitizedPosition;
@@ -329,8 +367,8 @@ exports.patchEdge = async (req, res) => {
     }
   }
 
-  if (endpointLabels !== undefined) {
-    const sanitized = sanitizeEndpointLabels(endpointLabels);
+  if (resolvedEndpointLabels !== undefined) {
+    const sanitized = sanitizeEndpointLabels(resolvedEndpointLabels);
     if (Object.prototype.hasOwnProperty.call(sanitized, "source")) {
       if (sanitized.source === null) {
         unsetUpdate["edges.$.data.endpointLabels.source"] = "";
@@ -347,8 +385,8 @@ exports.patchEdge = async (req, res) => {
     }
   }
 
-  if (endpointLabelPositions !== undefined) {
-    const sanitized = sanitizeEndpointPositions(endpointLabelPositions);
+  if (resolvedEndpointLabelPositions !== undefined) {
+    const sanitized = sanitizeEndpointPositions(resolvedEndpointLabelPositions);
     if (Object.prototype.hasOwnProperty.call(sanitized, "source")) {
       if (!sanitized.source) {
         unsetUpdate["edges.$.data.endpointLabelPositions.source"] = "";
@@ -363,6 +401,26 @@ exports.patchEdge = async (req, res) => {
         setUpdate["edges.$.data.endpointLabelPositions.target"] = sanitized.target;
       }
     }
+  }
+
+  if (dataPayload) {
+    Object.keys(dataPayload).forEach((key) => {
+      if (
+        key === "label" ||
+        key === "labelPosition" ||
+        key === "endpointLabels" ||
+        key === "endpointLabelPositions"
+      ) {
+        return;
+      }
+      const value = dataPayload[key];
+      if (value === undefined) return;
+      if (value === null) {
+        unsetUpdate[`edges.$.data.${key}`] = "";
+      } else {
+        setUpdate[`edges.$.data.${key}`] = value;
+      }
+    });
   }
 
   const update = {};
