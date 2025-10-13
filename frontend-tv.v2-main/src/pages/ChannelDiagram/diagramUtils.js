@@ -63,6 +63,14 @@ const clampLabel = (value) => {
     : trimmed;
 };
 
+const toPointOrNull = (point) => {
+  if (!point || typeof point !== "object") return null;
+  const x = Number(point.x);
+  const y = Number(point.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  return { x, y };
+};
+
 export const mapNodeFromApi = (node) => {
   if (!node) return null;
   const id = String(node.id ?? node._id ?? node.key ?? "");
@@ -83,7 +91,8 @@ export const mapNodeFromApi = (node) => {
     data: {
       ...rawData,
       label,
-      labelPosition: rawData.labelPosition || null,
+      labelPosition: toPointOrNull(rawData.labelPosition),
+      multicastPosition: toPointOrNull(rawData.multicastPosition),
     },
     position: {
       x: toNumberOr(getPos(node.position?.x, 0), 0),
@@ -159,6 +168,7 @@ export const mapEdgeFromApi = (edge) => {
   const endpointLabelPositions = normalizeEndpointLabelPositions(
     rawData.endpointLabelPositions
   );
+  const multicastPosition = toPointOrNull(rawData.multicastPosition);
 
   const sourceHandle = normalizeHandle(edge.sourceHandle);
   const targetHandle = normalizeHandle(edge.targetHandle);
@@ -178,6 +188,7 @@ export const mapEdgeFromApi = (edge) => {
       labelPosition,
       endpointLabels,
       endpointLabelPositions,
+      multicastPosition,
     },
     style,
     markerEnd: withMarkerColor(edge.markerEnd, color),
@@ -195,6 +206,9 @@ export const toApiNode = (node) => {
   };
   if (node.data?.labelPosition) {
     data.labelPosition = node.data.labelPosition;
+  }
+  if (node.data?.multicastPosition) {
+    data.multicastPosition = node.data.multicastPosition;
   }
 
   return {
@@ -216,6 +230,7 @@ export const toApiEdge = (edge) => {
   const labelPosition = edge.data?.labelPosition || null;
   const endpointLabels = edge.data?.endpointLabels || {};
   const endpointLabelPositions = edge.data?.endpointLabelPositions || {};
+  const multicastPosition = edge.data?.multicastPosition || null;
   const sourceHandle = normalizeHandle(edge.sourceHandle);
   const targetHandle = normalizeHandle(edge.targetHandle);
 
@@ -226,6 +241,7 @@ export const toApiEdge = (edge) => {
     labelPosition,
     endpointLabels,
     endpointLabelPositions,
+    multicastPosition,
   };
 
   const payload = {

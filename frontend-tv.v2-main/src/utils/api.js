@@ -340,6 +340,12 @@ class Api {
             .then((r) => r.data);
     }
 
+    patchChannelLabelPositions(channelId, payload) {
+        return this._axios
+            .patch(`/channels/${channelId}/label-positions`, payload)
+            .then((r) => r.data);
+    }
+
     // ====== TITANS ======
     async getTitanServices(host, pathOrOptions = undefined) {
         if (!host) {

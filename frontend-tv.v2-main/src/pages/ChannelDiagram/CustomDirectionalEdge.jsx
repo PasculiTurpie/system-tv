@@ -1,7 +1,7 @@
 import React, { useCallback, useContext, useMemo } from "react";
 import { BaseEdge } from "@xyflow/react";
 import { DiagramContext } from "./DiagramContext";
-import EditableEdgeLabel from "./EditableEdgeLabel";
+import EdgeLabelDraggable from "./EdgeLabelDraggable";
 import { computeParallelPath } from "./diagramUtils";
 
 export default function CustomDirectionalEdge(props) {
@@ -26,6 +26,7 @@ export default function CustomDirectionalEdge(props) {
     onEdgeEndpointLabelChange,
     onEdgeEndpointLabelPositionChange,
     onEdgeMulticastPositionChange,
+    persistLabelPositions,
   } = useContext(DiagramContext);
   const isReverse = !!data?.__reversed;
 
@@ -96,6 +97,28 @@ export default function CustomDirectionalEdge(props) {
     [id, onEdgeLabelPositionChange]
   );
 
+  const handleCentralPersist = useCallback(
+    (nextPosition, meta) => {
+      if (!meta?.moved || isReadOnly || !persistLabelPositions) {
+        return;
+      }
+      persistLabelPositions({
+        edges: [
+          {
+            id,
+            data: { labelPosition: nextPosition },
+          },
+        ],
+      }).catch((error) => {
+        console.error("Persist edge label position failed", error);
+        if (meta?.initial) {
+          onEdgeLabelPositionChange?.(id, meta.initial);
+        }
+      });
+    },
+    [id, isReadOnly, onEdgeLabelPositionChange, persistLabelPositions]
+  );
+
   const handleEndpointLabelCommit = useCallback(
     (endpoint, nextLabel) => onEdgeEndpointLabelChange?.(id, endpoint, nextLabel),
     [id, onEdgeEndpointLabelChange]
@@ -107,18 +130,42 @@ export default function CustomDirectionalEdge(props) {
     [id, onEdgeEndpointLabelPositionChange]
   );
 
+  const handleMulticastPersist = useCallback(
+    (nextPosition, meta) => {
+      if (!meta?.moved || isReadOnly || !persistLabelPositions) {
+        return;
+      }
+      persistLabelPositions({
+        edges: [
+          {
+            id,
+            data: { multicastPosition: nextPosition },
+          },
+        ],
+      }).catch((error) => {
+        console.error("Persist edge multicast position failed", error);
+        if (meta?.initial) {
+          onEdgeMulticastPositionChange?.(id, meta.initial);
+        }
+      });
+    },
+    [id, isReadOnly, onEdgeMulticastPositionChange, persistLabelPositions]
+  );
+
   return (
     <>
       <BaseEdge id={id} path={edgePath} style={style} markerEnd={markerEnd} />
 
-      <EditableEdgeLabel
+      <EdgeLabelDraggable
         text={label || data?.label || ""}
         position={data?.labelPosition}
         defaultPosition={centralLabelPosition}
         readOnly={isReadOnly}
         ariaLabel="Etiqueta del enlace"
-        onCommit={handleCentralLabelCommit}
+        placeholder="Etiqueta del enlace"
+        onTextCommit={handleCentralLabelCommit}
         onPositionChange={handleCentralPositionChange}
+        onPersist={handleCentralPersist}
       />
 
     {/*   {(endpointLabels.source || !isReadOnly) && (
@@ -152,7 +199,7 @@ export default function CustomDirectionalEdge(props) {
       )} */}
 
       {multicast && multicastDefaultPosition && (
-        <EditableEdgeLabel
+        <EdgeLabelDraggable
           text={multicast}
           position={data?.multicastPosition}
           defaultPosition={multicastDefaultPosition}
@@ -162,6 +209,7 @@ export default function CustomDirectionalEdge(props) {
           onPositionChange={(position) =>
             onEdgeMulticastPositionChange?.(id, position)
           }
+          onPersist={handleMulticastPersist}
           style={{
             background: "#1f2937",
             color: "#fff",
@@ -172,6 +220,8 @@ export default function CustomDirectionalEdge(props) {
             boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
             whiteSpace: "nowrap",
             opacity: 0.9,
+            textTransform: "uppercase",
+            letterSpacing: 0.4,
           }}
         />
       )}

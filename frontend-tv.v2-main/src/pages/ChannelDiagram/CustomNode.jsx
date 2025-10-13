@@ -3,8 +3,9 @@ import React, { useCallback, useContext, useMemo } from "react";
 import PropTypes from "prop-types";
 import { Handle, Position, useStore } from "@xyflow/react";
 import { shallow } from "zustand/shallow";
-import EditableEdgeLabel from "./EditableEdgeLabel";
 import { DiagramContext } from "./DiagramContext";
+import NodeLabelDraggable from "./NodeLabelDraggable";
+import NodeMulticastDraggable from "./NodeMulticastDraggable";
 
 const DEFAULT_SLOTS = {
   top: [20, 50, 80],
@@ -14,8 +15,7 @@ const DEFAULT_SLOTS = {
 };
 
 function CustomNode({ id, data }) {
-  const { isReadOnly, onNodeLabelChange, onNodeLabelPositionChange } =
-    useContext(DiagramContext);
+  const { isReadOnly } = useContext(DiagramContext);
 
   const { xAbs, yAbs, width, ready } = useStore(
     useCallback(
@@ -53,8 +53,17 @@ function CustomNode({ id, data }) {
   const effectiveLabelDefault = useMemo(() => {
     if (hasStoredLabelPosition) return data.labelPosition;
     if (defaultLabelPosition) return defaultLabelPosition;
-    return { x: 0, y: 0 };
+    return null;
   }, [hasStoredLabelPosition, data?.labelPosition, defaultLabelPosition]);
+
+  const multicastDefaultPosition = useMemo(() => {
+    if (!ready || !Number.isFinite(xAbs) || !Number.isFinite(yAbs)) return null;
+    const offsetX = Number.isFinite(width) ? width : 0;
+    return {
+      x: xAbs + offsetX + 28,
+      y: yAbs + 18,
+    };
+  }, [ready, xAbs, yAbs, width]);
 
   const slots = useMemo(() => {
     const s = data?.slots ?? {};
@@ -94,16 +103,6 @@ function CustomNode({ id, data }) {
   const dotBase = useMemo(() => ({ background: "transparent" }), []);
   const pctTop = useCallback((p) => ({ top: `${p}%` }), []);
   const pctLeft = useCallback((p) => ({ left: `${p}%` }), []);
-
-  const handleLabelCommit = useCallback(
-    (nextLabel) => onNodeLabelChange?.(id, nextLabel),
-    [id, onNodeLabelChange]
-  );
-
-  const handleLabelPositionChange = useCallback(
-    (position) => onNodeLabelPositionChange?.(id, position),
-    [id, onNodeLabelPositionChange]
-  );
 
   const renderHandles = useCallback(
     (side, list) =>
@@ -177,20 +176,21 @@ function CustomNode({ id, data }) {
         {renderHandles("right", slots.right)}
       </div>
 
-      {/* {(defaultLabelPosition || hasStoredLabelPosition) && (
-        <EditableEdgeLabel
-          text={data?.label || ""}
-          position={hasStoredLabelPosition ? data.labelPosition : undefined}
-          defaultPosition={effectiveLabelDefault}
-          readOnly={!!isReadOnly}
-          ariaLabel="Etiqueta del nodo"
-          placeholder="Etiqueta del nodo"
-          onCommit={handleLabelCommit}
-          onPositionChange={handleLabelPositionChange}
-          style={{ fontSize: 14, fontWeight: 600, zIndex: 10 }}
-          className="channel-node-label"
-        />
-      )} */}
+      <NodeLabelDraggable
+        nodeId={id}
+        text={data?.label || ""}
+        position={data?.labelPosition}
+        defaultPosition={effectiveLabelDefault}
+        readOnly={!!isReadOnly}
+      />
+
+      <NodeMulticastDraggable
+        nodeId={id}
+        text={data?.multicast || ""}
+        position={data?.multicastPosition}
+        defaultPosition={multicastDefaultPosition}
+        readOnly={!!isReadOnly}
+      />
     </>
   );
 }
