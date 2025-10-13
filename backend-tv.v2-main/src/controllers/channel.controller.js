@@ -267,23 +267,33 @@ exports.patchNode = async (req, res) => {
   }
 
   try {
-    const updated = await Channel.findOneAndUpdate(
+    const updateResult = await Channel.updateOne(
       { _id: id, "nodes.id": nodeId },
       update,
-      {
-        new: true,
-        select: { "nodes.$": 1, _id: 1 },
-        runValidators: true,
-      }
+      { runValidators: true }
+    ).exec();
+
+    const matchedCount =
+      typeof updateResult.matchedCount === "number"
+        ? updateResult.matchedCount
+        : updateResult.n || 0;
+
+    if (!matchedCount) {
+      return res.status(404).json({ error: "Nodo no encontrado" });
+    }
+
+    const refreshed = await Channel.findOne(
+      { _id: id, "nodes.id": nodeId },
+      { _id: 1, nodes: { $elemMatch: { id: nodeId } } }
     )
       .lean({ getters: true, virtuals: true })
       .exec();
 
-    if (!updated || !Array.isArray(updated.nodes) || updated.nodes.length === 0) {
+    if (!refreshed || !Array.isArray(refreshed.nodes) || refreshed.nodes.length === 0) {
       return res.status(404).json({ error: "Nodo no encontrado" });
     }
 
-    return res.json({ node: normalizeNode(updated.nodes[0]) });
+    return res.json({ node: normalizeNode(refreshed.nodes[0]) });
   } catch (error) {
     console.error("patchNode error", error);
     return res.status(500).json({ error: error.message });
@@ -364,23 +374,33 @@ exports.patchEdge = async (req, res) => {
   }
 
   try {
-    const updated = await Channel.findOneAndUpdate(
+    const updateResult = await Channel.updateOne(
       { _id: id, "edges.id": edgeId },
       update,
-      {
-        new: true,
-        select: { "edges.$": 1, _id: 1 },
-        runValidators: true,
-      }
+      { runValidators: true }
+    ).exec();
+
+    const matchedCount =
+      typeof updateResult.matchedCount === "number"
+        ? updateResult.matchedCount
+        : updateResult.n || 0;
+
+    if (!matchedCount) {
+      return res.status(404).json({ error: "Enlace no encontrado" });
+    }
+
+    const refreshed = await Channel.findOne(
+      { _id: id, "edges.id": edgeId },
+      { _id: 1, edges: { $elemMatch: { id: edgeId } } }
     )
       .lean({ getters: true, virtuals: true })
       .exec();
 
-    if (!updated || !Array.isArray(updated.edges) || updated.edges.length === 0) {
+    if (!refreshed || !Array.isArray(refreshed.edges) || refreshed.edges.length === 0) {
       return res.status(404).json({ error: "Enlace no encontrado" });
     }
 
-    return res.json({ edge: normalizeEdge(updated.edges[0]) });
+    return res.json({ edge: normalizeEdge(refreshed.edges[0]) });
   } catch (error) {
     console.error("patchEdge error", error);
     return res.status(500).json({ error: error.message });
