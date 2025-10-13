@@ -904,7 +904,7 @@ const ChannelDiagram = () => {
 
   if (error) {
     return (
-      <div style={{ width: "100%", height: "100vh", position: "relative" }}>
+      <div style={{ width: "100%", height: "90vh", position: "relative" }}>
         <div className="diagram-overlay">{error}</div>
       </div>
     );
@@ -943,7 +943,7 @@ const ChannelDiagram = () => {
                 panOnDrag
               >
                 <Background variant="dots" gap={16} size={1} />
-                <Controls position="bottom-right" />
+                <Controls position="bottom-left" />
               </ReactFlow>
             </DiagramContext.Provider>
           </div>
