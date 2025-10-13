@@ -144,11 +144,13 @@ export default function EditableEdgeLabel({
     window.removeEventListener("mouseup", stopDragging);
     window.removeEventListener("touchmove", updatePosition);
     window.removeEventListener("touchend", stopDragging);
+    window.removeEventListener("touchcancel", stopDragging);
   }, [updatePosition]);
 
   const startDragging = useCallback(
     (event) => {
       if (editing || !canDrag) return;
+      if ("button" in event && event.button !== 0) return;
       event.preventDefault();
       event.stopPropagation();
       const projected = projectClient(event);
@@ -161,6 +163,7 @@ export default function EditableEdgeLabel({
       window.addEventListener("mouseup", stopDragging);
       window.addEventListener("touchmove", updatePosition, { passive: false });
       window.addEventListener("touchend", stopDragging);
+      window.addEventListener("touchcancel", stopDragging);
     },
     [
       canDrag,
@@ -179,6 +182,7 @@ export default function EditableEdgeLabel({
       window.removeEventListener("mouseup", stopDragging);
       window.removeEventListener("touchmove", updatePosition);
       window.removeEventListener("touchend", stopDragging);
+      window.removeEventListener("touchcancel", stopDragging);
     },
     [stopDragging, updatePosition]
   );
