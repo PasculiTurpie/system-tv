@@ -47,12 +47,9 @@ export default function NodeLabelDraggable({
         return;
       }
       persistLabelPositions({
-        nodes: [
-          {
-            id: nodeId,
-            data: { labelPosition: nextPosition },
-          },
-        ],
+        nodes: {
+          [nodeId]: { labelPosition: nextPosition },
+        },
       }).catch((error) => {
         console.error("Persist node label position failed", error);
         if (meta?.initial) {

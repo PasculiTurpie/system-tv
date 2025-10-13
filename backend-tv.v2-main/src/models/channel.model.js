@@ -78,6 +78,13 @@ const ChannelSchema = new mongoose.Schema(
   { timestamps: true, versionKey: false }
 );
 
+ChannelSchema.index({ "nodes.id": 1 }, { background: true });
+ChannelSchema.index({ "edges.id": 1 }, { background: true });
+ChannelSchema.index(
+  { "nodes.data.label": 1 },
+  { background: true, sparse: true }
+);
+
 // Validación: edges deben referenciar nodes existentes
 ChannelSchema.pre("validate", function (next) {
   const nodesList = Array.isArray(this.nodes) ? this.nodes : [];

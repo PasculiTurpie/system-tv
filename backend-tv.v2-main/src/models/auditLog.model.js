@@ -8,15 +8,15 @@ const AuditLogSchema = new mongoose.Schema(
     role: { type: String },
 
     // Dónde/Qué
-    action: {
-      type: String,
-      enum: ["create", "update", "delete", "read", "login", "logout"],
-      index: true,
-    },
+    action: { type: String, index: true },
     resource: { type: String, index: true }, // p.ej. "equipo", "channels"
     resourceId: { type: String, index: true }, // id del recurso si aplica
     endpoint: { type: String }, // req.originalUrl
     method: { type: String }, // GET/POST/PUT/DELETE...
+
+    origin: { type: String, index: true },
+    channelId: { type: mongoose.Schema.Types.ObjectId, ref: "Channel", index: true },
+    operation: { type: String, index: true },
 
     // Contexto
     ip: { type: String, index: true }, // IP real normalizada
@@ -25,6 +25,7 @@ const AuditLogSchema = new mongoose.Schema(
 
     // Cambios (si quieres, puedes guardar diffs)
     diff: { type: Object },
+    summaryDiff: { type: Object },
 
     // Extra (query/params/body sanitizado, duration, forwardedFor, etc.)
     meta: { type: Object },

@@ -37,7 +37,6 @@ import SearchFilter from "./components/SearchFilter/SearchFilter";
 
 import ChannelDiagram from "./pages/ChannelDiagram/ChannelDiagram";
 import ChannelForm from "./pages/ChannelDiagram/ChannelForm";
-import ChannelEditor from "./pages/ChannelDiagram/ChannelEditor";
 import ChannelListDiagram from "./pages/ChannelDiagram/ChannelListDiagram";
 
 import AuditLogPage from "./pages/Audit/AuditLogPage";
@@ -79,7 +78,6 @@ const App = () => {
                         <Route path="/listar-user" element={<ListarUsers />} />
 
                         <Route path="/channel-form" element={<ChannelForm />} />
-                        <Route path="/channel-editor" element={<ChannelEditor />} />
 
                         <Route path="/nodo-listar" element={<NodoListar />} />
                         <Route path="/channel" element={<Channel />} />

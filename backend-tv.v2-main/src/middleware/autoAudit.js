@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const AuditLog = require("../models/auditLog.model");
 const User = require("../models/users.model"); // para lookup de email si falta
 const { verifyAccess } = require("../../utils/jwt");
@@ -148,25 +149,47 @@ const autoAudit = (fixedAction) => {
         const { resource, resourceId } = deriveResourceAndId(req);
         const clientIp = getClientIp(req);
 
+        const context =
+          (res.locals && res.locals.auditContext) || req.auditContext || {};
+
+        const resolveObjectId = (value) => {
+          if (!value) return undefined;
+          try {
+            if (mongoose.Types.ObjectId.isValid(value)) {
+              return new mongoose.Types.ObjectId(value);
+            }
+          } catch (error) {
+            return undefined;
+          }
+          return undefined;
+        };
+
+        const enrichedMeta = {
+          query: req.query,
+          params: req.params,
+          body: req.method === "GET" ? undefined : safeBody(req.body),
+          durationMs: Date.now() - started,
+          forwardedFor: req.headers["x-forwarded-for"] || null, // trazabilidad
+          ...(context.meta ? { audit: context.meta } : {}),
+        };
+
         await AuditLog.create({
           userId,
           userEmail: finalEmail,
           role,
-          action: fixedAction || inferAction(req.method, req.originalUrl || ""),
-          resource,
-          resourceId,
+          action: context.action || fixedAction || inferAction(req.method, req.originalUrl || ""),
+          resource: context.resource || resource,
+          resourceId: context.resourceId || resourceId,
           endpoint: req.originalUrl,
           method: req.method,
+          origin: context.origin,
+          channelId: resolveObjectId(context.channelId),
+          operation: context.operation,
           ip: clientIp,
           userAgent: req.headers["user-agent"] || null,
           statusCode: res.statusCode,
-          meta: {
-            query: req.query,
-            params: req.params,
-            body: req.method === "GET" ? undefined : safeBody(req.body),
-            durationMs: Date.now() - started,
-            forwardedFor: req.headers["x-forwarded-for"] || null, // trazabilidad
-          },
+          summaryDiff: context.summaryDiff,
+          meta: enrichedMeta,
         });
       } catch (e) {
         console.error("autoAudit error:", e.message);

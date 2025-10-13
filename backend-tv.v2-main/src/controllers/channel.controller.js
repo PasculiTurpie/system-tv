@@ -1,4 +1,5 @@
 const Channel = require("../models/channel.model");
+const Signal = require("../models/signal.model");
 const {
   normalizeChannel,
   normalizeChannels,
@@ -37,36 +38,53 @@ module.exports.createChannel = async (req, res) => {
 };
 
 // Obtener todos los canales
-module.exports.getChannel =  async (req, res) => {
+module.exports.getChannel = async (req, res) => {
   try {
     const filter = buildChannelFilter(req.query);
     const channels = await Channel.find(filter)
-      .populate({
-        path: "signal",
-        populate: [{ path: "contact" }],
-      })
-      .populate({
-        path: "nodes.equipo",
-        populate: [
-          { path: "tipoNombre", select: "tipoNombre" },
-          { path: "irdRef" }, // si quieres limitar campos, agrega .select
-          {
-            path: "satelliteRef",
-            populate: [{ path: "satelliteType", select: "typePolarization" }],
-          },
-        ],
-      })
-      .populate({
-        path: "nodes",
-        populate: [{ path: "equipo" }],
-      })
+      .select(
+        "signal nodes.id nodes.type nodes.position nodes.data nodes.equipo edges.id edges.source edges.target edges.type edges.style edges.data edges.label createdAt updatedAt"
+      )
       .sort({ updatedAt: -1, _id: 1 })
       .lean({ getters: true, virtuals: true });
-    res.json(normalizeChannels(channels));
+
+    const signalIds = Array.from(
+      new Set(
+        channels
+          .map((channel) =>
+            channel?.signal ? String(channel.signal).trim() : null
+          )
+          .filter(Boolean)
+      )
+    );
+
+    let signals = [];
+    if (signalIds.length) {
+      signals = await Signal.find({ _id: { $in: signalIds } })
+        .select("nameChannel nombre tipoTecnologia contact")
+        .populate({ path: "contact", select: "nombre email telefono phone" })
+        .lean({ getters: true, virtuals: true });
+    }
+
+    const signalMap = new Map(
+      signals.map((signal) => [String(signal._id), signal])
+    );
+
+    const enriched = channels.map((channel) => {
+      const rawSignal = channel?.signal;
+      const signalId = rawSignal ? String(rawSignal).trim() : null;
+      const resolvedSignal = signalId ? signalMap.get(signalId) || rawSignal : rawSignal;
+      return {
+        ...channel,
+        signal: resolvedSignal,
+      };
+    });
+
+    res.json(normalizeChannels(enriched));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
-}
+};
 
 exports.updateChannel = async (req, res) => {
   try {
@@ -93,25 +111,9 @@ exports.updateChannel = async (req, res) => {
 module.exports.getChannelId = async (req, res) => {
   try {
     const channel = await Channel.findById(req.params.id)
-      // Signal + contactos
-      .populate({
-        path: "signal",
-        populate: [{ path: "contact" }],
-      })
-      // Equipo dentro de cada nodo + sus refs
-      // Nota: si nodes es un array embebido con campo 'equipo' (ObjectId),
-      // usa el path con punto.
-      .populate({
-        path: "nodes.equipo",
-        populate: [
-          { path: "tipoNombre", select: "tipoNombre" },
-          { path: "irdRef" }, // si quieres limitar campos, agrega .select
-          {
-            path: "satelliteRef",
-            populate: [{ path: "satelliteType", select: "typePolarization" }],
-          },
-        ],
-      })
+      .select(
+        "signal nodes.id nodes.type nodes.position nodes.data nodes.equipo edges.id edges.source edges.target edges.type edges.style edges.data edges.label createdAt updatedAt"
+      )
       .lean({ getters: true, virtuals: true })
       .exec();
 
@@ -119,7 +121,22 @@ module.exports.getChannelId = async (req, res) => {
       return res.status(404).json({ error: "Channel not found" });
     }
 
-    res.json(normalizeChannel(channel));
+    const signalId = channel?.signal ? String(channel.signal).trim() : null;
+    let resolvedSignal = channel.signal;
+    if (signalId) {
+      resolvedSignal = await Signal.findById(signalId)
+        .select("nameChannel nombre tipoTecnologia contact")
+        .populate({ path: "contact", select: "nombre email telefono phone" })
+        .lean({ getters: true, virtuals: true })
+        .exec();
+    }
+
+    res.json(
+      normalizeChannel({
+        ...channel,
+        signal: resolvedSignal || channel.signal,
+      })
+    );
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: error.message });
@@ -464,122 +481,240 @@ exports.patchEdge = async (req, res) => {
 
 module.exports.patchLabelPositions = async (req, res) => {
   const channelId = req.params.id || req.params.channelId;
-  const payload = req.body || {};
-
   if (!channelId) {
     return res.status(400).json({ error: "ChannelId es requerido" });
   }
 
-  const nodesInput = Array.isArray(payload.nodes) ? payload.nodes : [];
-  const edgesInput = Array.isArray(payload.edges) ? payload.edges : [];
+  const body = req.body && typeof req.body === "object" ? req.body : {};
+  const labelPositionsInput =
+    body.labelPositions && typeof body.labelPositions === "object"
+      ? body.labelPositions
+      : {};
+  const nodesInput =
+    labelPositionsInput.nodes && typeof labelPositionsInput.nodes === "object"
+      ? labelPositionsInput.nodes
+      : {};
+  const edgesInput =
+    labelPositionsInput.edges && typeof labelPositionsInput.edges === "object"
+      ? labelPositionsInput.edges
+      : {};
+  const endpointInput =
+    body.endpointLabelPositions &&
+    typeof body.endpointLabelPositions === "object"
+      ? body.endpointLabelPositions
+      : {};
+
+  const existingChannel = await Channel.findById(channelId)
+    .select({
+      _id: 1,
+      nodes: 1,
+      edges: 1,
+    })
+    .lean({ getters: true, virtuals: true })
+    .exec();
+
+  if (!existingChannel) {
+    return res.status(404).json({ error: "Channel no encontrado" });
+  }
+
+  const sanitizePoint = (value) => sanitizePosition(value) || null;
+  const clonePoint = (value) => (value ? { x: value.x, y: value.y } : null);
+  const samePoint = (a, b) => {
+    if (!a && !b) return true;
+    if (!a || !b) return false;
+    return Number(a.x) === Number(b.x) && Number(a.y) === Number(b.y);
+  };
+
+  const nodeMap = new Map();
+  (Array.isArray(existingChannel.nodes) ? existingChannel.nodes : []).forEach((node) => {
+    const id = node?.id ? String(node.id).trim() : "";
+    if (!id) return;
+    nodeMap.set(id, {
+      labelPosition: sanitizePoint(node?.data?.labelPosition),
+      multicastPosition: sanitizePoint(node?.data?.multicastPosition),
+    });
+  });
+
+  const edgeMap = new Map();
+  (Array.isArray(existingChannel.edges) ? existingChannel.edges : []).forEach((edge) => {
+    const id = edge?.id ? String(edge.id).trim() : "";
+    if (!id) return;
+    const data = edge?.data && typeof edge.data === "object" ? edge.data : {};
+    const endpointPositions = {};
+    if (data.endpointLabelPositions && typeof data.endpointLabelPositions === "object") {
+      if (data.endpointLabelPositions.source) {
+        const sanitized = sanitizePoint(data.endpointLabelPositions.source);
+        if (sanitized) endpointPositions.source = sanitized;
+      }
+      if (data.endpointLabelPositions.target) {
+        const sanitized = sanitizePoint(data.endpointLabelPositions.target);
+        if (sanitized) endpointPositions.target = sanitized;
+      }
+    }
+
+    edgeMap.set(id, {
+      labelPosition: sanitizePoint(data.labelPosition) || sanitizePoint(edge.labelPosition),
+      multicastPosition: sanitizePoint(data.multicastPosition),
+      endpointLabelPositions: endpointPositions,
+    });
+  });
 
   const setOperations = {};
   const unsetOperations = {};
   const arrayFilters = [];
-  let nodeFilterIndex = 0;
-  let edgeFilterIndex = 0;
-  let nodesUpdated = 0;
-  let edgesUpdated = 0;
+  const nodeFilterNames = new Map();
+  const edgeFilterNames = new Map();
+  const touchedNodes = new Set();
+  const touchedEdges = new Set();
+  const diffNodes = {};
+  const diffEdges = {};
 
-  const ensureId = (value) => {
-    if (value === undefined || value === null) return "";
-    return String(value).trim();
+  const ensureNodeFilter = (id) => {
+    if (nodeFilterNames.has(id)) return nodeFilterNames.get(id);
+    const name = `n${nodeFilterNames.size}`;
+    nodeFilterNames.set(id, name);
+    arrayFilters.push({ [`${name}.id`]: id });
+    return name;
   };
 
-  nodesInput.forEach((node) => {
-    const nodeId = ensureId(node?.id);
+  const ensureEdgeFilter = (id) => {
+    if (edgeFilterNames.has(id)) return edgeFilterNames.get(id);
+    const name = `e${edgeFilterNames.size}`;
+    edgeFilterNames.set(id, name);
+    arrayFilters.push({ [`${name}.id`]: id });
+    return name;
+  };
+
+  Object.entries(nodesInput).forEach(([nodeKey, rawData]) => {
+    const nodeId = String(nodeKey ?? "").trim();
     if (!nodeId) return;
-    const dataPayload =
-      node?.data && typeof node.data === "object" && !Array.isArray(node.data)
-        ? node.data
-        : {};
+    const baseline = nodeMap.get(nodeId);
+    if (!baseline) return;
+    const data = rawData && typeof rawData === "object" ? rawData : {};
 
-    const setPaths = {};
-    const unsetPaths = [];
-
-    if (Object.prototype.hasOwnProperty.call(dataPayload, "labelPosition")) {
-      const sanitized = sanitizePosition(dataPayload.labelPosition);
-      if (sanitized) {
-        setPaths["data.labelPosition"] = sanitized;
-      } else {
-        unsetPaths.push("data.labelPosition");
+    if (Object.prototype.hasOwnProperty.call(data, "labelPosition")) {
+      const sanitized = sanitizePoint(data.labelPosition);
+      const nextValue = sanitized || null;
+      const previous = baseline.labelPosition || null;
+      if (!samePoint(previous, nextValue)) {
+        const filterName = ensureNodeFilter(nodeId);
+        if (nextValue) {
+          setOperations[`nodes.$[${filterName}].data.labelPosition`] = nextValue;
+        } else {
+          unsetOperations[`nodes.$[${filterName}].data.labelPosition`] = "";
+        }
+        diffNodes[nodeId] = diffNodes[nodeId] || {};
+        diffNodes[nodeId].labelPosition = {
+          from: clonePoint(previous),
+          to: clonePoint(nextValue),
+        };
+        touchedNodes.add(nodeId);
       }
     }
 
-    if (Object.prototype.hasOwnProperty.call(dataPayload, "multicastPosition")) {
-      const sanitized = sanitizePosition(dataPayload.multicastPosition);
-      if (sanitized) {
-        setPaths["data.multicastPosition"] = sanitized;
-      } else {
-        unsetPaths.push("data.multicastPosition");
+    if (Object.prototype.hasOwnProperty.call(data, "multicastPosition")) {
+      const sanitized = sanitizePoint(data.multicastPosition);
+      const nextValue = sanitized || null;
+      const previous = baseline.multicastPosition || null;
+      if (!samePoint(previous, nextValue)) {
+        const filterName = ensureNodeFilter(nodeId);
+        if (nextValue) {
+          setOperations[`nodes.$[${filterName}].data.multicastPosition`] = nextValue;
+        } else {
+          unsetOperations[`nodes.$[${filterName}].data.multicastPosition`] = "";
+        }
+        diffNodes[nodeId] = diffNodes[nodeId] || {};
+        diffNodes[nodeId].multicastPosition = {
+          from: clonePoint(previous),
+          to: clonePoint(nextValue),
+        };
+        touchedNodes.add(nodeId);
       }
     }
-
-    if (!Object.keys(setPaths).length && !unsetPaths.length) {
-      return;
-    }
-
-    const filterName = `ni${nodeFilterIndex++}`;
-    arrayFilters.push({ [`${filterName}.id`]: nodeId });
-
-    Object.entries(setPaths).forEach(([path, value]) => {
-      setOperations[`nodes.$[${filterName}].${path}`] = value;
-    });
-    unsetPaths.forEach((path) => {
-      unsetOperations[`nodes.$[${filterName}].${path}`] = "";
-    });
-
-    nodesUpdated += 1;
   });
 
-  edgesInput.forEach((edge) => {
-    const edgeId = ensureId(edge?.id);
+  Object.entries(edgesInput).forEach(([edgeKey, rawData]) => {
+    const edgeId = String(edgeKey ?? "").trim();
     if (!edgeId) return;
-    const dataPayload =
-      edge?.data && typeof edge.data === "object" && !Array.isArray(edge.data)
-        ? edge.data
-        : {};
+    const baseline = edgeMap.get(edgeId);
+    if (!baseline) return;
+    const data = rawData && typeof rawData === "object" ? rawData : {};
 
-    const setPaths = {};
-    const unsetPaths = [];
-
-    if (Object.prototype.hasOwnProperty.call(dataPayload, "labelPosition")) {
-      const sanitized = sanitizePosition(dataPayload.labelPosition);
-      if (sanitized) {
-        setPaths["data.labelPosition"] = sanitized;
-        setPaths.labelPosition = sanitized;
-      } else {
-        unsetPaths.push("data.labelPosition");
-        unsetPaths.push("labelPosition");
+    if (Object.prototype.hasOwnProperty.call(data, "labelPosition")) {
+      const sanitized = sanitizePoint(data.labelPosition);
+      const nextValue = sanitized || null;
+      const previous = baseline.labelPosition || null;
+      if (!samePoint(previous, nextValue)) {
+        const filterName = ensureEdgeFilter(edgeId);
+        if (nextValue) {
+          setOperations[`edges.$[${filterName}].data.labelPosition`] = nextValue;
+          setOperations[`edges.$[${filterName}].labelPosition`] = nextValue;
+        } else {
+          unsetOperations[`edges.$[${filterName}].data.labelPosition`] = "";
+          unsetOperations[`edges.$[${filterName}].labelPosition`] = "";
+        }
+        diffEdges[edgeId] = diffEdges[edgeId] || {};
+        diffEdges[edgeId].labelPosition = {
+          from: clonePoint(previous),
+          to: clonePoint(nextValue),
+        };
+        touchedEdges.add(edgeId);
       }
     }
 
-    if (Object.prototype.hasOwnProperty.call(dataPayload, "multicastPosition")) {
-      const sanitized = sanitizePosition(dataPayload.multicastPosition);
-      if (sanitized) {
-        setPaths["data.multicastPosition"] = sanitized;
-      } else {
-        unsetPaths.push("data.multicastPosition");
+    if (Object.prototype.hasOwnProperty.call(data, "multicastPosition")) {
+      const sanitized = sanitizePoint(data.multicastPosition);
+      const nextValue = sanitized || null;
+      const previous = baseline.multicastPosition || null;
+      if (!samePoint(previous, nextValue)) {
+        const filterName = ensureEdgeFilter(edgeId);
+        if (nextValue) {
+          setOperations[`edges.$[${filterName}].data.multicastPosition`] = nextValue;
+        } else {
+          unsetOperations[`edges.$[${filterName}].data.multicastPosition`] = "";
+        }
+        diffEdges[edgeId] = diffEdges[edgeId] || {};
+        diffEdges[edgeId].multicastPosition = {
+          from: clonePoint(previous),
+          to: clonePoint(nextValue),
+        };
+        touchedEdges.add(edgeId);
       }
     }
+  });
 
-    if (!Object.keys(setPaths).length && !unsetPaths.length) {
-      return;
-    }
+  Object.entries(endpointInput).forEach(([edgeKey, rawData]) => {
+    const edgeId = String(edgeKey ?? "").trim();
+    if (!edgeId) return;
+    const baseline = edgeMap.get(edgeId);
+    if (!baseline) return;
+    const data = rawData && typeof rawData === "object" ? rawData : {};
 
-    const filterName = `ei${edgeFilterIndex++}`;
-    arrayFilters.push({ [`${filterName}.id`]: edgeId });
-
-    Object.entries(setPaths).forEach(([path, value]) => {
-      const basePath = path.startsWith("data") ? `edges.$[${filterName}].${path}` : `edges.$[${filterName}].${path}`;
-      setOperations[basePath] = value;
+    ["source", "target"].forEach((endpoint) => {
+      if (!Object.prototype.hasOwnProperty.call(data, endpoint)) return;
+      const sanitized = sanitizePoint(data[endpoint]);
+      const nextValue = sanitized || null;
+      const previous =
+        baseline.endpointLabelPositions && baseline.endpointLabelPositions[endpoint]
+          ? baseline.endpointLabelPositions[endpoint]
+          : null;
+      if (!samePoint(previous, nextValue)) {
+        const filterName = ensureEdgeFilter(edgeId);
+        if (nextValue) {
+          setOperations[`edges.$[${filterName}].data.endpointLabelPositions.${endpoint}`] = nextValue;
+        } else {
+          unsetOperations[`edges.$[${filterName}].data.endpointLabelPositions.${endpoint}`] = "";
+        }
+        diffEdges[edgeId] = diffEdges[edgeId] || {};
+        diffEdges[edgeId].endpointLabelPositions =
+          diffEdges[edgeId].endpointLabelPositions || {};
+        diffEdges[edgeId].endpointLabelPositions[endpoint] = {
+          from: clonePoint(previous),
+          to: clonePoint(nextValue),
+        };
+        touchedEdges.add(edgeId);
+      }
     });
-    unsetPaths.forEach((path) => {
-      const basePath = `edges.$[${filterName}].${path}`;
-      unsetOperations[basePath] = "";
-    });
-
-    edgesUpdated += 1;
   });
 
   const updatePayload = {};
@@ -612,12 +747,54 @@ module.exports.patchLabelPositions = async (req, res) => {
       return res.status(404).json({ error: "Channel no encontrado" });
     }
 
+    const summaryDiff = {};
+    if (Object.keys(diffNodes).length) {
+      summaryDiff.nodes = diffNodes;
+    }
+    if (Object.keys(diffEdges).length) {
+      summaryDiff.edges = diffEdges;
+    }
+
+    const hasLabelChanges =
+      Object.values(diffNodes).length > 0 ||
+      Object.values(diffEdges).some((entry) =>
+        Boolean(entry.labelPosition || entry.multicastPosition)
+      );
+    const hasEndpointChanges = Object.values(diffEdges).some(
+      (entry) => entry.endpointLabelPositions && Object.keys(entry.endpointLabelPositions).length
+    );
+
+    let auditAction = null;
+    if (hasLabelChanges && hasEndpointChanges) {
+      auditAction = "PATCH_LABELS_AND_ENDPOINT_LABELS";
+    } else if (hasEndpointChanges) {
+      auditAction = "PATCH_ENDPOINT_LABELS";
+    } else {
+      auditAction = "PATCH_LABELS";
+    }
+
+    const originHeader = String(req.headers["x-diagram-origin"] || "").trim();
+    const origin = originHeader === "ChannelForm" ? "ChannelForm" : "ChannelDiagram";
+
+    res.locals.auditContext = {
+      origin,
+      channelId: String(channelId),
+      action: auditAction,
+      operation: "PATCH_LABEL_POSITIONS",
+      summaryDiff: Object.keys(summaryDiff).length ? summaryDiff : undefined,
+      meta: {
+        updatedNodes: touchedNodes.size,
+        updatedEdges: touchedEdges.size,
+      },
+    };
+
     return res.json({
       ok: true,
       updated: {
-        nodes: nodesUpdated,
-        edges: edgesUpdated,
+        nodes: touchedNodes.size,
+        edges: touchedEdges.size,
       },
+      summaryDiff,
     });
   } catch (error) {
     console.error("patchLabelPositions error", error);

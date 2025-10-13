@@ -49,12 +49,9 @@ export default function NodeMulticastDraggable({
         return;
       }
       persistLabelPositions({
-        nodes: [
-          {
-            id: nodeId,
-            data: { multicastPosition: nextPosition },
-          },
-        ],
+        nodes: {
+          [nodeId]: { multicastPosition: nextPosition },
+        },
       }).catch((error) => {
         console.error("Persist node multicast position failed", error);
         if (meta?.initial) {

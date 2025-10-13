@@ -76,12 +76,9 @@ export default function CustomWaypointEdge(props) {
         return;
       }
       persistLabelPositions({
-        edges: [
-          {
-            id,
-            data: { labelPosition: nextPosition },
-          },
-        ],
+        edges: {
+          [id]: { labelPosition: nextPosition },
+        },
       }).catch((error) => {
         console.error("Persist waypoint label position failed", error);
         if (meta?.initial) {
