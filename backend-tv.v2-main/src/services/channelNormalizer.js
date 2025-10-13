@@ -121,6 +121,26 @@ const normalizeEdge = (edge) => {
     normalized.labelPosition = { x, y };
   }
 
+  if (normalized.data.multicastPosition) {
+    const multicastPosition = normalizeOptionalPosition(
+      normalized.data.multicastPosition
+    );
+    if (multicastPosition) {
+      normalized.data.multicastPosition = multicastPosition;
+    } else {
+      delete normalized.data.multicastPosition;
+    }
+  }
+
+  if (normalized.data.multicast !== undefined) {
+    const sanitizedMulticast = sanitizeLabel(normalized.data.multicast);
+    if (sanitizedMulticast) {
+      normalized.data.multicast = sanitizedMulticast;
+    } else {
+      delete normalized.data.multicast;
+    }
+  }
+
   if (normalized.data.endpointLabelPositions) {
     const positions = normalized.data.endpointLabelPositions;
     ["source", "target"].forEach((key) => {

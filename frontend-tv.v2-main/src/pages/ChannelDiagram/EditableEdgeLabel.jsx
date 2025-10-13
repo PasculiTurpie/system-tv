@@ -46,6 +46,8 @@ export default function EditableEdgeLabel({
   onPositionChange,
   style: styleOverride,
   className,
+  allowEditing = true,
+  allowDragging = true,
 }) {
   const rf = useReactFlow();
   const { clampPosition } = useContext(DiagramContext);
@@ -55,7 +57,8 @@ export default function EditableEdgeLabel({
   const dragRef = useRef({ startOffset: { x: 0, y: 0 }, pointerStart: { x: 0, y: 0 } });
   const inputRef = useRef(null);
 
-  const canEdit = !readOnly;
+  const canEdit = allowEditing && !readOnly;
+  const canDrag = allowDragging && !readOnly;
 
   const currentPosition = useMemo(
     () => resolveLabelPosition(position, defaultPosition, clampPosition),
@@ -145,7 +148,7 @@ export default function EditableEdgeLabel({
 
   const startDragging = useCallback(
     (event) => {
-      if (editing || !canEdit) return;
+      if (editing || !canDrag) return;
       event.preventDefault();
       event.stopPropagation();
       const projected = projectClient(event);
@@ -159,7 +162,15 @@ export default function EditableEdgeLabel({
       window.addEventListener("touchmove", updatePosition, { passive: false });
       window.addEventListener("touchend", stopDragging);
     },
-    [canEdit, currentPosition.x, currentPosition.y, editing, projectClient, stopDragging, updatePosition]
+    [
+      canDrag,
+      currentPosition.x,
+      currentPosition.y,
+      editing,
+      projectClient,
+      stopDragging,
+      updatePosition,
+    ]
   );
 
   useEffect(
@@ -181,7 +192,7 @@ export default function EditableEdgeLabel({
       {!editing ? (
         <div
           role="button"
-          tabIndex={canEdit ? 0 : -1}
+          tabIndex={canEdit || canDrag ? 0 : -1}
           onMouseDown={startDragging}
           onTouchStart={startDragging}
           onDoubleClick={handleDoubleClick}
@@ -189,13 +200,19 @@ export default function EditableEdgeLabel({
             ...baseBoxStyle,
             ...(styleOverride || {}),
             transform,
-            cursor: canEdit ? (dragging ? "grabbing" : "grab") : "default",
+            cursor: canDrag ? (dragging ? "grabbing" : "grab") : "default",
             ...(dragging ? draggingStyle : {}),
             ...(text ? {} : ghostStyle),
           }}
           className={baseClassName}
           aria-label={ariaLabel}
-          title={canEdit ? "Doble click para editar. Arrastra para mover." : "Solo lectura"}
+          title={
+            canEdit
+              ? "Doble click para editar. Arrastra para mover."
+              : canDrag
+              ? "Arrastra para mover"
+              : "Solo lectura"
+          }
         >
           {text || placeholder}
         </div>

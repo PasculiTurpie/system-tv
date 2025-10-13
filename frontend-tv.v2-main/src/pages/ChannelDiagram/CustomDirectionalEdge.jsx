@@ -1,5 +1,5 @@
 import React, { useCallback, useContext, useMemo } from "react";
-import { BaseEdge, EdgeLabelRenderer } from "@xyflow/react";
+import { BaseEdge } from "@xyflow/react";
 import { DiagramContext } from "./DiagramContext";
 import EditableEdgeLabel from "./EditableEdgeLabel";
 import { computeParallelPath } from "./diagramUtils";
@@ -25,6 +25,7 @@ export default function CustomDirectionalEdge(props) {
     onEdgeLabelPositionChange,
     onEdgeEndpointLabelChange,
     onEdgeEndpointLabelPositionChange,
+    onEdgeMulticastPositionChange,
   } = useContext(DiagramContext);
   const isReverse = !!data?.__reversed;
 
@@ -76,15 +77,14 @@ export default function CustomDirectionalEdge(props) {
   const endpointLabelPositions = data?.endpointLabelPositions || {};
 
   const multicast = data?.multicast;
-  const multicastPos = useMemo(() => {
+  const multicastDefaultPosition = useMemo(() => {
     if (!multicast) return null;
-    // Offset pequeño desde el source para que no se superponga con el nodo
     const BASE_OFFSET = 14;
     return {
       x: sourceX + (shift?.ox || 0) + BASE_OFFSET,
       y: sourceY + (shift?.oy || 0) - BASE_OFFSET,
     };
-  }, [multicast, sourceX, sourceY, shift?.ox, shift?.oy]);
+  }, [multicast, shift?.ox, shift?.oy, sourceX, sourceY]);
 
   const handleCentralLabelCommit = useCallback(
     (nextLabel) => onEdgeLabelChange?.(id, nextLabel),
@@ -151,28 +151,29 @@ export default function CustomDirectionalEdge(props) {
         />
       )}
 
-      {/* Badge multicast (solo si existe) */}
-      {multicast && multicastPos && (
-        <EdgeLabelRenderer>
-          <div
-            style={{
-              position: "absolute",
-              transform: `translate(-50%, -50%) translate(${multicastPos.x}px, ${multicastPos.y}px)`,
-              pointerEvents: "none",
-              background: "#1f2937",
-              color: "#fff",
-              border: "1px solid #111827",
-              borderRadius: 6,
-              padding: "2px 6px",
-              fontSize: 11,
-              boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
-              whiteSpace: "nowrap",
-              opacity: 0.9,
-            }}
-          >
-            {multicast}
-          </div>
-        </EdgeLabelRenderer>
+      {multicast && multicastDefaultPosition && (
+        <EditableEdgeLabel
+          text={multicast}
+          position={data?.multicastPosition}
+          defaultPosition={multicastDefaultPosition}
+          readOnly={isReadOnly}
+          allowEditing={false}
+          ariaLabel="Badge multicast"
+          onPositionChange={(position) =>
+            onEdgeMulticastPositionChange?.(id, position)
+          }
+          style={{
+            background: "#1f2937",
+            color: "#fff",
+            border: "1px solid #111827",
+            borderRadius: 6,
+            padding: "2px 6px",
+            fontSize: 11,
+            boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
+            whiteSpace: "nowrap",
+            opacity: 0.9,
+          }}
+        />
       )}
     </>
   );
