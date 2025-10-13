@@ -7,6 +7,7 @@ import {
   mapEdgeFromApi,
   sortNodesById,
   sortEdgesById,
+  createPatchScheduler,
 } from "./diagramUtils.js";
 
 describe("diagramUtils", () => {
@@ -89,5 +90,58 @@ describe("diagramUtils", () => {
     const edgeSecond = mapEdgeFromApi(edgePayload);
     assert.deepStrictEqual(edgeFirst, edgeSecond);
     assert.equal(edgeFirst.data.endpointLabels.source, "foo");
+  });
+
+  it("createPatchScheduler merges payloads and resolves success callbacks", async () => {
+    const calls = [];
+    const scheduler = createPatchScheduler(async (key, payload) => {
+      calls.push({ key, payload });
+    }, { delay: 10 });
+
+    let successCount = 0;
+    scheduler.schedule(
+      "node-1",
+      { position: { x: 1 } },
+      {
+        onSuccess: () => {
+          successCount += 1;
+        },
+      }
+    );
+    scheduler.schedule("node-1", { position: { y: 2 } });
+
+    await new Promise((resolve) => setTimeout(resolve, 30));
+
+    assert.equal(successCount, 1);
+    assert.deepStrictEqual(calls, [
+      { key: "node-1", payload: { position: { x: 1, y: 2 } } },
+    ]);
+  });
+
+  it("createPatchScheduler invokes error callbacks when executor fails", async () => {
+    const scheduler = createPatchScheduler(async () => {
+      throw new Error("boom");
+    }, { delay: 10 });
+
+    let errorCount = 0;
+    const originalError = console.error;
+    console.error = () => {};
+    try {
+      scheduler.schedule(
+        "node-1",
+        { position: { x: 1 } },
+        {
+          onError: () => {
+            errorCount += 1;
+          },
+        }
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, 30));
+    } finally {
+      console.error = originalError;
+    }
+
+    assert.equal(errorCount, 1);
   });
 });

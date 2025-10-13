@@ -78,6 +78,26 @@ const clampLabelText = (value) => {
   return str.length > MAX_LABEL_LENGTH ? str.slice(0, MAX_LABEL_LENGTH) : str;
 };
 
+const toPositionOrNull = (point) => {
+  if (!point || typeof point !== "object") return null;
+  const x = Number(point.x);
+  const y = Number(point.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  return { x, y };
+};
+
+const cloneEndpointPositions = (positions) => {
+  if (!positions || typeof positions !== "object") {
+    return {};
+  }
+  const next = {};
+  const source = toPositionOrNull(positions.source);
+  const target = toPositionOrNull(positions.target);
+  if (source) next.source = source;
+  if (target) next.target = target;
+  return next;
+};
+
 const ChannelDiagram = () => {
   const { id: signalId } = useParams();
 
@@ -112,6 +132,34 @@ const ChannelDiagram = () => {
 
   const nodesRef = useRef(nodes);
   const edgesRef = useRef(edges);
+  const confirmedNodePositionsRef = useRef(new Map());
+  const confirmedEdgePositionsRef = useRef(new Map());
+
+  const syncConfirmedNodePositions = useCallback((nodesList) => {
+    const store = confirmedNodePositionsRef.current;
+    store.clear();
+    nodesList.forEach((node) => {
+      const position = toPositionOrNull(node?.position) || { x: 0, y: 0 };
+      store.set(node.id, position);
+    });
+  }, []);
+
+  const syncConfirmedEdgePositions = useCallback((edgesList) => {
+    const store = confirmedEdgePositionsRef.current;
+    store.clear();
+    edgesList.forEach((edge) => {
+      const labelPosition =
+        toPositionOrNull(edge?.data?.labelPosition) ||
+        toPositionOrNull(edge?.labelPosition);
+      const endpointPositions = cloneEndpointPositions(
+        edge?.data?.endpointLabelPositions
+      );
+      store.set(edge.id, {
+        labelPosition: labelPosition || null,
+        endpointLabelPositions: endpointPositions,
+      });
+    });
+  }, []);
 
   const updateNodes = useCallback(
     (updater) => {
@@ -209,12 +257,16 @@ const ChannelDiagram = () => {
         setChannelId(String(diagram._id));
         updateNodes(() => normalizedNodes);
         updateEdges(() => normalizedEdges);
+        syncConfirmedNodePositions(normalizedNodes);
+        syncConfirmedEdgePositions(normalizedEdges);
         setSelectedNodeId(null);
       } catch (err) {
         if (!cancelled) {
           setError(err?.message || "Error al cargar el diagrama");
           updateNodes(() => []);
           updateEdges(() => []);
+          syncConfirmedNodePositions([]);
+          syncConfirmedEdgePositions([]);
         }
       } finally {
         if (!cancelled) {
@@ -228,7 +280,13 @@ const ChannelDiagram = () => {
     return () => {
       cancelled = true;
     };
-  }, [signalId, updateNodes, updateEdges]);
+  }, [
+    signalId,
+    updateNodes,
+    updateEdges,
+    syncConfirmedNodePositions,
+    syncConfirmedEdgePositions,
+  ]);
 
   const nodePatchScheduler = useMemo(() => {
     if (!channelId || !isAuth) return null;
@@ -259,17 +317,17 @@ const ChannelDiagram = () => {
   );
 
   const scheduleNodePatch = useCallback(
-    (nodeId, patch) => {
+    (nodeId, patch, options) => {
       if (!nodePatchScheduler) return;
-      nodePatchScheduler.schedule(nodeId, patch);
+      nodePatchScheduler.schedule(nodeId, patch, options);
     },
     [nodePatchScheduler]
   );
 
   const scheduleEdgePatch = useCallback(
-    (edgeId, patch) => {
+    (edgeId, patch, options) => {
       if (!edgePatchScheduler) return;
-      edgePatchScheduler.schedule(edgeId, patch);
+      edgePatchScheduler.schedule(edgeId, patch, options);
     },
     [edgePatchScheduler]
   );
@@ -341,6 +399,17 @@ const ChannelDiagram = () => {
   const handleEdgeLabelPositionChange = useCallback(
     (edgeId, position) => {
       const clamped = position ? clampPosition(position) : null;
+      const previousEdge = edgesRef.current.find((edge) => edge.id === edgeId);
+      const fallbackState =
+        confirmedEdgePositionsRef.current.get(edgeId) || {
+          labelPosition:
+            toPositionOrNull(previousEdge?.data?.labelPosition) ||
+            toPositionOrNull(previousEdge?.labelPosition) ||
+            null,
+          endpointLabelPositions: cloneEndpointPositions(
+            previousEdge?.data?.endpointLabelPositions
+          ),
+        };
       updateEdges((current) =>
         current.map((edge) =>
           edge.id === edgeId
@@ -353,11 +422,45 @@ const ChannelDiagram = () => {
         )
       );
       if (isAuth) {
-        scheduleEdgePatch(edgeId, { labelPosition: clamped });
+        scheduleEdgePatch(edgeId, { labelPosition: clamped }, {
+          onSuccess: () => {
+            const existing = confirmedEdgePositionsRef.current.get(edgeId);
+            const endpointPositions = {
+              ...((existing && existing.endpointLabelPositions) ||
+                fallbackState.endpointLabelPositions || {}),
+            };
+            confirmedEdgePositionsRef.current.set(edgeId, {
+              labelPosition: clamped ? { ...clamped } : null,
+              endpointLabelPositions: endpointPositions,
+            });
+          },
+          onError: () => {
+            updateEdges((current) =>
+              current.map((edge) => {
+                if (edge.id !== edgeId) return edge;
+                const fallback = fallbackState.labelPosition;
+                return {
+                  ...edge,
+                  labelPosition: fallback || undefined,
+                  data: {
+                    ...(edge.data || {}),
+                    labelPosition: fallback || undefined,
+                  },
+                };
+              })
+            );
+          },
+        });
       }
       requestSave();
     },
-    [clampPosition, isAuth, scheduleEdgePatch, updateEdges, requestSave]
+    [
+      clampPosition,
+      isAuth,
+      scheduleEdgePatch,
+      updateEdges,
+      requestSave,
+    ]
   );
 
   const handleEdgeEndpointLabelChange = useCallback(
@@ -394,6 +497,17 @@ const ChannelDiagram = () => {
   const handleEdgeEndpointLabelPositionChange = useCallback(
     (edgeId, endpoint, position) => {
       const clamped = position ? clampPosition(position) : null;
+      const previousEdge = edgesRef.current.find((edge) => edge.id === edgeId);
+      const fallbackState =
+        confirmedEdgePositionsRef.current.get(edgeId) || {
+          labelPosition:
+            toPositionOrNull(previousEdge?.data?.labelPosition) ||
+            toPositionOrNull(previousEdge?.labelPosition) ||
+            null,
+          endpointLabelPositions: cloneEndpointPositions(
+            previousEdge?.data?.endpointLabelPositions
+          ),
+        };
       updateEdges((current) =>
         current.map((edge) => {
           if (edge.id !== edgeId) return edge;
@@ -415,9 +529,58 @@ const ChannelDiagram = () => {
         })
       );
       if (isAuth) {
-        scheduleEdgePatch(edgeId, {
-          endpointLabelPositions: { [endpoint]: clamped || null },
-        });
+        scheduleEdgePatch(
+          edgeId,
+          {
+            endpointLabelPositions: { [endpoint]: clamped || null },
+          },
+          {
+            onSuccess: () => {
+              const existing = confirmedEdgePositionsRef.current.get(edgeId);
+              const nextPositions = {
+                ...((existing && existing.endpointLabelPositions) ||
+                  fallbackState.endpointLabelPositions || {}),
+              };
+              if (clamped) {
+                nextPositions[endpoint] = { ...clamped };
+              } else {
+                delete nextPositions[endpoint];
+              }
+              confirmedEdgePositionsRef.current.set(edgeId, {
+                labelPosition:
+                  (existing && existing.labelPosition) ||
+                  fallbackState.labelPosition ||
+                  null,
+                endpointLabelPositions: nextPositions,
+              });
+            },
+            onError: () => {
+              updateEdges((current) =>
+                current.map((edge) => {
+                  if (edge.id !== edgeId) return edge;
+                  const fallbackPositions = {
+                    ...(fallbackState.endpointLabelPositions || {}),
+                  };
+                  const nextPositions = {
+                    ...(edge.data?.endpointLabelPositions || {}),
+                  };
+                  if (fallbackPositions[endpoint]) {
+                    nextPositions[endpoint] = fallbackPositions[endpoint];
+                  } else {
+                    delete nextPositions[endpoint];
+                  }
+                  return {
+                    ...edge,
+                    data: {
+                      ...(edge.data || {}),
+                      endpointLabelPositions: nextPositions,
+                    },
+                  };
+                })
+              );
+            },
+          }
+        );
       }
       requestSave();
     },
@@ -484,15 +647,57 @@ const ChannelDiagram = () => {
 
   const handleNodesChange = useCallback(
     (changes) => {
+      const previousNodes = nodesRef.current;
+      const previousPositions = new Map();
+      previousNodes.forEach((node) => {
+        previousPositions.set(
+          node.id,
+          toPositionOrNull(node.position) || { x: 0, y: 0 }
+        );
+      });
       updateNodes((current) => applyNodeChanges(changes, current));
-      const hasFinalPositionChange = changes.some(
+      const finalPositionChanges = changes.filter(
         (change) => change.type === "position" && change.dragging === false
       );
-      if (hasFinalPositionChange) {
+
+      if (finalPositionChanges.length && isAuth) {
+        finalPositionChanges.forEach(({ id }) => {
+          const nextNode = nodesRef.current.find((node) => node.id === id);
+          if (!nextNode) return;
+          const nextPosition = toPositionOrNull(nextNode.position) || {
+            x: 0,
+            y: 0,
+          };
+          const confirmedPosition =
+            confirmedNodePositionsRef.current.get(id) ||
+            previousPositions.get(id) || { x: 0, y: 0 };
+
+          scheduleNodePatch(
+            id,
+            { position: nextPosition },
+            {
+              onSuccess: () => {
+                confirmedNodePositionsRef.current.set(id, { ...nextPosition });
+              },
+              onError: () => {
+                updateNodes((current) =>
+                  current.map((node) =>
+                    node.id === id
+                      ? { ...node, position: { ...confirmedPosition } }
+                      : node
+                  )
+                );
+              },
+            }
+          );
+        });
+      }
+
+      if (finalPositionChanges.length) {
         requestSave();
       }
     },
-    [updateNodes, requestSave]
+    [isAuth, scheduleNodePatch, updateNodes, requestSave]
   );
   const handleEdgesChange = useCallback((changes) => onEdgesChange(changes), [onEdgesChange]);
 

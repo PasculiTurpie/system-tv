@@ -309,23 +309,38 @@ const mergePatch = (target, source) => {
 export const createPatchScheduler = (executor, { delay = 320 } = {}) => {
   const timeouts = new Map();
   const payloads = new Map();
+  const contexts = new Map();
 
   const flush = async (key) => {
     const payload = payloads.get(key);
+    const context = contexts.get(key);
     timeouts.delete(key);
     payloads.delete(key);
+    contexts.delete(key);
     if (!payload) return;
     try {
-      await executor(key, payload);
+      const result = await executor(key, payload);
+      context?.onSuccess?.(result, payload);
     } catch (error) {
       console.error("Patch scheduler error:", error);
+      try {
+        context?.onError?.(error, payload);
+      } catch (callbackError) {
+        console.error("Patch scheduler rollback error:", callbackError);
+      }
     }
   };
 
-  const schedule = (key, patch) => {
+  const schedule = (key, patch, options = {}) => {
     if (!key) return;
     const current = payloads.get(key) || {};
     payloads.set(key, mergePatch(current, patch));
+
+    const existingContext = contexts.get(key) || {};
+    contexts.set(key, {
+      onSuccess: options.onSuccess ?? existingContext.onSuccess,
+      onError: options.onError ?? existingContext.onError,
+    });
 
     if (timeouts.has(key)) {
       clearTimeout(timeouts.get(key));
@@ -345,6 +360,7 @@ export const createPatchScheduler = (executor, { delay = 320 } = {}) => {
     }
     timeouts.clear();
     payloads.clear();
+    contexts.clear();
   };
 
   return { schedule, cancelAll, flush };
