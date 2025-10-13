@@ -8,6 +8,7 @@ export const DiagramContext = createContext({
   onEdgeLabelPositionChange: () => {},
   onEdgeEndpointLabelChange: () => {},
   onEdgeEndpointLabelPositionChange: () => {},
+  onEdgeMulticastPositionChange: () => {},
   clampPosition: (pos) => pos,
 });
 

@@ -1,4 +1,5 @@
 import { getSmoothStepPath } from "@xyflow/react";
+import normalizeHandle from "../../utils/normalizeHandle";
 
 export const ARROW_CLOSED = { type: "arrowclosed" };
 
@@ -159,12 +160,15 @@ export const mapEdgeFromApi = (edge) => {
     rawData.endpointLabelPositions
   );
 
+  const sourceHandle = normalizeHandle(edge.sourceHandle);
+  const targetHandle = normalizeHandle(edge.targetHandle);
+
   return {
     id,
     source: String(edge.source),
     target: String(edge.target),
-    sourceHandle: edge.sourceHandle,
-    targetHandle: edge.targetHandle,
+    ...(sourceHandle ? { sourceHandle } : {}),
+    ...(targetHandle ? { targetHandle } : {}),
     type: edge.type || "directional",
     label,
     data: {
@@ -212,6 +216,8 @@ export const toApiEdge = (edge) => {
   const labelPosition = edge.data?.labelPosition || null;
   const endpointLabels = edge.data?.endpointLabels || {};
   const endpointLabelPositions = edge.data?.endpointLabelPositions || {};
+  const sourceHandle = normalizeHandle(edge.sourceHandle);
+  const targetHandle = normalizeHandle(edge.targetHandle);
 
   const data = {
     ...(edge.data || {}),
@@ -226,8 +232,6 @@ export const toApiEdge = (edge) => {
     id: edge.id,
     source: edge.source,
     target: edge.target,
-    sourceHandle: edge.sourceHandle,
-    targetHandle: edge.targetHandle,
     label,
     type: edge.type || "directional",
     style: edge.style || { stroke: color, strokeWidth: 2 },
@@ -237,6 +241,13 @@ export const toApiEdge = (edge) => {
     animated: edge.animated ?? true,
     updatable: true,
   };
+
+  if (sourceHandle) {
+    payload.sourceHandle = sourceHandle;
+  }
+  if (targetHandle) {
+    payload.targetHandle = targetHandle;
+  }
 
   if (labelPosition) {
     payload.labelPosition = labelPosition;

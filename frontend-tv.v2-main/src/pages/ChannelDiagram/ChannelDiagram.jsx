@@ -154,9 +154,12 @@ const ChannelDiagram = () => {
       const endpointPositions = cloneEndpointPositions(
         edge?.data?.endpointLabelPositions
       );
+      const multicastPosition =
+        toPositionOrNull(edge?.data?.multicastPosition) || null;
       store.set(edge.id, {
         labelPosition: labelPosition || null,
         endpointLabelPositions: endpointPositions,
+        multicastPosition,
       });
     });
   }, []);
@@ -409,6 +412,8 @@ const ChannelDiagram = () => {
           endpointLabelPositions: cloneEndpointPositions(
             previousEdge?.data?.endpointLabelPositions
           ),
+          multicastPosition:
+            toPositionOrNull(previousEdge?.data?.multicastPosition) || null,
         };
       updateEdges((current) =>
         current.map((edge) =>
@@ -432,6 +437,10 @@ const ChannelDiagram = () => {
             confirmedEdgePositionsRef.current.set(edgeId, {
               labelPosition: clamped ? { ...clamped } : null,
               endpointLabelPositions: endpointPositions,
+              multicastPosition:
+                (existing && existing.multicastPosition) ||
+                fallbackState.multicastPosition ||
+                null,
             });
           },
           onError: () => {
@@ -507,6 +516,8 @@ const ChannelDiagram = () => {
           endpointLabelPositions: cloneEndpointPositions(
             previousEdge?.data?.endpointLabelPositions
           ),
+          multicastPosition:
+            toPositionOrNull(previousEdge?.data?.multicastPosition) || null,
         };
       updateEdges((current) =>
         current.map((edge) => {
@@ -552,6 +563,10 @@ const ChannelDiagram = () => {
                   fallbackState.labelPosition ||
                   null,
                 endpointLabelPositions: nextPositions,
+                multicastPosition:
+                  (existing && existing.multicastPosition) ||
+                  fallbackState.multicastPosition ||
+                  null,
               });
             },
             onError: () => {
@@ -585,6 +600,87 @@ const ChannelDiagram = () => {
       requestSave();
     },
     [clampPosition, isAuth, scheduleEdgePatch, updateEdges, requestSave]
+  );
+
+  const handleEdgeMulticastPositionChange = useCallback(
+    (edgeId, position) => {
+      const clamped = position ? clampPosition(position) : null;
+      const previousEdge = edgesRef.current.find((edge) => edge.id === edgeId);
+      const fallbackState =
+        confirmedEdgePositionsRef.current.get(edgeId) || {
+          labelPosition:
+            toPositionOrNull(previousEdge?.data?.labelPosition) ||
+            toPositionOrNull(previousEdge?.labelPosition) ||
+            null,
+          endpointLabelPositions: cloneEndpointPositions(
+            previousEdge?.data?.endpointLabelPositions
+          ),
+          multicastPosition:
+            toPositionOrNull(previousEdge?.data?.multicastPosition) || null,
+        };
+
+      updateEdges((current) =>
+        current.map((edge) => {
+          if (edge.id !== edgeId) return edge;
+          const nextData = { ...(edge.data || {}) };
+          if (!clamped) {
+            delete nextData.multicastPosition;
+          } else {
+            nextData.multicastPosition = clamped;
+          }
+          return { ...edge, data: nextData };
+        })
+      );
+
+      if (isAuth) {
+        scheduleEdgePatch(
+          edgeId,
+          { data: { multicastPosition: clamped } },
+          {
+            onSuccess: () => {
+              const existing = confirmedEdgePositionsRef.current.get(edgeId);
+              const labelPosition =
+                (existing && existing.labelPosition) ||
+                fallbackState.labelPosition ||
+                null;
+              const endpointPositions = {
+                ...((existing && existing.endpointLabelPositions) ||
+                  fallbackState.endpointLabelPositions || {}),
+              };
+              confirmedEdgePositionsRef.current.set(edgeId, {
+                labelPosition,
+                endpointLabelPositions: endpointPositions,
+                multicastPosition: clamped ? { ...clamped } : null,
+              });
+            },
+            onError: () => {
+              updateEdges((current) =>
+                current.map((edge) => {
+                  if (edge.id !== edgeId) return edge;
+                  const nextData = { ...(edge.data || {}) };
+                  const fallback = fallbackState.multicastPosition;
+                  if (fallback) {
+                    nextData.multicastPosition = fallback;
+                  } else {
+                    delete nextData.multicastPosition;
+                  }
+                  return { ...edge, data: nextData };
+                })
+              );
+            },
+          }
+        );
+      }
+
+      requestSave();
+    },
+    [
+      clampPosition,
+      isAuth,
+      scheduleEdgePatch,
+      updateEdges,
+      requestSave,
+    ]
   );
 
   const handleNodeDragStop = useCallback(() => {
@@ -782,6 +878,7 @@ const ChannelDiagram = () => {
       onEdgeLabelPositionChange: handleEdgeLabelPositionChange,
       onEdgeEndpointLabelChange: handleEdgeEndpointLabelChange,
       onEdgeEndpointLabelPositionChange: handleEdgeEndpointLabelPositionChange,
+      onEdgeMulticastPositionChange: handleEdgeMulticastPositionChange,
       clampPosition,
     }),
     [
@@ -790,6 +887,7 @@ const ChannelDiagram = () => {
       handleEdgeEndpointLabelPositionChange,
       handleEdgeLabelChange,
       handleEdgeLabelPositionChange,
+      handleEdgeMulticastPositionChange,
       handleNodeLabelChange,
       handleNodeLabelPositionChange,
       isReadOnly,

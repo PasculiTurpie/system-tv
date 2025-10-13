@@ -63,6 +63,21 @@ const sanitizeLabel = (label) => {
   return trimmed.length > 200 ? trimmed.slice(0, 200) : trimmed;
 };
 
+const normalizeHandleId = (handle) => {
+  if (handle === undefined || handle === null) return undefined;
+  const value = String(handle).trim();
+  if (!value) return undefined;
+
+  const lower = value.toLowerCase();
+  const rxIndexed = /^(in|out)-(top|bottom|left|right)-\d+$/;
+  const rxSideOnly = /^(in|out)-(top|bottom|left|right)$/;
+
+  if (rxIndexed.test(lower)) return lower;
+  if (rxSideOnly.test(lower)) return `${lower}-1`;
+
+  return value;
+};
+
 const normalizeNode = (node) => {
   if (!node) return null;
   const cloned = cloneIfNeeded(node) || {};
@@ -110,6 +125,20 @@ const normalizeEdge = (edge) => {
     style: cloned.style ? { ...cloned.style } : undefined,
   };
 
+  const sourceHandle = normalizeHandleId(cloned.sourceHandle);
+  const targetHandle = normalizeHandleId(cloned.targetHandle);
+  if (sourceHandle) {
+    normalized.sourceHandle = sourceHandle;
+  } else if (cloned.sourceHandle !== undefined) {
+    delete normalized.sourceHandle;
+  }
+
+  if (targetHandle) {
+    normalized.targetHandle = targetHandle;
+  } else if (cloned.targetHandle !== undefined) {
+    delete normalized.targetHandle;
+  }
+
   normalized.data.label = sanitizeLabel(
     normalized.data.label ?? cloned.label ?? id
   );
@@ -119,6 +148,26 @@ const normalizeEdge = (edge) => {
     const { x, y } = normalizePosition(normalized.data.labelPosition);
     normalized.data.labelPosition = { x, y };
     normalized.labelPosition = { x, y };
+  }
+
+  if (normalized.data.multicastPosition) {
+    const multicastPosition = normalizeOptionalPosition(
+      normalized.data.multicastPosition
+    );
+    if (multicastPosition) {
+      normalized.data.multicastPosition = multicastPosition;
+    } else {
+      delete normalized.data.multicastPosition;
+    }
+  }
+
+  if (normalized.data.multicast !== undefined) {
+    const sanitizedMulticast = sanitizeLabel(normalized.data.multicast);
+    if (sanitizedMulticast) {
+      normalized.data.multicast = sanitizedMulticast;
+    } else {
+      delete normalized.data.multicast;
+    }
   }
 
   if (normalized.data.endpointLabelPositions) {
