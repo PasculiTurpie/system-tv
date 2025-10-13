@@ -225,7 +225,7 @@ exports.updateChannelFlow = async (req, res) => {
 
 exports.patchNode = async (req, res) => {
   const { id, nodeId } = req.params;
-  const { label, labelPosition } = req.body || {};
+  const { label, labelPosition, position } = req.body || {};
 
   const setUpdate = {};
   const unsetUpdate = {};
@@ -249,6 +249,15 @@ exports.patchNode = async (req, res) => {
     }
   }
 
+  if (position !== undefined) {
+    const sanitizedPosition = sanitizePosition(position);
+    if (!sanitizedPosition) {
+      return res.status(400).json({ error: "Posición de nodo inválida" });
+    }
+    setUpdate["nodes.$.position.x"] = sanitizedPosition.x;
+    setUpdate["nodes.$.position.y"] = sanitizedPosition.y;
+  }
+
   const update = {};
   if (Object.keys(setUpdate).length > 0) update.$set = setUpdate;
   if (Object.keys(unsetUpdate).length > 0) update.$unset = unsetUpdate;
@@ -258,23 +267,33 @@ exports.patchNode = async (req, res) => {
   }
 
   try {
-    const updated = await Channel.findOneAndUpdate(
+    const updateResult = await Channel.updateOne(
       { _id: id, "nodes.id": nodeId },
       update,
-      {
-        new: true,
-        select: { "nodes.$": 1, _id: 1 },
-        runValidators: true,
-      }
+      { runValidators: true }
+    ).exec();
+
+    const matchedCount =
+      typeof updateResult.matchedCount === "number"
+        ? updateResult.matchedCount
+        : updateResult.n || 0;
+
+    if (!matchedCount) {
+      return res.status(404).json({ error: "Nodo no encontrado" });
+    }
+
+    const refreshed = await Channel.findOne(
+      { _id: id, "nodes.id": nodeId },
+      { _id: 1, nodes: { $elemMatch: { id: nodeId } } }
     )
       .lean({ getters: true, virtuals: true })
       .exec();
 
-    if (!updated || !Array.isArray(updated.nodes) || updated.nodes.length === 0) {
+    if (!refreshed || !Array.isArray(refreshed.nodes) || refreshed.nodes.length === 0) {
       return res.status(404).json({ error: "Nodo no encontrado" });
     }
 
-    return res.json({ node: normalizeNode(updated.nodes[0]) });
+    return res.json({ node: normalizeNode(refreshed.nodes[0]) });
   } catch (error) {
     console.error("patchNode error", error);
     return res.status(500).json({ error: error.message });
@@ -283,23 +302,61 @@ exports.patchNode = async (req, res) => {
 
 exports.patchEdge = async (req, res) => {
   const { id, edgeId } = req.params;
-  const { label, labelPosition, endpointLabels, endpointLabelPositions } = req.body || {};
+  const {
+    label,
+    labelPosition,
+    endpointLabels,
+    endpointLabelPositions,
+    data: rawData,
+  } = req.body || {};
+
+  const dataPayload =
+    rawData && typeof rawData === "object" && !Array.isArray(rawData) ? rawData : null;
+
+  const resolvedLabel =
+    label !== undefined
+      ? label
+      : dataPayload && Object.prototype.hasOwnProperty.call(dataPayload, "label")
+      ? dataPayload.label
+      : undefined;
+
+  const resolvedLabelPosition =
+    labelPosition !== undefined
+      ? labelPosition
+      : dataPayload && Object.prototype.hasOwnProperty.call(dataPayload, "labelPosition")
+      ? dataPayload.labelPosition
+      : undefined;
+
+  const resolvedEndpointLabels =
+    endpointLabels !== undefined
+      ? endpointLabels
+      : dataPayload && Object.prototype.hasOwnProperty.call(dataPayload, "endpointLabels")
+      ? dataPayload.endpointLabels
+      : undefined;
+
+  const resolvedEndpointLabelPositions =
+    endpointLabelPositions !== undefined
+      ? endpointLabelPositions
+      : dataPayload &&
+        Object.prototype.hasOwnProperty.call(dataPayload, "endpointLabelPositions")
+      ? dataPayload.endpointLabelPositions
+      : undefined;
 
   const setUpdate = {};
   const unsetUpdate = {};
 
-  if (label !== undefined) {
-    const sanitizedLabel = clampLabel(label);
+  if (resolvedLabel !== undefined) {
+    const sanitizedLabel = clampLabel(resolvedLabel);
     setUpdate["edges.$.label"] = sanitizedLabel;
     setUpdate["edges.$.data.label"] = sanitizedLabel;
   }
 
-  if (labelPosition !== undefined) {
-    if (labelPosition === null) {
+  if (resolvedLabelPosition !== undefined) {
+    if (resolvedLabelPosition === null) {
       unsetUpdate["edges.$.labelPosition"] = "";
       unsetUpdate["edges.$.data.labelPosition"] = "";
     } else {
-      const sanitizedPosition = sanitizePosition(labelPosition);
+      const sanitizedPosition = sanitizePosition(resolvedLabelPosition);
       if (sanitizedPosition) {
         setUpdate["edges.$.labelPosition"] = sanitizedPosition;
         setUpdate["edges.$.data.labelPosition"] = sanitizedPosition;
@@ -310,8 +367,8 @@ exports.patchEdge = async (req, res) => {
     }
   }
 
-  if (endpointLabels !== undefined) {
-    const sanitized = sanitizeEndpointLabels(endpointLabels);
+  if (resolvedEndpointLabels !== undefined) {
+    const sanitized = sanitizeEndpointLabels(resolvedEndpointLabels);
     if (Object.prototype.hasOwnProperty.call(sanitized, "source")) {
       if (sanitized.source === null) {
         unsetUpdate["edges.$.data.endpointLabels.source"] = "";
@@ -328,8 +385,8 @@ exports.patchEdge = async (req, res) => {
     }
   }
 
-  if (endpointLabelPositions !== undefined) {
-    const sanitized = sanitizeEndpointPositions(endpointLabelPositions);
+  if (resolvedEndpointLabelPositions !== undefined) {
+    const sanitized = sanitizeEndpointPositions(resolvedEndpointLabelPositions);
     if (Object.prototype.hasOwnProperty.call(sanitized, "source")) {
       if (!sanitized.source) {
         unsetUpdate["edges.$.data.endpointLabelPositions.source"] = "";
@@ -346,6 +403,26 @@ exports.patchEdge = async (req, res) => {
     }
   }
 
+  if (dataPayload) {
+    Object.keys(dataPayload).forEach((key) => {
+      if (
+        key === "label" ||
+        key === "labelPosition" ||
+        key === "endpointLabels" ||
+        key === "endpointLabelPositions"
+      ) {
+        return;
+      }
+      const value = dataPayload[key];
+      if (value === undefined) return;
+      if (value === null) {
+        unsetUpdate[`edges.$.data.${key}`] = "";
+      } else {
+        setUpdate[`edges.$.data.${key}`] = value;
+      }
+    });
+  }
+
   const update = {};
   if (Object.keys(setUpdate).length > 0) update.$set = setUpdate;
   if (Object.keys(unsetUpdate).length > 0) update.$unset = unsetUpdate;
@@ -355,23 +432,33 @@ exports.patchEdge = async (req, res) => {
   }
 
   try {
-    const updated = await Channel.findOneAndUpdate(
+    const updateResult = await Channel.updateOne(
       { _id: id, "edges.id": edgeId },
       update,
-      {
-        new: true,
-        select: { "edges.$": 1, _id: 1 },
-        runValidators: true,
-      }
+      { runValidators: true }
+    ).exec();
+
+    const matchedCount =
+      typeof updateResult.matchedCount === "number"
+        ? updateResult.matchedCount
+        : updateResult.n || 0;
+
+    if (!matchedCount) {
+      return res.status(404).json({ error: "Enlace no encontrado" });
+    }
+
+    const refreshed = await Channel.findOne(
+      { _id: id, "edges.id": edgeId },
+      { _id: 1, edges: { $elemMatch: { id: edgeId } } }
     )
       .lean({ getters: true, virtuals: true })
       .exec();
 
-    if (!updated || !Array.isArray(updated.edges) || updated.edges.length === 0) {
+    if (!refreshed || !Array.isArray(refreshed.edges) || refreshed.edges.length === 0) {
       return res.status(404).json({ error: "Enlace no encontrado" });
     }
 
-    return res.json({ edge: normalizeEdge(updated.edges[0]) });
+    return res.json({ edge: normalizeEdge(refreshed.edges[0]) });
   } catch (error) {
     console.error("patchEdge error", error);
     return res.status(500).json({ error: error.message });
