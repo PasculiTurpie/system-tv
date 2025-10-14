@@ -108,6 +108,7 @@ export default function CustomWaypointEdge(props) {
         position={data?.labelPosition}
         defaultPosition={centralLabelPosition}
         readOnly={isReadOnly}
+        allowDragging={!isReadOnly}
         ariaLabel="Etiqueta del enlace"
         placeholder="Etiqueta del enlace"
         onTextCommit={handleCentralLabelCommit}

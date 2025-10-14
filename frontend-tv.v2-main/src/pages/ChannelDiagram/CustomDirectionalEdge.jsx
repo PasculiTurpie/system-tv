@@ -155,6 +155,7 @@ export default function CustomDirectionalEdge(props) {
         position={data?.labelPosition}
         defaultPosition={centralLabelPosition}
         readOnly={isReadOnly}
+        allowDragging={!isReadOnly}
         ariaLabel="Etiqueta del enlace"
         placeholder="Etiqueta del enlace"
         onTextCommit={handleCentralLabelCommit}
@@ -199,6 +200,7 @@ export default function CustomDirectionalEdge(props) {
           defaultPosition={multicastDefaultPosition}
           readOnly={isReadOnly}
           allowEditing={false}
+          allowDragging={!isReadOnly}
           ariaLabel="Badge multicast"
           onPositionChange={(position) =>
             onEdgeMulticastPositionChange?.(id, position)
