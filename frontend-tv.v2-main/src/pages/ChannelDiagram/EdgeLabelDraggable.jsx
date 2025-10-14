@@ -80,6 +80,9 @@ export default function EdgeLabelDraggable({
     return undefined;
   }, [editing]);
 
+  const canEdit = !readOnly && allowEditing;
+  const canDrag = !readOnly && allowDragging;
+
   const resolvedInitial = useMemo(
     () => resolveLabelPosition(position, defaultPosition, clampPosition),
     [position, defaultPosition, clampPosition]
@@ -87,15 +90,15 @@ export default function EdgeLabelDraggable({
 
   const handlePersist = useCallback(
     (nextPosition, meta) => {
-      if (readOnly || !allowDragging) return;
+      if (!canDrag) return;
       onPersist?.(nextPosition, meta);
     },
-    [allowDragging, onPersist, readOnly]
+    [canDrag, onPersist]
   );
 
   const { transform, isDragging, handlePointerDown } = useDraggableLabel({
     initial: resolvedInitial,
-    disabled: readOnly || !allowDragging || editing,
+    disabled: !canDrag || editing,
     clamp: clampPosition,
     onChange: onPositionChange,
     onDragEnd: handlePersist,
@@ -103,19 +106,19 @@ export default function EdgeLabelDraggable({
 
   const handleDoubleClick = useCallback(
     (event) => {
-      if (readOnly || !allowEditing) return;
+      if (!canEdit) return;
       event.preventDefault();
       event.stopPropagation();
       setEditing(true);
     },
-    [allowEditing, readOnly]
+    [canEdit]
   );
 
   const commit = useCallback(() => {
-    if (readOnly || !allowEditing) return;
+    if (!canEdit) return;
     setEditing(false);
     onTextCommit?.(value);
-  }, [allowEditing, onTextCommit, readOnly, value]);
+  }, [canEdit, onTextCommit, value]);
 
   const cancelEditing = useCallback(() => {
     setEditing(false);
@@ -134,6 +137,24 @@ export default function EdgeLabelDraggable({
     },
     [cancelEditing, commit]
   );
+
+  const interactive = canEdit || canDrag;
+
+  const handlePointerStart = useCallback(
+    (event) => {
+      if (!interactive) return;
+      if (!canDrag) {
+        event.stopPropagation();
+        return;
+      }
+      handlePointerDown(event);
+    },
+    [canDrag, handlePointerDown, interactive]
+  );
+
+  const preventNativeDrag = useCallback((event) => {
+    event.preventDefault();
+  }, []);
 
   const baseClassName = ["nodrag", "nopan", className].filter(Boolean).join(" ");
   const displayText = value || placeholder || "";
@@ -159,22 +180,25 @@ export default function EdgeLabelDraggable({
         />
       ) : (
         <div
-          role={allowEditing || allowDragging ? "button" : "presentation"}
-          tabIndex={readOnly ? -1 : 0}
-          onMouseDown={handlePointerDown}
-          onPointerDown={handlePointerDown}
-          onTouchStart={handlePointerDown}
+          role={interactive ? "button" : "presentation"}
+          tabIndex={interactive ? 0 : -1}
+          onMouseDown={handlePointerStart}
+          onPointerDown={handlePointerStart}
+          onTouchStart={handlePointerStart}
           onDoubleClick={handleDoubleClick}
+          onDragStart={preventNativeDrag}
           aria-label={ariaLabel}
           style={{
             ...baseStyle,
             ...(style || {}),
             transform,
-            cursor: allowDragging && !readOnly ? (isDragging ? "grabbing" : "grab") : "default",
+            cursor: canDrag ? (isDragging ? "grabbing" : "grab") : "default",
             ...(isDragging ? draggingStyle : {}),
             ...(value ? {} : ghostStyle),
           }}
           className={baseClassName}
+          draggable={false}
+          aria-disabled={interactive ? undefined : true}
         >
           {displayText}
         </div>
