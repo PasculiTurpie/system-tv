@@ -61,7 +61,7 @@ module.exports.getChannel = async (req, res) => {
     let signals = [];
     if (signalIds.length) {
       signals = await Signal.find({ _id: { $in: signalIds } })
-        .select("nameChannel nombre tipoTecnologia contact")
+        .select("nameChannel numberChannelSur numberChannelCn logoChannel severidadChannel source nombre tipoTecnologia contact")
         .populate({ path: "contact", select: "nombre email telefono phone" })
         .lean({ getters: true, virtuals: true });
     }
@@ -122,6 +122,7 @@ module.exports.getChannelId = async (req, res) => {
     }
 
     const signalId = channel?.signal ? String(channel.signal).trim() : null;
+   console.log(signalId)
     let resolvedSignal = channel.signal;
     if (signalId) {
       resolvedSignal = await Signal.findById(signalId)
