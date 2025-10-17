@@ -629,6 +629,11 @@ function getSortDataForKey(row, key) {
       return { primary: row?.videoAlarm ? 1 : 0, secondary: row?.host ?? "" };
     case "state":
       return { primary: row?.state ?? "", secondary: row?.host ?? "" };
+    case "tsErrors": {
+      const numeric = Number(row?.tsErrors);
+      const primary = Number.isFinite(numeric) ? numeric : 0;
+      return { primary, secondary: row?.host ?? "" };
+    }
     default:
       return { primary: row?.[key] ?? "", secondary: row?.host ?? "" };
   }
@@ -1226,16 +1231,72 @@ export default function ServicesMultiHost() {
                 {renderSortLabel("Multicast salida", "outputs")}
               </th>
               {/* <th style={{ ...th, width: COL_WIDTHS.fuente, maxWidth: COL_WIDTHS.fuente }}>Fuente</th> */}
-              <th style={{ ...th, width: COL_WIDTHS.alarma, maxWidth: COL_WIDTHS.alarma }}>Audio</th>
-              <th style={{ ...th, width: COL_WIDTHS.alarma, maxWidth: COL_WIDTHS.alarma }}>Video</th>
-              <th style={{ ...th, width: COL_WIDTHS.estado, maxWidth: COL_WIDTHS.estado }}>Estado</th>
-              <th style={{ ...th, width: 100, maxWidth: 120 }}>TS Err</th>
+              <th
+                style={{
+                  ...th,
+                  width: COL_WIDTHS.alarma,
+                  maxWidth: COL_WIDTHS.alarma,
+                  cursor: "pointer",
+                  userSelect: "none",
+                }}
+                onClick={() => handleSort("audioAlarm")}
+                onKeyDown={(event) => handleSortKeyDown(event, "audioAlarm")}
+                role="button"
+                tabIndex={0}
+              >
+                {renderSortLabel("Audio", "audioAlarm")}
+              </th>
+              <th
+                style={{
+                  ...th,
+                  width: COL_WIDTHS.alarma,
+                  maxWidth: COL_WIDTHS.alarma,
+                  cursor: "pointer",
+                  userSelect: "none",
+                }}
+                onClick={() => handleSort("videoAlarm")}
+                onKeyDown={(event) => handleSortKeyDown(event, "videoAlarm")}
+                role="button"
+                tabIndex={0}
+              >
+                {renderSortLabel("Video", "videoAlarm")}
+              </th>
+              <th
+                style={{
+                  ...th,
+                  width: COL_WIDTHS.estado,
+                  maxWidth: COL_WIDTHS.estado,
+                  cursor: "pointer",
+                  userSelect: "none",
+                }}
+                onClick={() => handleSort("state")}
+                onKeyDown={(event) => handleSortKeyDown(event, "state")}
+                role="button"
+                tabIndex={0}
+              >
+                {renderSortLabel("Estado", "state")}
+              </th>
+              <th
+                style={{
+                  ...th,
+                  width: 120,
+                  maxWidth: 140,
+                  cursor: "pointer",
+                  userSelect: "none",
+                }}
+                onClick={() => handleSort("tsErrors")}
+                onKeyDown={(event) => handleSortKeyDown(event, "tsErrors")}
+                role="button"
+                tabIndex={0}
+              >
+                {renderSortLabel("TS Err", "tsErrors")}
+              </th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={10} style={{ padding: 12, textAlign: "center", color: "#666" }}>
+                <td colSpan={9} style={{ padding: 12, textAlign: "center", color: "#666" }}>
                   {(loading || hostsLoading) ? "Cargando..." : "Sin datos para mostrar"}
                 </td>
               </tr>
@@ -1394,7 +1455,14 @@ export default function ServicesMultiHost() {
                     </td>
 
                     {/* TS ERRORS */}
-                    <td style={{ ...td, textAlign: "right" }} title="Suma de errores de PID / CC">
+                    <td
+                      style={{
+                        ...td,
+                        textAlign: "right",
+                        whiteSpace: "nowrap",
+                      }}
+                      title="Suma de errores de PID / CC"
+                    >
                       {r.tsErrors ?? 0}
                     </td>
                   </tr>
