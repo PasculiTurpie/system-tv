@@ -581,6 +581,93 @@ function collectDuplicateOutputErrors(rows) {
   return errors;
 }
 
+/* ───────────────────────── Ordenamiento ───────────────────────── */
+
+function compareRowsWithConfig(a, b, sortConfig) {
+  if (!sortConfig || !sortConfig.key) return 0;
+  const { primary: aPrimary, secondary: aSecondary } = getSortDataForKey(a, sortConfig.key);
+  const { primary: bPrimary, secondary: bSecondary } = getSortDataForKey(b, sortConfig.key);
+
+  const base = comparePrimitive(aPrimary, bPrimary);
+  if (base !== 0) {
+    return sortConfig.direction === "desc" ? -base : base;
+  }
+
+  const tieBreaker = comparePrimitive(aSecondary, bSecondary);
+  if (tieBreaker !== 0) {
+    return sortConfig.direction === "desc" ? -tieBreaker : tieBreaker;
+  }
+
+  return 0;
+}
+
+function getSortDataForKey(row, key) {
+  switch (key) {
+    case "host":
+      return { primary: row?.host ?? "", secondary: row?.ip ?? "" };
+    case "ip": {
+      const numeric = ipToSortableNumber(row?.ip);
+      if (numeric !== null) {
+        return { primary: numeric, secondary: row?.ip ?? "" };
+      }
+      return { primary: row?.ip ?? "", secondary: row?.host ?? "" };
+    }
+    case "name":
+      return { primary: row?.name ?? "", secondary: row?.host ?? "" };
+    case "inputUrl":
+      return { primary: row?.inputUrl ?? "", secondary: row?.host ?? "" };
+    case "outputs": {
+      const out =
+        typeof row?.outputs === "string"
+          ? row.outputs
+          : JSON.stringify(row?.outputs ?? "");
+      return { primary: out ?? "", secondary: row?.host ?? "" };
+    }
+    case "audioAlarm":
+      return { primary: row?.audioAlarm ? 1 : 0, secondary: row?.host ?? "" };
+    case "videoAlarm":
+      return { primary: row?.videoAlarm ? 1 : 0, secondary: row?.host ?? "" };
+    case "state":
+      return { primary: row?.state ?? "", secondary: row?.host ?? "" };
+    default:
+      return { primary: row?.[key] ?? "", secondary: row?.host ?? "" };
+  }
+}
+
+function comparePrimitive(a, b) {
+  if (a == null && b == null) return 0;
+  if (a == null) return -1;
+  if (b == null) return 1;
+
+  if (typeof a === "number" && typeof b === "number") {
+    if (Number.isNaN(a) && Number.isNaN(b)) return 0;
+    if (Number.isNaN(a)) return -1;
+    if (Number.isNaN(b)) return 1;
+    if (a < b) return -1;
+    if (a > b) return 1;
+    return 0;
+  }
+
+  return String(a).localeCompare(String(b), undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
+}
+
+function ipToSortableNumber(ip) {
+  if (typeof ip !== "string") return null;
+  const parts = ip.trim().split(".");
+  if (parts.length !== 4) return null;
+  let value = 0;
+  for (const part of parts) {
+    if (!/^\d+$/.test(part)) return null;
+    const num = Number(part);
+    if (Number.isNaN(num)) return null;
+    value = value * 256 + Math.min(Math.max(num, 0), 255);
+  }
+  return value;
+}
+
 /* ───────────────────────── Componente ───────────────────────── */
 
 export default function ServicesMultiHost() {
@@ -590,6 +677,7 @@ export default function ServicesMultiHost() {
   const [query, setQuery] = useState("");
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [treatPatternAsFail, setTreatPatternAsFail] = useState(false); // << Switch UI
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
   const timerRef = useRef(null);
   const searchRef = useRef(null);
 
@@ -725,24 +813,33 @@ export default function ServicesMultiHost() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter((r) =>
-      [
-        r.host,
-        r.ip,
-        r.name,
-        r.inputUrl,
-        r.outputs,
-        r.sourceText,
-        r.state,
-        r.audioAlarm,
-        r.videoAlarm,
-        r.tsErrors,
-      ]
-        .filter(Boolean)
-        .some((v) => String(v).toLowerCase().includes(q))
-    );
-  }, [rows, query]);
+    let nextRows = rows;
+    if (q) {
+      nextRows = rows.filter((r) =>
+        [
+          r.host,
+          r.ip,
+          r.name,
+          r.inputUrl,
+          r.outputs,
+          r.sourceText,
+          r.state,
+          r.audioAlarm,
+          r.videoAlarm,
+          r.tsErrors,
+        ]
+          .filter(Boolean)
+          .some((v) => String(v).toLowerCase().includes(q))
+      );
+    }
+
+    if (!sortConfig.key) {
+      return nextRows;
+    }
+
+    const sorted = [...nextRows].sort((a, b) => compareRowsWithConfig(a, b, sortConfig));
+    return sorted;
+  }, [rows, query, sortConfig]);
 
   // SOLO fallas explícitas (audio/video) o detenido
   const failingRows = useMemo(
@@ -771,6 +868,43 @@ export default function ServicesMultiHost() {
       }
     }
   }, []);
+
+  const handleSort = useCallback((key) => {
+    setSortConfig((prev) => {
+      if (prev.key === key) {
+        return { key, direction: prev.direction === "asc" ? "desc" : "asc" };
+      }
+      return { key, direction: "asc" };
+    });
+  }, []);
+
+  const handleSortKeyDown = useCallback(
+    (event, key) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        handleSort(key);
+      }
+    },
+    [handleSort]
+  );
+
+  const renderSortLabel = useCallback(
+    (label, key) => {
+      const isActive = sortConfig.key === key;
+      const indicator = isActive
+        ? sortConfig.direction === "asc"
+          ? "▲"
+          : "▼"
+        : "↕";
+      return (
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <span>{label}</span>
+          <span style={{ fontSize: 11, color: "#6b7280" }}>{indicator}</span>
+        </span>
+      );
+    },
+    [sortConfig]
+  );
 
   const titanSignalsCount = filtered.length;
 
@@ -1045,15 +1179,97 @@ export default function ServicesMultiHost() {
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14, tableLayout: "fixed" }}>
           <thead style={{ position: "sticky", top: 0, background: "#fafafa", zIndex: 100  }}>
             <tr>
-              <th style={th}>Host</th>
-              <th style={th}>IP</th>
-              <th style={th}>Name</th>
-              <th style={th}>Multicast entrada</th>
-              <th style={th}>Multicast salida</th>
+              <th
+                style={{ ...th, cursor: "pointer", userSelect: "none" }}
+                onClick={() => handleSort("host")}
+                onKeyDown={(event) => handleSortKeyDown(event, "host")}
+                role="button"
+                tabIndex={0}
+              >
+                {renderSortLabel("Host", "host")}
+              </th>
+              <th
+                style={{ ...th, cursor: "pointer", userSelect: "none" }}
+                onClick={() => handleSort("ip")}
+                onKeyDown={(event) => handleSortKeyDown(event, "ip")}
+                role="button"
+                tabIndex={0}
+              >
+                {renderSortLabel("IP", "ip")}
+              </th>
+              <th
+                style={{ ...th, cursor: "pointer", userSelect: "none" }}
+                onClick={() => handleSort("name")}
+                onKeyDown={(event) => handleSortKeyDown(event, "name")}
+                role="button"
+                tabIndex={0}
+              >
+                {renderSortLabel("Name", "name")}
+              </th>
+              <th
+                style={{ ...th, cursor: "pointer", userSelect: "none" }}
+                onClick={() => handleSort("inputUrl")}
+                onKeyDown={(event) => handleSortKeyDown(event, "inputUrl")}
+                role="button"
+                tabIndex={0}
+              >
+                {renderSortLabel("Multicast entrada", "inputUrl")}
+              </th>
+              <th
+                style={{ ...th, cursor: "pointer", userSelect: "none" }}
+                onClick={() => handleSort("outputs")}
+                onKeyDown={(event) => handleSortKeyDown(event, "outputs")}
+                role="button"
+                tabIndex={0}
+              >
+                {renderSortLabel("Multicast salida", "outputs")}
+              </th>
               {/* <th style={{ ...th, width: COL_WIDTHS.fuente, maxWidth: COL_WIDTHS.fuente }}>Fuente</th> */}
-              <th style={{ ...th, width: COL_WIDTHS.alarma, maxWidth: COL_WIDTHS.alarma }}>Audio</th>
-              <th style={{ ...th, width: COL_WIDTHS.alarma, maxWidth: COL_WIDTHS.alarma }}>Video</th>
-              <th style={{ ...th, width: COL_WIDTHS.estado, maxWidth: COL_WIDTHS.estado }}>Estado</th>
+              <th
+                style={{
+                  ...th,
+                  width: COL_WIDTHS.alarma,
+                  maxWidth: COL_WIDTHS.alarma,
+                  cursor: "pointer",
+                  userSelect: "none",
+                }}
+                onClick={() => handleSort("audioAlarm")}
+                onKeyDown={(event) => handleSortKeyDown(event, "audioAlarm")}
+                role="button"
+                tabIndex={0}
+              >
+                {renderSortLabel("Audio", "audioAlarm")}
+              </th>
+              <th
+                style={{
+                  ...th,
+                  width: COL_WIDTHS.alarma,
+                  maxWidth: COL_WIDTHS.alarma,
+                  cursor: "pointer",
+                  userSelect: "none",
+                }}
+                onClick={() => handleSort("videoAlarm")}
+                onKeyDown={(event) => handleSortKeyDown(event, "videoAlarm")}
+                role="button"
+                tabIndex={0}
+              >
+                {renderSortLabel("Video", "videoAlarm")}
+              </th>
+              <th
+                style={{
+                  ...th,
+                  width: COL_WIDTHS.estado,
+                  maxWidth: COL_WIDTHS.estado,
+                  cursor: "pointer",
+                  userSelect: "none",
+                }}
+                onClick={() => handleSort("state")}
+                onKeyDown={(event) => handleSortKeyDown(event, "state")}
+                role="button"
+                tabIndex={0}
+              >
+                {renderSortLabel("Estado", "state")}
+              </th>
               {/* <th style={{ ...th, width: 100, maxWidth: 120 }}>TS Err</th> */}
             </tr>
           </thead>
