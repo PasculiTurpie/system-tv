@@ -876,6 +876,7 @@ export default function ServicesMultiHost() {
           gap: 8,
         }}
       >
+        
         <span>Listado de señales (Titan)</span>
         <span style={{ fontSize: 16, color: "#6b7280" }}>({`Total señales: ${titanSignalsCount}`})</span>
       </h2>
@@ -1043,7 +1044,7 @@ export default function ServicesMultiHost() {
       <div className="table-wrap"
   style={{ overflow: "auto", maxHeight: "75vh", border: "1px solid #ddd", position: "relative" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14, tableLayout: "fixed" }}>
-          <thead style={{ position: "sticky", top: 0, background: "#fafafa", zIndex: 100  }}>
+          <thead style={{ position: "sticky", top: 0, background: "#fafafa", zIndex: 100, textAlign:'left'  }}>
             <tr>
               <th style={th}>Host</th>
               <th style={th}>IP</th>
@@ -1054,7 +1055,7 @@ export default function ServicesMultiHost() {
               <th style={{ ...th, width: COL_WIDTHS.alarma, maxWidth: COL_WIDTHS.alarma }}>Audio</th>
               <th style={{ ...th, width: COL_WIDTHS.alarma, maxWidth: COL_WIDTHS.alarma }}>Video</th>
               <th style={{ ...th, width: COL_WIDTHS.estado, maxWidth: COL_WIDTHS.estado }}>Estado</th>
-              {/* <th style={{ ...th, width: 100, maxWidth: 120 }}>TS Err</th> */}
+              <th style={{ ...th, width: 100, maxWidth: 120 }}>TS Err</th>
             </tr>
           </thead>
           <tbody>
@@ -1219,9 +1220,9 @@ export default function ServicesMultiHost() {
                     </td>
 
                     {/* TS ERRORS */}
-                    {/* <td style={{ ...td, textAlign: "right" }} title="Suma de errores de PID / CC">
+                    <td style={{ ...td, textAlign: "right" }} title="Suma de errores de PID / CC">
                       {r.tsErrors ?? 0}
-                    </td> */}
+                    </td>
                   </tr>
                 );
               })
@@ -1265,9 +1266,6 @@ const td = {
   textOverflow: "ellipsis",
   whiteSpace: "nowrap",
 };
-
-
-
 
 const tdCompact = {
   padding: "6px 8px",
