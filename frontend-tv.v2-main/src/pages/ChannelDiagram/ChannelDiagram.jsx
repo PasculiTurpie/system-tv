@@ -29,6 +29,8 @@ import {
   createPatchScheduler,
   MAX_LABEL_LENGTH,
   prepareDiagramState,
+  ensureRouterTemplateEdges,
+  isRouterNode,
 } from "./diagramUtils";
 import { createPersistLabelPositions } from "./persistLabelPositions";
 
@@ -202,6 +204,7 @@ const ChannelDiagram = () => {
     [setEdgesState]
   );
 
+
   const selectedNode = useMemo(
     () => nodes.find((node) => node.id === selectedNodeId) || null,
     [nodes, selectedNodeId]
@@ -235,6 +238,33 @@ const ChannelDiagram = () => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(saveDiagram, AUTO_SAVE_DELAY);
   }, [isAuth, saveDiagram]);
+
+  const ensureRouterEdges = useCallback(
+    (node, options = {}) => {
+      if (!node || !isRouterNode(node)) {
+        return { added: 0, removed: 0 };
+      }
+
+      let summary = { added: 0, removed: 0 };
+      updateEdges((current) => {
+        const { toAdd, toRemove } = ensureRouterTemplateEdges(node, current, options);
+        if (!toAdd.length && !toRemove.length) {
+          return current;
+        }
+        const toRemoveIds = new Set(toRemove.map((edge) => edge.id));
+        summary = { added: toAdd.length, removed: toRemove.length };
+        const next = current.filter((edge) => !toRemoveIds.has(edge.id));
+        return [...next, ...toAdd];
+      });
+
+      if ((summary.added || summary.removed) && isAuth) {
+        requestSave();
+      }
+
+      return summary;
+    },
+    [updateEdges, isAuth, requestSave]
+  );
 
   useEffect(
     () => () => {
@@ -417,6 +447,123 @@ const ChannelDiagram = () => {
       );
     },
     [clampPosition, updateNodes]
+  );
+
+  const handleNodeDataPatch = useCallback(
+    (nodeId, dataPatch = {}) => {
+      if (!nodeId || !dataPatch || typeof dataPatch !== "object") {
+        return;
+      }
+
+      updateNodes((current) =>
+        current.map((node) =>
+          node.id === nodeId
+            ? {
+                ...node,
+                data: {
+                  ...(node.data || {}),
+                  ...dataPatch,
+                },
+              }
+            : node
+        )
+      );
+
+      if (isAuth) {
+        scheduleNodePatch(nodeId, { data: dataPatch });
+      }
+
+      requestSave();
+    },
+    [isAuth, scheduleNodePatch, updateNodes, requestSave]
+  );
+
+  const handleNodeLockChange = useCallback(
+    (nodeId, locked) => {
+      const isLocked = Boolean(locked);
+      updateNodes((current) =>
+        current.map((node) =>
+          node.id === nodeId
+            ? {
+                ...node,
+                draggable: !isLocked,
+                data: { ...(node.data || {}), locked: isLocked },
+              }
+            : node
+        )
+      );
+
+      if (isAuth) {
+        scheduleNodePatch(nodeId, {
+          draggable: !isLocked,
+          data: { locked: isLocked },
+        });
+      }
+
+      requestSave();
+    },
+    [isAuth, scheduleNodePatch, updateNodes, requestSave]
+  );
+
+  const focusNodeById = useCallback(
+    (nodeId) => {
+      if (!nodeId || !reactFlowInstance) return;
+      const node = nodesRef.current.find((item) => item.id === nodeId);
+      if (!node) return;
+      const width = 260;
+      const height = 160;
+      const x = Number(node.position?.x) - width / 2;
+      const y = Number(node.position?.y) - height / 2;
+      reactFlowInstance.fitBounds(
+        {
+          x: Number.isFinite(x) ? x : 0,
+          y: Number.isFinite(y) ? y : 0,
+          width,
+          height,
+        },
+        { duration: ZOOM_DURATION }
+      );
+    },
+    [reactFlowInstance]
+  );
+
+  const handleDuplicateNode = useCallback(
+    (nodeId) => {
+      if (!nodeId || !isAuth) return null;
+      const original = nodesRef.current.find((node) => node.id === nodeId);
+      if (!original) return null;
+
+      const baseId = `${original.id}-copy`;
+      let newId = baseId;
+      let counter = 1;
+      const ids = new Set(nodesRef.current.map((node) => node.id));
+      while (ids.has(newId)) {
+        newId = `${baseId}-${counter}`;
+        counter += 1;
+      }
+
+      const offsetX = Number(original.position?.x) + 120 || 120;
+      const offsetY = Number(original.position?.y) + 80 || 80;
+      const duplicated = {
+        ...original,
+        id: newId,
+        position: { x: offsetX, y: offsetY },
+        selected: false,
+        dragging: false,
+        data: {
+          ...(original.data || {}),
+          label: `${original.data?.label || original.id} (copy)`,
+        },
+      };
+
+      updateNodes((current) => [...current, duplicated]);
+      if (isRouterNode(duplicated)) {
+        ensureRouterEdges(duplicated);
+      }
+      requestSave();
+      return duplicated;
+    },
+    [isAuth, updateNodes, requestSave, ensureRouterEdges]
   );
 
   const handleEdgeLabelChange = useCallback(
@@ -676,6 +823,18 @@ const ChannelDiagram = () => {
           toPositionOrNull(node.position) || { x: 0, y: 0 }
         );
       });
+
+      const routerAdditions = [];
+      changes.forEach((change) => {
+        if (change.type === "add") {
+          const candidate = change.item ||
+            previousNodes.find((node) => node.id === change.id);
+          if (candidate && isRouterNode(candidate)) {
+            routerAdditions.push(candidate.id);
+          }
+        }
+      });
+
       updateNodes((current) => applyNodeChanges(changes, current));
       const finalPositionChanges = changes.filter(
         (change) => change.type === "position" && change.dragging === false
@@ -717,8 +876,25 @@ const ChannelDiagram = () => {
       if (finalPositionChanges.length) {
         requestSave();
       }
+
+      routerAdditions.forEach((routerId) => {
+        const routerNode = nodesRef.current.find((node) => node.id === routerId);
+        if (!routerNode) return;
+        const summary = ensureRouterEdges(routerNode);
+        if (summary.added) {
+          console.info(
+            `Router ${routerNode.id}: se generaron ${summary.added} aristas por defecto.`
+          );
+        }
+      });
     },
-    [isAuth, scheduleNodePatch, updateNodes, requestSave]
+    [
+      isAuth,
+      scheduleNodePatch,
+      updateNodes,
+      requestSave,
+      ensureRouterEdges,
+    ]
   );
   const handleEdgesChange = useCallback((changes) => onEdgesChange(changes), [onEdgesChange]);
 
@@ -807,9 +983,11 @@ const ChannelDiagram = () => {
       onEdgeMulticastPositionChange: handleEdgeMulticastPositionChange,
       persistLabelPositions,
       clampPosition,
+      ensureRouterEdges,
     }),
     [
       clampPosition,
+      ensureRouterEdges,
       handleEdgeEndpointLabelChange,
       handleEdgeEndpointLabelPositionChange,
       handleEdgeLabelChange,
@@ -876,7 +1054,21 @@ const ChannelDiagram = () => {
               </ReactFlow>
             </DiagramContext.Provider>
           </div>
-          <NodeEquipmentSidebar node={selectedNode} />
+          <NodeEquipmentSidebar
+            node={selectedNode}
+            edges={edges}
+            readOnly={isReadOnly}
+            onLabelChange={handleNodeLabelChange}
+            onDataPatch={handleNodeDataPatch}
+            onLabelPositionChange={handleNodeLabelPositionChange}
+            onMulticastPositionChange={handleNodeMulticastPositionChange}
+            onFocusNode={focusNodeById}
+            onDuplicateNode={handleDuplicateNode}
+            onToggleNodeLock={handleNodeLockChange}
+            onEnsureRouterEdges={(node) => ensureRouterEdges(node)}
+            onRegenerateRouterEdges={(node) => ensureRouterEdges(node, { force: true })}
+            persistLabelPositions={persistLabelPositions}
+          />
         </div>
       </div>
     </ReactFlowProvider>

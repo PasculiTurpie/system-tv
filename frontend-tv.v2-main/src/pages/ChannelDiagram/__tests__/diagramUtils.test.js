@@ -6,6 +6,10 @@ import {
   clampPositionWithinBounds,
   createPatchScheduler,
   resolveLabelPosition,
+  ensureRouterTemplateEdges,
+  summarizeRouterEdges,
+  getNodeHandleUsage,
+  collectNodeMulticastConflicts,
 } from "../diagramUtils.js";
 
 test("mapEdgeFromApi normalizes missing fields", () => {
@@ -119,4 +123,69 @@ test("integration: scheduler payload survives reload", async () => {
   assert.equal(mapped.data.label, "Actualizado");
   assert.deepEqual(mapped.data.labelPosition, { x: 42, y: 84 });
   assert.equal(mapped.data.endpointLabels.source, "Gig0/1");
+});
+
+test("ensureRouterTemplateEdges generates default router edges", () => {
+  const routerNode = { id: "Router1", type: "router", data: {} };
+  const { toAdd, missingCombos } = ensureRouterTemplateEdges(routerNode, []);
+
+  assert.equal(toAdd.length, 18);
+  assert.equal(missingCombos.length, 18);
+  assert.ok(toAdd.every((edge) => edge.data.routerTemplate === "Router1"));
+});
+
+test("summarizeRouterEdges detects missing combos", () => {
+  const routerNode = { id: "Router1", type: "router", data: {} };
+  const { toAdd } = ensureRouterTemplateEdges(routerNode, []);
+  const partialEdges = toAdd.slice(0, 10);
+  const summary = summarizeRouterEdges(routerNode, partialEdges);
+
+  assert.equal(summary.expected, 18);
+  assert.equal(summary.existing, 10);
+  assert.equal(summary.missing, 8);
+});
+
+test("getNodeHandleUsage aggregates handles and metadata", () => {
+  const node = { id: "Node1", type: "router", data: {} };
+  const edges = [
+    {
+      id: "edge-out",
+      source: "Node1",
+      target: "Node2",
+      sourceHandle: "out-left-1",
+      data: { direction: "out", multicast: "239.0.0.1:5000" },
+    },
+    {
+      id: "edge-in",
+      source: "Node3",
+      target: "Node1",
+      targetHandle: "in-left-1",
+      data: { direction: "in", pending: true },
+    },
+  ];
+
+  const usage = getNodeHandleUsage(node, edges);
+  const outHandle = usage.find((entry) => entry.id === "out-left-1");
+  const inHandle = usage.find((entry) => entry.id === "in-left-1");
+
+  assert.ok(outHandle);
+  assert.equal(outHandle.connections.length, 1);
+  assert.equal(outHandle.connections[0].multicast, "239.0.0.1:5000");
+
+  assert.ok(inHandle);
+  assert.equal(inHandle.connections.length, 1);
+  assert.equal(inHandle.connections[0].pending, true);
+});
+
+test("collectNodeMulticastConflicts groups duplicates", () => {
+  const edges = [
+    { id: "e1", source: "A", target: "B", data: { multicast: "239.1.1.1:1000" } },
+    { id: "e2", source: "A", target: "C", data: { multicast: "239.1.1.1:1000" } },
+    { id: "e3", source: "A", target: "D", data: { multicast: "239.1.1.2:1000" } },
+  ];
+
+  const conflicts = collectNodeMulticastConflicts("A", edges);
+  assert.equal(conflicts.length, 1);
+  assert.equal(conflicts[0].key, "239.1.1.1:1000");
+  assert.equal(conflicts[0].edges.length, 2);
 });

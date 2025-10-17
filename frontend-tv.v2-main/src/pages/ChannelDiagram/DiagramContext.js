@@ -12,5 +12,6 @@ export const DiagramContext = createContext({
   onEdgeMulticastPositionChange: () => {},
   persistLabelPositions: () => Promise.resolve({ ok: false }),
   clampPosition: (pos) => pos,
+  ensureRouterEdges: () => ({ added: 0, removed: 0 }),
 });
 
