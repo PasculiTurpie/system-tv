@@ -5,6 +5,272 @@ export const ARROW_CLOSED = { type: "arrowclosed" };
 
 export const MAX_LABEL_LENGTH = 200;
 
+const ROUTER_HANDLE_SIDES = ["left", "right", "bottom"];
+const ROUTER_HANDLE_COUNT = 3;
+
+export const ROUTER_OUT_CLASS = "edge-outgoing";
+export const ROUTER_IN_CLASS = "edge-incoming";
+
+const ROUTER_OUT_COLOR = "#e11d48";
+const ROUTER_IN_COLOR = "#16a34a";
+
+export const isRouterNode = (node) =>
+  (node?.type || node?.data?.type || "") === "router";
+
+export const parseRouterHandleId = (handleId) => {
+  if (!handleId || typeof handleId !== "string") return null;
+  const normalized = normalizeHandle(handleId);
+  const match = /^(in|out)-(left|right|bottom)-(\d+)$/i.exec(normalized);
+  if (!match) return null;
+  return {
+    kind: match[1] === "in" ? "in" : "out",
+    side: match[2],
+    index: Number(match[3]),
+  };
+};
+
+const createRouterHandleDefinitions = () => {
+  const handles = [];
+  ROUTER_HANDLE_SIDES.forEach((side) => {
+    for (let i = 1; i <= ROUTER_HANDLE_COUNT; i += 1) {
+      handles.push({
+        id: `out-${side}-${i}`,
+        kind: "out",
+        side,
+        index: i,
+      });
+      handles.push({
+        id: `in-${side}-${i}`,
+        kind: "in",
+        side,
+        index: i,
+      });
+    }
+  });
+  return handles;
+};
+
+export const ROUTER_HANDLE_DEFINITIONS = Object.freeze(
+  createRouterHandleDefinitions()
+);
+
+const routerComboKey = ({ direction, side, index }) =>
+  `${direction}:${side}:${index}`;
+
+const getRouterCombos = () => {
+  const combos = [];
+  ROUTER_HANDLE_SIDES.forEach((side) => {
+    for (let index = 1; index <= ROUTER_HANDLE_COUNT; index += 1) {
+      combos.push({ direction: "out", side, index });
+      combos.push({ direction: "in", side, index });
+    }
+  });
+  return combos;
+};
+
+const routerEdgeId = (nodeId, { direction, side, index }) =>
+  `${nodeId}:${direction}-${side}-${index}`;
+
+const baseRouterEdge = (node, combo) => {
+  const { direction, side, index } = combo;
+  const isOut = direction === "out";
+  const color = isOut ? ROUTER_OUT_COLOR : ROUTER_IN_COLOR;
+  const className = isOut ? ROUTER_OUT_CLASS : ROUTER_IN_CLASS;
+  const label = isOut ? "IDA" : "RETORNO";
+  const sourceHandle = `out-${side}-${index}`;
+  const targetHandle = `in-${side}-${index}`;
+
+  return {
+    id: routerEdgeId(node.id, combo),
+    type: "smoothstep",
+    source: node.id,
+    target: node.id,
+    sourceHandle,
+    targetHandle,
+    animated: true,
+    className,
+    style: { stroke: color, strokeWidth: 2 },
+    markerEnd: withMarkerColor({ type: "arrowclosed" }, color),
+    updatable: true,
+    data: {
+      label,
+      direction,
+      pending: true,
+      routerTemplate: node.id,
+    },
+  };
+};
+
+const detectRouterComboFromEdge = (nodeId, edge) => {
+  if (!edge) return null;
+  if (edge.source !== nodeId && edge.target !== nodeId) return null;
+  const data = edge.data || {};
+  const declaredDirection = data.direction === "in" ? "in" : data.direction === "out" ? "out" : null;
+
+  if (declaredDirection === "out") {
+    const info = parseRouterHandleId(edge.sourceHandle);
+    if (info && info.kind === "out") {
+      return { direction: "out", side: info.side, index: info.index };
+    }
+  }
+
+  if (declaredDirection === "in") {
+    const info = parseRouterHandleId(edge.targetHandle);
+    if (info && info.kind === "in") {
+      return { direction: "in", side: info.side, index: info.index };
+    }
+  }
+
+  if (data.routerTemplate === nodeId) {
+    const id = String(edge.id || "");
+    const match = /:(out|in)-(left|right|bottom)-(\d+)$/i.exec(id);
+    if (match) {
+      return {
+        direction: match[1] === "in" ? "in" : "out",
+        side: match[2],
+        index: Number(match[3]),
+      };
+    }
+  }
+
+  return null;
+};
+
+export const ensureRouterTemplateEdges = (node, edges, { force = false } = {}) => {
+  if (!isRouterNode(node)) {
+    return { toAdd: [], toRemove: [], missingCombos: [] };
+  }
+
+  const combos = getRouterCombos();
+  const existingByCombo = new Map();
+  const ownedEdges = [];
+
+  edges.forEach((edge) => {
+    const combo = detectRouterComboFromEdge(node.id, edge);
+    if (!combo) return;
+    const key = routerComboKey(combo);
+    if (!existingByCombo.has(key)) {
+      existingByCombo.set(key, edge);
+    }
+    if (edge.data?.routerTemplate === node.id) {
+      ownedEdges.push(edge);
+    }
+  });
+
+  const toAdd = [];
+  const missingCombos = [];
+  combos.forEach((combo) => {
+    const key = routerComboKey(combo);
+    if (!existingByCombo.has(key) || force) {
+      toAdd.push(baseRouterEdge(node, combo));
+      missingCombos.push(combo);
+    }
+  });
+
+  const toRemove = force ? ownedEdges : [];
+
+  return { toAdd, toRemove, missingCombos };
+};
+
+export const summarizeRouterEdges = (node, edges) => {
+  const expected = ROUTER_HANDLE_SIDES.length * ROUTER_HANDLE_COUNT * 2;
+  const combos = getRouterCombos();
+  const existing = new Set();
+  edges.forEach((edge) => {
+    const combo = detectRouterComboFromEdge(node?.id, edge);
+    if (!combo) return;
+    existing.add(routerComboKey(combo));
+  });
+  const missingCombos = combos.filter((combo) => !existing.has(routerComboKey(combo)));
+  return {
+    expected,
+    existing: expected - missingCombos.length,
+    missing: missingCombos.length,
+    missingCombos,
+  };
+};
+
+export const getNodeHandleUsage = (node, edges) => {
+  if (!node) return [];
+  const map = new Map();
+
+  const ensureEntry = (handleId, fallbackKind = "out") => {
+    if (!map.has(handleId)) {
+      const parsed = parseRouterHandleId(handleId);
+      map.set(handleId, {
+        id: handleId,
+        kind: parsed?.kind || fallbackKind,
+        side: parsed?.side || null,
+        index: parsed?.index || null,
+        connections: [],
+      });
+    }
+    return map.get(handleId);
+  };
+
+  if (isRouterNode(node)) {
+    ROUTER_HANDLE_DEFINITIONS.forEach((handle) => {
+      ensureEntry(handle.id, handle.kind);
+    });
+  }
+
+  edges.forEach((edge) => {
+    if (edge.source === node.id) {
+      const handleId = normalizeHandle(edge.sourceHandle || "out");
+      const entry = ensureEntry(handleId, "out");
+      entry.connections.push({
+        edgeId: edge.id,
+        direction: edge.data?.direction || "out",
+        counterpart: edge.target,
+        counterpartHandle: normalizeHandle(edge.targetHandle || ""),
+        label: edge.data?.label || edge.label || "",
+        multicast: edge.data?.multicast || null,
+        pending: !!edge.data?.pending,
+      });
+    }
+    if (edge.target === node.id) {
+      const handleId = normalizeHandle(edge.targetHandle || "in");
+      const entry = ensureEntry(handleId, "in");
+      entry.connections.push({
+        edgeId: edge.id,
+        direction: edge.data?.direction || "in",
+        counterpart: edge.source,
+        counterpartHandle: normalizeHandle(edge.sourceHandle || ""),
+        label: edge.data?.label || edge.label || "",
+        multicast: edge.data?.multicast || null,
+        pending: !!edge.data?.pending,
+      });
+    }
+  });
+
+  return Array.from(map.values()).sort((a, b) =>
+    a.id.localeCompare(b.id, undefined, { numeric: true })
+  );
+};
+
+export const collectNodeMulticastConflicts = (nodeId, edges) => {
+  if (!nodeId) return [];
+  const lookup = new Map();
+  const normalized = (value) => {
+    if (!value) return "";
+    return String(value).trim().toLowerCase();
+  };
+
+  edges
+    .filter((edge) => edge.source === nodeId || edge.target === nodeId)
+    .forEach((edge) => {
+      const multicast = normalized(edge.data?.multicast || edge.data?.label);
+      if (!multicast) return;
+      const list = lookup.get(multicast) || [];
+      list.push(edge);
+      lookup.set(multicast, list);
+    });
+
+  return Array.from(lookup.entries())
+    .filter(([, list]) => list.length > 1)
+    .map(([key, list]) => ({ key, edges: list }));
+};
+
 export const toNumberOr = (val, def = 0) => {
   const n = Number(val);
   return Number.isFinite(n) ? n : def;
