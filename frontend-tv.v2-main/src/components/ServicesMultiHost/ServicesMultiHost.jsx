@@ -8,6 +8,9 @@ import api from "../../utils/api";
  * - Consulta en paralelo las APIs Titans directamente (sin proxy intermedio)
  * - Columnas: Name, Input.IPInputList.Url, Outputs[0].Outputs, Fuente (pattern/still/live/fail), State.State
  * - Botón Exportar CSV (aplica al filtrado)
+ * - Alarmas ratificadas: Audio/Video con reglas estrictas (evita falsos positivos)
+ * - Switch: Pattern/Still como falla
+ * - Errores: alerta si detecta Outputs Url duplicados
  */
 
 const TITAN_SERVICES_PATH = "/api/v1/servicesmngt/services";
@@ -84,6 +87,7 @@ const useTitanHosts = () => {
 const COL_WIDTHS = {
   fuente: 260,
   estado: 140,
+  alarma: 120,
 };
 
 /* ───────────────────────── utils ───────────────────────── */
@@ -118,7 +122,9 @@ function extractServicesArray(resp) {
   return [];
 }
 
-/* ───────────────────────── detección de fuente ───────────────────────── */
+/* ───────────────────────── detección de fuente y alarmas (ratificadas) ───────────────────────── */
+
+// Mensajes explícitos que SÍ significan falla
 const FAIL_NAMES = new Set([
   "Video Signal Missing",
   "Audio Signal Silent",
@@ -216,8 +222,93 @@ function detectVideoSource(svc) {
   };
 }
 
+/** VideoAlarm SOLO si hay mensaje explícito de falla; opcionalmente pattern/still si el flag está activo */
+function detectVideoAlarm(svc, treatPatternOrStillAsFail) {
+  const msgs = get(svc, "State.Messages", []);
+  const hasExplicitVideoFail =
+    Array.isArray(msgs) &&
+    msgs.some((m) => {
+      const name = typeof m === "string" ? m : m?.Name;
+      return (
+        name === "Video Signal Missing" ||
+        name === "Video Signal Frozen" ||
+        name === "Input Source Loss"
+      );
+    });
+
+  const emuMode = get(svc, "Device.Template.Tracks.VideoTracks[0].EmulationMode.Mode", "Off");
+  const modeLower = String(emuMode || "").toLowerCase();
+  const patternOrStill =
+    modeLower === "pattern" ||
+    modeLower === "still" ||
+    !!get(svc, "Device.Template.Tracks.VideoTracks[0].Variants[0].StillPicture", false);
+
+  const videoAlarm = hasExplicitVideoFail || (treatPatternOrStillAsFail && patternOrStill);
+
+  return { videoAlarm, hasExplicitVideoFail, patternOrStill };
+}
+
+/** AudioAlarm SOLO si hay mensaje explícito o silencio habilitado + niveles ≤ umbral */
+function detectAudioAlarm(svc) {
+  const msgs = get(svc, "State.Messages", []);
+  const hasExplicitAudioFail =
+    Array.isArray(msgs) &&
+    msgs.some((m) => {
+      const name = typeof m === "string" ? m : m?.Name;
+      return name === "Audio Signal Silent";
+    });
+
+  if (hasExplicitAudioFail) {
+    return { audioAlarm: true, reason: "explicit", audioLevelDb: null, audioThreshold: null };
+  }
+
+  // Si el monitoreo de silencio no está habilitado, no marcamos por nivel
+  const silenceEnable =
+    !!get(svc, "GlobalConfiguration.AudioSilenceParameters.Enable", false) ||
+    !!get(svc, "Device.Template.GlobalConfiguration.AudioSilenceParameters.Enable", false);
+
+  if (!silenceEnable) {
+    return { audioAlarm: false, reason: "silence_monitor_disabled", audioLevelDb: null, audioThreshold: null };
+  }
+
+  // Con monitoreo de silencio habilitado: nivel vs umbral
+  const threshold =
+    pickFirst(
+      get(svc, "GlobalConfiguration.AudioSilenceParameters.Threshold"),
+      get(svc, "Device.Template.GlobalConfiguration.AudioSilenceParameters.Threshold")
+    ) ?? -70;
+
+  const levels = get(svc, "State.AudioLevels", []);
+  const flat = Array.isArray(levels) ? levels.flat().filter((v) => typeof v === "number") : [];
+
+  if (flat.length === 0) {
+    // Sin muestras de nivel → no asumimos falla
+    return { audioAlarm: false, reason: "no_levels", audioLevelDb: null, audioThreshold: threshold };
+  }
+
+  const maxLevel = Math.max(...flat);
+  const audioAlarm = maxLevel <= threshold;
+  return { audioAlarm, reason: "threshold", audioLevelDb: maxLevel, audioThreshold: threshold };
+}
+
+/** Suma de errores TS (PID errors o total CC errors) */
+function getTsErrors(svc) {
+  const pidErrors = get(svc, "State.EtrStatistics[0].PidErrors", []);
+  const totalCce = get(svc, "State.EtrStatistics[0].TotalContinuityCountErrors", 0);
+  let sum = 0;
+  if (Array.isArray(pidErrors)) {
+    for (const p of pidErrors) {
+      const n = Number(p?.errors);
+      if (!Number.isNaN(n)) sum += n;
+    }
+  }
+  const total = sum || Number(totalCce) || 0;
+  return total;
+}
+
 /* ───────────────────────── extracción por fila ───────────────────────── */
-function extractRow(hostLabel, ip, svc) {
+function extractRow(hostLabel, ip, svc, opts = {}) {
+  const { treatPatternOrStillAsFail = false } = opts;
   const s = svc ?? {};
   const name = pickFirst(get(s, "Name"), get(s, "name"), get(s, "ServiceName"), get(s, "serviceName"));
 
@@ -242,6 +333,7 @@ function extractRow(hostLabel, ip, svc) {
 
   const stateVal = pickFirst(get(s, "State.State"), get(s, "state.state"), get(s, "State"), get(s, "state"));
 
+  // Fuente descriptiva (NO decide falla)
   const src = detectVideoSource(s);
   const sourceText =
     src.mode === "fail"
@@ -251,6 +343,11 @@ function extractRow(hostLabel, ip, svc) {
       : src.mode === "still"
       ? `still: ${src.sourceName ?? ""}`
       : `live: ${src.sourceName ?? ""}`;
+
+  // Alarmas según reglas ratificadas y preferencia de UI
+  const { videoAlarm, hasExplicitVideoFail, patternOrStill } = detectVideoAlarm(s, treatPatternOrStillAsFail);
+  const { audioAlarm, audioLevelDb, audioThreshold } = detectAudioAlarm(s);
+  const tsErrors = getTsErrors(s);
 
   return {
     host: hostLabel,
@@ -262,6 +359,15 @@ function extractRow(hostLabel, ip, svc) {
     sourceName: src.sourceName ?? "",
     sourceText,
     state: typeof stateVal === "object" ? JSON.stringify(stateVal) : stateVal ?? "",
+    // Datos de alarmas
+    audioAlarm,
+    audioLevelDb,
+    audioThreshold,
+    videoAlarm,
+    tsErrors,
+    // Flags internos útiles para tooltips / depuración
+    _explicitVideoFail: !!hasExplicitVideoFail,
+    _patternOrStill: !!patternOrStill,
   };
 }
 
@@ -361,7 +467,7 @@ function isEntryOk(entry) {
   return true;
 }
 
-function processTitanEntries(entries, hostMap) {
+function processTitanEntries(entries, hostMap, opts) {
   const rows = [];
   const errors = [];
   const seenHosts = new Set();
@@ -378,7 +484,7 @@ function processTitanEntries(entries, hostMap) {
       const payload = unwrapTitanPayload(entry);
       const services = extractServicesArray(payload);
       rows.push(
-        ...services.map((svc) => extractRow(hostInfo.label, hostInfo.ip, svc))
+        ...services.map((svc) => extractRow(hostInfo.label, hostInfo.ip, svc, opts))
       );
     } else {
       errors.push(`${hostInfo.label} (${hostInfo.ip}): ${describeTitanEntryError(entry)}`);
@@ -398,11 +504,37 @@ function escapeCsvField(v) {
 }
 
 function rowsToCsv(rows) {
-  const headers = ["Host", "IP", "Name", "Input.IPInputList.Url", "Outputs[0].Outputs.Url", "Fuente", "State.State"];
+  const headers = [
+    "Host",
+    "IP",
+    "Name",
+    "Input.IPInputList.Url",
+    "Outputs[0].Outputs.Url",
+    "Fuente",
+    "State.State",
+    "AudioAlarm",
+    "VideoAlarm",
+    "AudioLevelDb",
+    "AudioThreshold",
+    "TsErrors",
+  ];
   const lines = [headers.map(escapeCsvField).join(",")];
   for (const r of rows) {
     lines.push(
-      [r.host, r.ip, r.name, r.inputUrl, typeof r.outputs === "string" ? r.outputs : JSON.stringify(r.outputs), r.sourceText, r.state]
+      [
+        r.host,
+        r.ip,
+        r.name,
+        r.inputUrl,
+        typeof r.outputs === "string" ? r.outputs : JSON.stringify(r.outputs),
+        r.sourceText,
+        r.state,
+        r.audioAlarm,
+        r.videoAlarm,
+        r.audioLevelDb ?? "",
+        r.audioThreshold ?? "",
+        r.tsErrors ?? 0,
+      ]
         .map(escapeCsvField)
         .join(",")
     );
@@ -428,6 +560,27 @@ function hostHref(ip) {
   return `${TITAN_PROTOCOL}://${ip}`;
 }
 
+/* ───────────────────────── Duplicados de Output URLs ───────────────────────── */
+
+function collectDuplicateOutputErrors(rows) {
+  const map = new Map(); // url -> [{name, ip}]
+  for (const r of rows) {
+    const url = typeof r.outputs === "string" ? r.outputs.trim() : "";
+    if (!url) continue;
+    const key = url.toLowerCase();
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push({ name: r.name, ip: r.ip });
+  }
+  const errors = [];
+  for (const [url, list] of map.entries()) {
+    if (list.length > 1) {
+      const refs = list.map((x) => `${x.name} @ ${x.ip}`).join("; ");
+      errors.push(`Output Url duplicado: ${url} (usado por ${list.length} señales: ${refs})`);
+    }
+  }
+  return errors;
+}
+
 /* ───────────────────────── Componente ───────────────────────── */
 
 export default function ServicesMultiHost() {
@@ -436,9 +589,9 @@ export default function ServicesMultiHost() {
   const [errors, setErrors] = useState([]);
   const [query, setQuery] = useState("");
   const [autoRefresh, setAutoRefresh] = useState(false);
+  const [treatPatternAsFail, setTreatPatternAsFail] = useState(false); // << Switch UI
   const timerRef = useRef(null);
   const searchRef = useRef(null);
-
 
   // hosts Titan desde backend
   const { hosts, loading: hostsLoading, error: hostFetchError, loadHosts } = useTitanHosts();
@@ -459,10 +612,12 @@ export default function ServicesMultiHost() {
     let nextRows = [];
     let nextErrors = [];
 
+    const opts = { treatPatternOrStillAsFail: treatPatternAsFail };
+
     const pushRowsFromHost = (hostInfo, payload) => {
       const services = extractServicesArray(payload);
       nextRows.push(
-        ...services.map((svc) => extractRow(hostInfo.label, hostInfo.ip, svc))
+        ...services.map((svc) => extractRow(hostInfo.label, hostInfo.ip, svc, opts))
       );
     };
 
@@ -472,7 +627,7 @@ export default function ServicesMultiHost() {
         TITAN_REQUEST_OPTIONS
       );
       const entries = normalizeTitanMultiResponse(multiResponse);
-      const processed = processTitanEntries(entries, hostMap);
+      const processed = processTitanEntries(entries, hostMap, opts);
 
       nextRows = [...processed.rows];
       nextErrors = [...processed.errors];
@@ -519,10 +674,16 @@ export default function ServicesMultiHost() {
       });
     }
 
+    // Agregar errores por URLs de salida duplicadas
+    const dupErrors = collectDuplicateOutputErrors(nextRows);
+    if (dupErrors.length > 0) {
+      nextErrors = [...nextErrors, ...dupErrors];
+    }
+
     setRows(nextRows);
     setErrors(nextErrors);
     setLoading(false);
-  }, [hosts, hostFetchError]);
+  }, [hosts, hostFetchError, treatPatternAsFail]);
 
   // 1) Descubrir hosts en el montaje
   useEffect(() => {
@@ -566,14 +727,32 @@ export default function ServicesMultiHost() {
     const q = query.trim().toLowerCase();
     if (!q) return rows;
     return rows.filter((r) =>
-      [r.host, r.ip, r.name, r.inputUrl, r.outputs, r.sourceText, r.state]
+      [
+        r.host,
+        r.ip,
+        r.name,
+        r.inputUrl,
+        r.outputs,
+        r.sourceText,
+        r.state,
+        r.audioAlarm,
+        r.videoAlarm,
+        r.tsErrors,
+      ]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q))
     );
   }, [rows, query]);
 
+  // SOLO fallas explícitas (audio/video) o detenido
   const failingRows = useMemo(
-    () => filtered.filter((r) => r.sourceMode === "fail" || r.state === "Stopped"),
+    () =>
+      filtered.filter(
+        (r) =>
+          r._explicitVideoFail || // mensaje explícito de video
+          r.audioAlarm === true || // audio en alarma por mensaje/umbral con silencio habilitado
+          r.state === "Stopped" // encoder detenido
+      ),
     [filtered]
   );
 
@@ -599,6 +778,7 @@ export default function ServicesMultiHost() {
     <div style={{ padding: 16 }}>
       {/* estilos de botones + buscador */}
       <style>{`
+        a { text-decoration: none; } /* sin subrayado */
         .btn {
           appearance: none;
           border-radius: 8px;
@@ -651,6 +831,19 @@ export default function ServicesMultiHost() {
           opacity: 1;
         }
 
+        .badge {
+          display: inline-block;
+          padding: 2px 8px;
+          border-radius: 999px;
+          font-size: 12px;
+          line-height: 1.4;
+          border: 1px solid transparent;
+          white-space: nowrap;
+        }
+        .badge-red { background: #fee2e2; color: #991b1b; border-color: #fecaca; }
+        .badge-green { background: #dcfce7; color: #166534; border-color: #bbf7d0; }
+        .badge-amber { background: #fef3c7; color: #92400e; border-color: #fde68a; }
+
         .search-input {
           flex: 1 1 auto;
           padding: 8px 10px;
@@ -687,13 +880,14 @@ export default function ServicesMultiHost() {
         <span style={{ fontSize: 16, color: "#6b7280" }}>({`Total señales: ${titanSignalsCount}`})</span>
       </h2>
 
-      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12 }}>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
         <input
           ref={searchRef}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Buscar (host, IP, nombre, url, fuente, estado, outputs...)"
+          placeholder="Buscar (host, IP, nombre, url, fuente, estado, alarms, tsErrors...)"
           className="search-input"
+          style={{ minWidth: 260 }}
         />
         <button
           onClick={handleClear}
@@ -716,6 +910,22 @@ export default function ServicesMultiHost() {
           />
           Auto 30s
         </label>
+
+        {/* Nuevo: Switch Pattern/Still como falla */}
+        {/* <label style={{ display: "flex", gap: 6, alignItems: "center" }} title="Si está activo, Pattern/Still se considerará falla de video.">
+          <input
+            type="checkbox"
+            checked={treatPatternAsFail}
+            onChange={(e) => {
+              setTreatPatternAsFail(e.target.checked);
+              // Recalcular filas con la nueva preferencia
+              setTimeout(() => loadAll(), 0);
+            }}
+            disabled={hostsLoading || hosts.length === 0}
+          />
+          Pattern/Still como falla
+        </label> */}
+
         <button onClick={handleExportCsv} disabled={filtered.length === 0} className="btn btn-outline">
           Exportar CSV
         </button>
@@ -730,7 +940,7 @@ export default function ServicesMultiHost() {
 
       {errors.length > 0 && (
         <div style={{ background: "#fff4f4", border: "1px solid #f5c2c7", padding: 8, marginBottom: 12 }}>
-          <strong>Errores de conexión:</strong>
+          <strong>Errores de conexión y validaciones:</strong>
           <ul style={{ margin: 0, paddingInlineStart: 18 }}>
             {errors.map((er, i) => (
               <li key={i} style={{ whiteSpace: "pre-wrap" }}>{er}</li>
@@ -769,6 +979,9 @@ export default function ServicesMultiHost() {
                   <th style={thCompact}>Name</th>
                   <th style={thCompact}>IP</th>
                   <th style={thCompact}>Fuente</th>
+                  <th style={thCompact}>Audio</th>
+                  <th style={thCompact}>Video</th>
+                  <th style={thCompact}>TS Err</th>
                 </tr>
               </thead>
               <tbody>
@@ -803,6 +1016,21 @@ export default function ServicesMultiHost() {
                     <td style={tdCompact} title={r.sourceText}>
                       {r.sourceText}
                     </td>
+                    <td style={tdCompact}>
+                      {r.audioAlarm ? (
+                        <span className="badge badge-red" title={`Nivel: ${r.audioLevelDb ?? "N/A"} dB  (umbral ${r.audioThreshold ?? "N/A"} dB)`}>Alarma</span>
+                      ) : (
+                        <span className="badge badge-green" title={`Nivel: ${r.audioLevelDb ?? "N/A"} dB`}>OK</span>
+                      )}
+                    </td>
+                    <td style={tdCompact}>
+                      {r._explicitVideoFail || (r._patternOrStill && treatPatternAsFail) ? (
+                        <span className="badge badge-red">{r._explicitVideoFail ? "Alarma" : "Pattern/Still"}</span>
+                      ) : (
+                        <span className="badge badge-green">OK</span>
+                      )}
+                    </td>
+                    <td style={{ ...tdCompact, textAlign: "right" }}>{r.tsErrors ?? 0}</td>
                   </tr>
                 ))}
               </tbody>
@@ -812,30 +1040,34 @@ export default function ServicesMultiHost() {
       )}
 
       {/* Tabla principal */}
-      <div style={{ overflow: "auto", maxHeight: "75vh", border: "1px solid #ddd" }}>
+      <div className="table-wrap"
+  style={{ overflow: "auto", maxHeight: "75vh", border: "1px solid #ddd", position: "relative" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14, tableLayout: "fixed" }}>
-          <thead style={{ position: "sticky", top: 0, background: "#fafafa" }}>
+          <thead style={{ position: "sticky", top: 0, background: "#fafafa", zIndex: 100  }}>
             <tr>
               <th style={th}>Host</th>
               <th style={th}>IP</th>
               <th style={th}>Name</th>
               <th style={th}>Multicast entrada</th>
               <th style={th}>Multicast salida</th>
-              <th style={{ ...th, width: COL_WIDTHS.fuente, maxWidth: COL_WIDTHS.fuente }}>Fuente</th>
+              {/* <th style={{ ...th, width: COL_WIDTHS.fuente, maxWidth: COL_WIDTHS.fuente }}>Fuente</th> */}
+              <th style={{ ...th, width: COL_WIDTHS.alarma, maxWidth: COL_WIDTHS.alarma }}>Audio</th>
+              <th style={{ ...th, width: COL_WIDTHS.alarma, maxWidth: COL_WIDTHS.alarma }}>Video</th>
               <th style={{ ...th, width: COL_WIDTHS.estado, maxWidth: COL_WIDTHS.estado }}>Estado</th>
+              {/* <th style={{ ...th, width: 100, maxWidth: 120 }}>TS Err</th> */}
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={7} style={{ padding: 12, textAlign: "center", color: "#666" }}>
+                <td colSpan={10} style={{ padding: 12, textAlign: "center", color: "#666" }}>
                   {(loading || hostsLoading) ? "Cargando..." : "Sin datos para mostrar"}
                 </td>
               </tr>
             ) : (
               filtered.map((r, idx) => {
                 const stateText = r.state === "Stopped" ? "Stopped (fail)" : r.state;
-                const isStateFail = r.sourceMode === "fail" || r.state === "Stopped";
+                const isStateFail = r._explicitVideoFail || r.state === "Stopped" || r.audioAlarm === true;
                 return (
                   <tr key={`${r.ip}-${idx}`}>
                     <td style={td}>{r.host}</td>
@@ -865,7 +1097,7 @@ export default function ServicesMultiHost() {
                     </td>
 
                     {/* FUENTE */}
-                    <td
+                    {/* <td
                       style={{
                         ...td,
                         width: COL_WIDTHS.fuente,
@@ -882,8 +1114,14 @@ export default function ServicesMultiHost() {
                             height: 10,
                             borderRadius: "50%",
                             flex: "0 0 auto",
-                            backgroundColor: r.sourceMode === "fail" ? "#d9534f" : "green",
+                            backgroundColor:
+                              r._explicitVideoFail
+                                ? "#d9534f"
+                                : r.sourceMode === "live"
+                                ? "green"
+                                : "#f59e0b",
                           }}
+                          title={r._explicitVideoFail ? "fail" : r.sourceMode}
                         />
                         <span
                           style={{
@@ -897,6 +1135,52 @@ export default function ServicesMultiHost() {
                           {r.sourceText}
                         </span>
                       </div>
+                    </td> */}
+
+                    {/* AUDIO ALARM */}
+                    <td
+                      style={{
+                        ...td,
+                        width: COL_WIDTHS.alarma,
+                        maxWidth: COL_WIDTHS.alarma,
+                        whiteSpace: "nowrap",
+                      }}
+                      title={
+                        r.audioAlarm
+                          ? `Alarma audio • Nivel: ${r.audioLevelDb ?? "N/A"} dB • Umbral ${r.audioThreshold ?? "N/A"} dB`
+                          : `Audio OK • Nivel: ${r.audioLevelDb ?? "N/A"} dB`
+                      }
+                    >
+                      {r.audioAlarm ? (
+                        <span className="badge badge-red" >Alarma</span>
+                      ) : (
+                        <span className="badge badge-green">OK</span>
+                      )}
+                    </td>
+
+                    {/* VIDEO ALARM */}
+                    <td
+                      style={{
+                        ...td,
+                        width: COL_WIDTHS.alarma,
+                        maxWidth: COL_WIDTHS.alarma,
+                        whiteSpace: "nowrap",
+                      }}
+                      title={
+                        r._explicitVideoFail
+                          ? "Alarma video"
+                          : r._patternOrStill && treatPatternAsFail
+                          ? "Pattern/Still (considerado falla)"
+                          : "Video OK"
+                      }
+                    >
+                      {r._explicitVideoFail ? (
+                        <span className="badge badge-red">Alarma</span>
+                      ) : r._patternOrStill && treatPatternAsFail ? (
+                        <span className="badge badge-amber">Pattern/Still</span>
+                      ) : (
+                        <span className="badge badge-green">OK</span>
+                      )}
                     </td>
 
                     {/* ESTADO */}
@@ -933,6 +1217,11 @@ export default function ServicesMultiHost() {
                         </span>
                       </div>
                     </td>
+
+                    {/* TS ERRORS */}
+                    {/* <td style={{ ...td, textAlign: "right" }} title="Suma de errores de PID / CC">
+                      {r.tsErrors ?? 0}
+                    </td> */}
                   </tr>
                 );
               })
@@ -954,6 +1243,19 @@ const th = {
   overflow: "hidden",
   textOverflow: "ellipsis",
   whiteSpace: "nowrap",
+  background: "#fafafa",   // <- asegúrate que tenga fondo
+  zIndex: 100,             // <- AÑADIR: header por encima de badges
+};
+/* Encabezados/celdas compactas para la tabla de fallas (contenido ajustado) */
+const thCompact = {
+  textAlign: "center",
+  padding: "8px 8px",
+  borderBottom: "1px solid #f0c4c4",
+  whiteSpace: "nowrap",
+  position: "sticky",      // <- AÑADIR: también sticky si no lo estaba
+  top: 0,                  // <- AÑADIR
+  background: "#fdeeee",   // <- AÑADIR
+  zIndex: 100,             // <- AÑADIR
 };
 
 const td = {
@@ -964,13 +1266,8 @@ const td = {
   whiteSpace: "nowrap",
 };
 
-/* Encabezados/celdas compactas para la tabla de fallas (contenido ajustado) */
-const thCompact = {
-  textAlign: "center",
-  padding: "8px 8px",
-  borderBottom: "1px solid #f0c4c4",
-  whiteSpace: "nowrap",
-};
+
+
 
 const tdCompact = {
   padding: "6px 8px",

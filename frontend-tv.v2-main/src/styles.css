@@ -553,6 +553,25 @@ a{
     text-decoration: none;
 }
 
+/* Hace que el header sticky quede por encima del contenido */
+.table-wrap thead th {
+  z-index: 115;        /* más alto que cualquier contenido de celdas */
+  background: #fafafa; /* asegura que tape lo que pasa por detrás */
+}
+
+/* (Opcional) si tienes otro header sticky con distinto color */
+.table-wrap thead.sticky-fail th {
+  z-index: 115;
+  background: #fdeeee;
+}
+
+/* Asegura que los badges no creen una capa superior inesperada */
+.badge {
+  position: relative;
+  z-index: 0;
+}
+
+
 @media (max-width: 768px) {
     .grid-cols-2 {
         grid-template-columns: 1fr;
