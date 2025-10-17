@@ -1025,7 +1025,7 @@ export default function ServicesMultiHost() {
           ref={searchRef}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Buscar (host, IP, nombre, url, fuente, estado, alarms, tsErrors...)"
+          placeholder="Buscar (host, IP, nombre, estado...)"
           className="search-input"
           style={{ minWidth: 260 }}
         />
