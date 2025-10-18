@@ -681,6 +681,7 @@ export default function ServicesMultiHost() {
   const [errors, setErrors] = useState([]);
   const [query, setQuery] = useState("");
   const [autoRefresh, setAutoRefresh] = useState(false);
+  const [showErrors, setShowErrors] = useState(false);
   const [treatPatternAsFail, setTreatPatternAsFail] = useState(false); // << Switch UI
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
   const timerRef = useRef(null);
@@ -1051,6 +1052,16 @@ export default function ServicesMultiHost() {
           Auto 30s
         </label>
 
+        <label style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <input
+            type="checkbox"
+            checked={showErrors}
+            onChange={(e) => setShowErrors(e.target.checked)}
+            disabled={errors.length === 0}
+          />
+          Mostrar errores
+        </label>
+
         {/* Nuevo: Switch Pattern/Still como falla */}
         {/* <label style={{ display: "flex", gap: 6, alignItems: "center" }} title="Si está activo, Pattern/Still se considerará falla de video.">
           <input
@@ -1078,7 +1089,7 @@ export default function ServicesMultiHost() {
         </div>
       )}
 
-      {errors.length > 0 && (
+      {showErrors && errors.length > 0 && (
         <div style={{ background: "#fff4f4", border: "1px solid #f5c2c7", padding: 8, marginBottom: 12 }}>
           <strong>Errores de conexión y validaciones:</strong>
           <ul style={{ margin: 0, paddingInlineStart: 18 }}>
