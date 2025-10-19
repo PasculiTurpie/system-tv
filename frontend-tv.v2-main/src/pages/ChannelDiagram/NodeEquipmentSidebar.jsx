@@ -365,7 +365,7 @@ const NodeEquipmentSidebar = ({
 
       {activeNode && (
         <>
-          <div className="channel-diagram__sidebar-section" data-section="summary">
+          {/* <div className="channel-diagram__sidebar-section" data-section="summary">
             <dl className="channel-diagram__definition-list">
               <div>
                 <dt>ID nodo</dt>
@@ -413,9 +413,9 @@ const NodeEquipmentSidebar = ({
                 {locked ? "Desbloquear" : "Bloquear posición"}
               </button>
             </div>
-          </div>
+          </div> */}
 
-          <div className="channel-diagram__sidebar-section" data-section="editable">
+         {/*  <div className="channel-diagram__sidebar-section" data-section="editable">
             <label className="channel-diagram__label" htmlFor="node-label-input">
               Etiqueta
             </label>
@@ -498,9 +498,9 @@ const NodeEquipmentSidebar = ({
                 {!tagsDraft.length && <span className="channel-diagram__chip is-empty">Sin tags</span>}
               </div>
             </div>
-          </div>
+          </div> */}
 
-          <div className="channel-diagram__sidebar-section" data-section="positions">
+          {/* <div className="channel-diagram__sidebar-section" data-section="positions">
             <h3 className="channel-diagram__sidebar-subtitle">Posiciones de etiquetas</h3>
             <div className="channel-diagram__grid-two">
               <label className="channel-diagram__label" htmlFor="label-pos-x">
@@ -563,9 +563,9 @@ const NodeEquipmentSidebar = ({
                 inputMode="numeric"
               />
             </div>
-          </div>
+          </div> */}
 
-          {isRouterNode(activeNode) && (
+         {/*  {isRouterNode(activeNode) && (
             <div className="channel-diagram__sidebar-section" data-section="router">
               <h3 className="channel-diagram__sidebar-subtitle">Router</h3>
               {routerSummary && (
@@ -592,9 +592,9 @@ const NodeEquipmentSidebar = ({
                 </button>
               </div>
             </div>
-          )}
+          )} */}
 
-          <div className="channel-diagram__sidebar-section" data-section="handles">
+         {/*  <div className="channel-diagram__sidebar-section" data-section="handles">
             <h3 className="channel-diagram__sidebar-subtitle">Puertos conectados</h3>
             <table className="channel-diagram__handles-table">
               <thead>
@@ -632,9 +632,9 @@ const NodeEquipmentSidebar = ({
                 ))}
               </tbody>
             </table>
-          </div>
+          </div> */}
 
-          {(multicastConflicts.length > 0 || pendingEdges.length > 0) && (
+          {/* {(multicastConflicts.length > 0 || pendingEdges.length > 0) && (
             <div className="channel-diagram__sidebar-section" data-section="alerts">
               <h3 className="channel-diagram__sidebar-subtitle">Alertas</h3>
               {multicastConflicts.map((conflict) => (
@@ -658,7 +658,7 @@ const NodeEquipmentSidebar = ({
                 </div>
               )}
             </div>
-          )}
+          )} */}
 
           <div className="channel-diagram__sidebar-section" data-section="details">
             <EquipoDetail
@@ -669,13 +669,13 @@ const NodeEquipmentSidebar = ({
               title="Información del equipo"
             />
 
-            <EquipoIrd
+            {/* <EquipoIrd
               ird={irdState.data}
               loading={irdState.loading}
               error={irdState.error}
               compact
               title="Información IRD"
-            />
+            /> */}
           </div>
 
           {feedback && (

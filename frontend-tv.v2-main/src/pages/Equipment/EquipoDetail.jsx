@@ -48,7 +48,7 @@ export default function EquipoDetail({
       {!loading && !error && equipo && (
         <>
           <div style={gridStyle}>
-            <div><strong>ID:</strong> {Safe(equipo?._id)}</div>
+            {/* <div><strong>ID:</strong> {Safe(equipo?._id)}</div> */}
             <div><strong>Nombre:</strong> {Safe(equipo?.nombre).toLocaleUpperCase()}</div>
             <div><strong>Marca:</strong> {Safe(equipo?.marca).toLocaleUpperCase()}</div>
             <div><strong>Modelo:</strong> {Safe(equipo?.modelo.toLocaleUpperCase())}</div>
