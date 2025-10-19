@@ -33,6 +33,7 @@ import {
   isRouterNode,
 } from "./diagramUtils";
 import { createPersistLabelPositions } from "./persistLabelPositions";
+import { getSampleDiagramById } from "./samples";
 
 const AUTO_SAVE_DELAY = 320;
 const FIT_VIEW_PADDING = 0.2;
@@ -121,7 +122,9 @@ const ChannelDiagram = () => {
   );
 
   const { isAuth } = useContext(UserContext);
-  const isReadOnly = !isAuth;
+  const [isSampleDiagram, setIsSampleDiagram] = useState(false);
+  const [diagramMetadata, setDiagramMetadata] = useState(null);
+  const isReadOnly = !isAuth || isSampleDiagram;
 
   const [loading, setLoading] = useState(true);
   const [nodes, setNodesState] = useNodesState([]);
@@ -220,7 +223,7 @@ const ChannelDiagram = () => {
   const saveTimer = useRef(null);
 
   const saveDiagram = useCallback(async () => {
-    if (!channelId || !channelIdParam || !isAuth) return;
+    if (!channelId || !channelIdParam || !isAuth || isSampleDiagram) return;
     const payload = {
       channelId: String(channelId),
       nodes: nodesRef.current.map(toApiNode),
@@ -231,13 +234,13 @@ const ChannelDiagram = () => {
     } catch (errorUpdate) {
       console.error("Error al guardar diagrama:", errorUpdate);
     }
-  }, [channelId, channelIdParam, isAuth]);
+  }, [channelId, channelIdParam, isAuth, isSampleDiagram]);
 
   const requestSave = useCallback(() => {
-    if (!isAuth) return;
+    if (!isAuth || isSampleDiagram) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(saveDiagram, AUTO_SAVE_DELAY);
-  }, [isAuth, saveDiagram]);
+  }, [isAuth, isSampleDiagram, saveDiagram]);
 
   const ensureRouterEdges = useCallback(
     (node, options = {}) => {
@@ -286,6 +289,25 @@ const ChannelDiagram = () => {
           throw new Error("El identificador del canal es obligatorio.");
         }
 
+        const sampleDiagram = getSampleDiagramById(requestedId);
+        if (sampleDiagram) {
+          const { nodes: normalizedNodes, edges: normalizedEdges } =
+            prepareDiagramState(sampleDiagram);
+
+          if (cancelled) return;
+
+          setChannelId(String(sampleDiagram._id || requestedId));
+          setIsSampleDiagram(true);
+          setDiagramMetadata(sampleDiagram.metadata || null);
+          updateNodes(() => normalizedNodes);
+          updateEdges(() => normalizedEdges);
+          syncConfirmedNodePositions(normalizedNodes);
+          syncConfirmedNodeLabelPositions(normalizedNodes);
+          syncConfirmedEdgePositions(normalizedEdges);
+          setSelectedNodeId(null);
+          return;
+        }
+
         const response = await api.getChannelDiagramById(requestedId);
         const payload = response?.data ?? response;
         const diagram = Array.isArray(payload) ? payload[0] : payload;
@@ -300,6 +322,8 @@ const ChannelDiagram = () => {
         if (cancelled) return;
 
         setChannelId(String(diagram._id));
+        setIsSampleDiagram(false);
+        setDiagramMetadata(diagram?.metadata || null);
         updateNodes(() => normalizedNodes);
         updateEdges(() => normalizedEdges);
         syncConfirmedNodePositions(normalizedNodes);
@@ -308,10 +332,13 @@ const ChannelDiagram = () => {
         setSelectedNodeId(null);
       } catch (err) {
         if (!cancelled) {
+          setIsSampleDiagram(false);
+          setDiagramMetadata(null);
           setError(err?.message || "Error al cargar el diagrama");
           updateNodes(() => []);
           updateEdges(() => []);
           syncConfirmedNodePositions([]);
+          syncConfirmedNodeLabelPositions([]);
           syncConfirmedEdgePositions([]);
         }
       } finally {
@@ -336,18 +363,18 @@ const ChannelDiagram = () => {
   ]);
 
   const nodePatchScheduler = useMemo(() => {
-    if (!channelId || !isAuth) return null;
+    if (!channelId || !isAuth || isSampleDiagram) return null;
     return createPatchScheduler((nodeKey, payload) =>
       api.patchChannelNode(channelId, nodeKey, payload)
     );
-  }, [channelId, isAuth]);
+  }, [channelId, isAuth, isSampleDiagram]);
 
   const edgePatchScheduler = useMemo(() => {
-    if (!channelId || !isAuth) return null;
+    if (!channelId || !isAuth || isSampleDiagram) return null;
     return createPatchScheduler((edgeKey, payload) =>
       api.patchChannelEdge(channelId, edgeKey, payload)
     );
-  }, [channelId, isAuth]);
+  }, [channelId, isAuth, isSampleDiagram]);
 
   useEffect(
     () => () => {
@@ -379,17 +406,18 @@ const ChannelDiagram = () => {
     [edgePatchScheduler]
   );
 
-  const persistLabelPositions = useMemo(
-    () =>
-      createPersistLabelPositions({
-        getChannelId: () => channelId,
-        getIsAuth: () => isAuth,
-        requestSave,
-        confirmedNodeLabelPositionsRef,
-        confirmedEdgePositionsRef,
-      }),
-    [channelId, isAuth, requestSave]
-  );
+  const persistLabelPositions = useMemo(() => {
+    if (!channelId || !isAuth || isSampleDiagram) {
+      return null;
+    }
+    return createPersistLabelPositions({
+      getChannelId: () => channelId,
+      getIsAuth: () => isAuth,
+      requestSave,
+      confirmedNodeLabelPositionsRef,
+      confirmedEdgePositionsRef,
+    });
+  }, [channelId, isAuth, isSampleDiagram, requestSave]);
 
   const handleNodeLabelChange = useCallback(
     (nodeId, nextLabel) => {
@@ -1023,7 +1051,25 @@ const ChannelDiagram = () => {
         <div className="channel-diagram__layout">
           <div className="channel-diagram__canvas">
             {isReadOnly && (
-              <div className="diagram-readonly-banner">Modo solo lectura.</div>
+              <div className="diagram-readonly-banner">
+                {isSampleDiagram
+                  ? "Diagrama de ejemplo: modo solo lectura."
+                  : "Modo solo lectura."}
+              </div>
+            )}
+            {diagramMetadata?.description && (
+              <div
+                className={`diagram-metadata-banner${
+                  isSampleDiagram ? " diagram-metadata-banner--demo" : ""
+                }`}
+              >
+                <strong className="diagram-metadata-banner__title">
+                  {diagramMetadata?.title || "Diagrama"}
+                </strong>
+                <span className="diagram-metadata-banner__description">
+                  {diagramMetadata.description}
+                </span>
+              </div>
             )}
             <DiagramContext.Provider value={contextValue}>
               <ReactFlow
