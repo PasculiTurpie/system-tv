@@ -87,6 +87,7 @@ const App = () => {
                         {/* Crear */}
                         <Route path="/channels/new" element={<ChannelForm />} />
                         {/* Editar */}
+                        <Route path="/channels/:id/edit" element={<ChannelForm />} />
 
                         <Route path="/equipment" element={<Equipment />} />
                         <Route path="/register-type-equitment" element={<TipoEquipoForm />} />

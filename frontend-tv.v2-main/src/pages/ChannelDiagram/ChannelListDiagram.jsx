@@ -103,6 +103,15 @@ const ChannelListDiagram = () => {
 
   // Ir a editar el diagrama por ID del canal
   const handleEdit = (channel) => {
+    if (channel?.isSample) {
+      Swal.fire(
+        "Diagrama de ejemplo",
+        "Los diagramas de demostración no pueden editarse.",
+        "info"
+      );
+      return;
+    }
+
     const channelId = channel?._id;
 
     if (!channelId) {
@@ -114,7 +123,7 @@ const ChannelListDiagram = () => {
       return;
     }
 
-    navigate(`/channels/${String(channelId)}`);
+    navigate(`/channels/${String(channelId)}/edit`);
   };
 
   const totalPages = Math.ceil(filteredChannels.length / PAGE_SIZE);

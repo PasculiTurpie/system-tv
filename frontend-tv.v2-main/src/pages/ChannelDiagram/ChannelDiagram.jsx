@@ -133,6 +133,7 @@ const ChannelDiagram = () => {
   const [channelId, setChannelId] = useState(null);
   const [selectedNodeId, setSelectedNodeId] = useState(null);
   const [reactFlowInstance, setReactFlowInstance] = useState(null);
+  const [sidebarVisible, setSidebarVisible] = useState(true);
 
   const nodesRef = useRef(nodes);
   const edgesRef = useRef(edges);
@@ -206,6 +207,10 @@ const ChannelDiagram = () => {
     },
     [setEdgesState]
   );
+
+  const toggleSidebar = useCallback(() => {
+    setSidebarVisible((prev) => !prev);
+  }, []);
 
 
   const selectedNode = useMemo(
@@ -1057,6 +1062,13 @@ const ChannelDiagram = () => {
                   : "Modo solo lectura."}
               </div>
             )}
+            <button
+              type="button"
+              className="channel-diagram__toggle-sidebar"
+              onClick={toggleSidebar}
+            >
+              {sidebarVisible ? "Ocultar inspector" : "Mostrar inspector"}
+            </button>
             {diagramMetadata?.description && (
               <div
                 className={`diagram-metadata-banner${
@@ -1100,21 +1112,23 @@ const ChannelDiagram = () => {
               </ReactFlow>
             </DiagramContext.Provider>
           </div>
-          <NodeEquipmentSidebar
-            node={selectedNode}
-            edges={edges}
-            readOnly={isReadOnly}
-            onLabelChange={handleNodeLabelChange}
-            onDataPatch={handleNodeDataPatch}
-            onLabelPositionChange={handleNodeLabelPositionChange}
-            onMulticastPositionChange={handleNodeMulticastPositionChange}
-            onFocusNode={focusNodeById}
-            onDuplicateNode={handleDuplicateNode}
-            onToggleNodeLock={handleNodeLockChange}
-            onEnsureRouterEdges={(node) => ensureRouterEdges(node)}
-            onRegenerateRouterEdges={(node) => ensureRouterEdges(node, { force: true })}
-            persistLabelPositions={persistLabelPositions}
-          />
+          {sidebarVisible && (
+            <NodeEquipmentSidebar
+              node={selectedNode}
+              edges={edges}
+              readOnly={isReadOnly}
+              onLabelChange={handleNodeLabelChange}
+              onDataPatch={handleNodeDataPatch}
+              onLabelPositionChange={handleNodeLabelPositionChange}
+              onMulticastPositionChange={handleNodeMulticastPositionChange}
+              onFocusNode={focusNodeById}
+              onDuplicateNode={handleDuplicateNode}
+              onToggleNodeLock={handleNodeLockChange}
+              onEnsureRouterEdges={(node) => ensureRouterEdges(node)}
+              onRegenerateRouterEdges={(node) => ensureRouterEdges(node, { force: true })}
+              persistLabelPositions={persistLabelPositions}
+            />
+          )}
         </div>
       </div>
     </ReactFlowProvider>
