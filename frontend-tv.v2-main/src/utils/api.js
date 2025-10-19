@@ -199,6 +199,7 @@ class Api {
             .then((r) => r);
     }
 
+    // ====== IRD / EQUIPOS ======
     getIrd() {
         return this._axios.get("/irds").then((r) => r);
     }
@@ -213,6 +214,15 @@ class Api {
     }
     updateIrd(id, values) {
         return this._axios.put(`/irds/${id}`, values).then((r) => r.data);
+    }
+    // SUGERENCIA APLICADA: recrear/sincronizar Equipo desde el IRD (POST /irds/:id/recreate-equipo)
+    recreateEquipoFromIrd(id) {
+        return this._axios.post(`/irds/${id}/recreate-equipo`).then((r) => r.data);
+    }
+    // Opcional: si decides manejarlo via PUT con flag recreateEquipo=true
+    updateIrdWithRecreate(id, values) {
+        return this._axios.put(`/irds/${id}`, values, { params: { recreateEquipo: true } })
+            .then((r) => r.data);
     }
 
     validateExcelIrds(file) {
@@ -265,38 +275,6 @@ class Api {
     }
     updateTipoEquipo(id, values) {
         return this._axios.put(`/tipo-equipo/${id}`, values).then((r) => r);
-    }
-
-    getContact() {
-        return this._axios.get("/contacts").then((r) => r);
-    }
-    deleteContact(id) {
-        return this._axios.delete(`/contacts/${id}`).then((r) => r);
-    }
-    createContact(values) {
-        return this._axios.post("/contacts", values).then((r) => r.data);
-    }
-    getIdContact(id) {
-        return this._axios.get(`/contacts/${id}`).then((r) => r);
-    }
-    updateContact(id, values) {
-        return this._axios.put(`/contacts/${id}`, values).then((r) => r);
-    }
-
-    getTipoTech() {
-        return this._axios.get("/tipo-tech").then((r) => r);
-    }
-    deleteTipoTech(id) {
-        return this._axios.delete(`/tipo-tech/${id}`).then((r) => r);
-    }
-    createTipoTech(values) {
-        return this._axios.post("/tipo-tech", values).then((r) => r.data);
-    }
-    getIdTipoTech(id) {
-        return this._axios.get(`/tipo-tech/${id}`).then((r) => r);
-    }
-    updateTipoTech(id, values) {
-        return this._axios.put(`/tipo-tech/${id}`, values).then((r) => r);
     }
 
     createChannelDiagram(payload) {
