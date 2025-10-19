@@ -25,6 +25,7 @@ export default function CustomDirectionalEdge(props) {
     onEdgeLabelPositionChange,
     onEdgeEndpointLabelChange,
     onEdgeEndpointLabelPositionChange,
+    onEdgeEndpointLabelPersist,
     onEdgeMulticastPositionChange,
     persistLabelPositions,
   } = useContext(DiagramContext);
@@ -127,6 +128,12 @@ export default function CustomDirectionalEdge(props) {
     [id, onEdgeEndpointLabelPositionChange]
   );
 
+  const handleEndpointPersist = useCallback(
+    (endpoint, nextPosition, meta) =>
+      onEdgeEndpointLabelPersist?.(id, endpoint, nextPosition, meta),
+    [id, onEdgeEndpointLabelPersist]
+  );
+
   const handleMulticastPersist = useCallback(
     (nextPosition, meta) => {
       if (!meta?.moved || isReadOnly || !persistLabelPositions) {
@@ -164,7 +171,7 @@ export default function CustomDirectionalEdge(props) {
         onPersist={handleCentralPersist}
       />
 
-    {/*   {(endpointLabels.source || !isReadOnly) && (
+      {(endpointLabels.source || !isReadOnly) && (
         <EditableEdgeLabel
           text={endpointLabels.source || ""}
           position={endpointLabelPositions.source}
@@ -175,6 +182,9 @@ export default function CustomDirectionalEdge(props) {
           onCommit={(value) => handleEndpointLabelCommit("source", value)}
           onPositionChange={(position) =>
             handleEndpointPositionChange("source", position)
+          }
+          onPersist={(position, meta) =>
+            handleEndpointPersist("source", position, meta)
           }
         />
       )}
@@ -191,8 +201,11 @@ export default function CustomDirectionalEdge(props) {
           onPositionChange={(position) =>
             handleEndpointPositionChange("target", position)
           }
+          onPersist={(position, meta) =>
+            handleEndpointPersist("target", position, meta)
+          }
         />
-      )} */}
+      )}
 
       {multicast && multicastDefaultPosition && (
         <EdgeLabelDraggable
