@@ -114,6 +114,17 @@ const NodeEquipmentSidebar = ({
     return fromData ?? fromRoot ?? null;
   }, [activeNode]);
 
+  const irdId = useMemo(() => {
+    if (!activeNode) return null;
+    const nodeCandidate = extractId(
+      activeNode?.data?.irdId ?? activeNode?.data?.irdRef ?? activeNode?.data?.ird
+    );
+    if (nodeCandidate) return nodeCandidate;
+
+    const equipoData = equipoState.data;
+    return extractId(equipoData?.irdRef ?? equipoData?.ird);
+  }, [activeNode, equipoState.data]);
+
   useEffect(() => {
     let active = true;
 
@@ -153,19 +164,7 @@ const NodeEquipmentSidebar = ({
   useEffect(() => {
     let active = true;
 
-    if (!activeNode) {
-      setIrdState(createEmptyState());
-      return () => {
-        active = false;
-      };
-    }
-
-    const equipoData = equipoState.data;
-    const irdCandidate =
-      extractId(activeNode?.data?.irdId ?? activeNode?.data?.irdRef ?? activeNode?.data?.ird) ??
-      extractId(equipoData?.irdRef ?? equipoData?.ird);
-
-    if (!irdCandidate) {
+    if (!activeNode || !irdId) {
       setIrdState(createEmptyState());
       return () => {
         active = false;
@@ -175,7 +174,7 @@ const NodeEquipmentSidebar = ({
     setIrdState({ loading: true, data: null, error: null });
 
     api
-      .getIdIrd(irdCandidate)
+      .getIdIrd(irdId)
       .then((res) => {
         if (!active) return;
         const data = res?.data ?? res;
@@ -193,7 +192,7 @@ const NodeEquipmentSidebar = ({
     return () => {
       active = false;
     };
-  }, [activeNode, equipoState.data]);
+  }, [activeNode, irdId]);
 
   const handleUsage = useMemo(
     () => getNodeHandleUsage(activeNode, edges),
@@ -327,6 +326,11 @@ const NodeEquipmentSidebar = ({
     if (!activeNode || readOnly) return;
     onToggleNodeLock?.(activeNode.id, !locked);
   }, [activeNode, onToggleNodeLock, locked, readOnly]);
+
+  const shouldShowIrdDetails = useMemo(() => {
+    if (!activeNode) return false;
+    return Boolean(irdId || irdState.loading || irdState.error || irdState.data);
+  }, [activeNode, irdId, irdState.data, irdState.error, irdState.loading]);
 
   return (
     <aside className="channel-diagram__sidebar" aria-live="polite">
@@ -669,13 +673,15 @@ const NodeEquipmentSidebar = ({
               title="Información del equipo"
             />
 
-            {/* <EquipoIrd
-              ird={irdState.data}
-              loading={irdState.loading}
-              error={irdState.error}
-              compact
-              title="Información IRD"
-            /> */}
+            {shouldShowIrdDetails && (
+              <EquipoIrd
+                ird={irdState.data}
+                loading={irdState.loading}
+                error={irdState.error}
+                compact
+                title="Información IRD"
+              />
+            )}
           </div>
 
           {feedback && (
