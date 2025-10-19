@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import api from "../../utils/api";
+import { getSampleChannelSummaries } from "./samples";
 
 const PAGE_SIZE = 10;
 
@@ -14,15 +15,28 @@ const ChannelListDiagram = () => {
   const navigate = useNavigate();
 
   const fetchChannels = async () => {
+    const samples = getSampleChannelSummaries();
     try {
       const res = await api.getChannelDiagram();
       const data = Array.isArray(res?.data) ? res.data : [];
-      setChannels(data);
-      setFilteredChannels(data);
+      const combined = [...data, ...samples];
+      setChannels(combined);
+      setFilteredChannels(combined);
       setCurrentPage(1);
     } catch (error) {
       console.error("Error al cargar los canales", error);
-      Swal.fire("Error", "No se pudieron cargar los canales", "error");
+      if (samples.length) {
+        setChannels(samples);
+        setFilteredChannels(samples);
+        setCurrentPage(1);
+        Swal.fire(
+          "Modo demostración",
+          "No se pudieron cargar los canales desde el servidor. Mostrando diagramas de ejemplo.",
+          "info"
+        );
+      } else {
+        Swal.fire("Error", "No se pudieron cargar los canales", "error");
+      }
     }
   };
 
@@ -44,7 +58,22 @@ const ChannelListDiagram = () => {
     setCurrentPage(1);
   }, [filterText, channels]);
 
-  const handleDelete = (id) => {
+  const handleDelete = (channel) => {
+    if (!channel || channel.isSample) {
+      Swal.fire(
+        "Contenido de ejemplo",
+        "Los diagramas de ejemplo no se pueden eliminar.",
+        "info"
+      );
+      return;
+    }
+
+    const { _id: id } = channel || {};
+    if (!id) {
+      Swal.fire("Canal no disponible", "No se pudo determinar el canal a eliminar.", "warning");
+      return;
+    }
+
     Swal.fire({
       title: "¿Estás seguro?",
       text: "No podrás revertir esta acción",
@@ -119,6 +148,24 @@ const ChannelListDiagram = () => {
         }}
       />
 
+      {channels.some((ch) => ch.isSample) && (
+        <div
+          style={{
+            marginBottom: "1rem",
+            padding: "0.75rem 1rem",
+            borderRadius: "12px",
+            background: "#eff6ff",
+            border: "1px solid #bfdbfe",
+            color: "#1e3a8a",
+            fontSize: "0.9rem",
+            fontWeight: 500,
+          }}
+        >
+          Los canales marcados como <strong>Demo</strong> son diagramas de ejemplo
+          listos para inspeccionar el flujo sin necesidad de backend.
+        </div>
+      )}
+
       <table
         className="table"
         style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}
@@ -142,7 +189,22 @@ const ChannelListDiagram = () => {
           ) : (
             pagedChannels.map((channel) => (
               <tr key={channel._id} style={{ borderBottom: "1px solid #ccc" }}>
-                <td>{channel.signal?.nameChannel || "Sin nombre"}</td>
+                <td>
+                  {channel.signal?.nameChannel || "Sin nombre"}
+                  {channel.isSample ? (
+                    <span
+                      style={{
+                        marginLeft: "0.35rem",
+                        fontSize: "0.75rem",
+                        fontWeight: 600,
+                        color: "#2563eb",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      Demo
+                    </span>
+                  ) : null}
+                </td>
                 <td>{channel.signal?.tipoTecnologia || "-"}</td>
                 <td>{channel.nodes?.length || 0}</td>
                 <td>{channel.edges?.length || 0}</td>
@@ -156,7 +218,13 @@ const ChannelListDiagram = () => {
                   </button>
                   <button
                     className="button btn-danger"
-                    onClick={() => handleDelete(channel._id)}
+                    onClick={() => handleDelete(channel)}
+                    disabled={channel.isSample}
+                    title={
+                      channel.isSample
+                        ? "Los diagramas de ejemplo no se pueden eliminar"
+                        : undefined
+                    }
                   >
                     Eliminar
                   </button>

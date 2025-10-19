@@ -58,6 +58,43 @@
     z-index: 10;
 }
 
+.diagram-metadata-banner {
+    position: absolute;
+    top: 64px;
+    left: 24px;
+    max-width: 420px;
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid rgba(148, 163, 184, 0.45);
+    border-radius: 14px;
+    padding: 0.75rem 1rem;
+    box-shadow: 0 12px 24px rgba(15, 23, 42, 0.14);
+    backdrop-filter: blur(4px);
+    z-index: 9;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    color: #0f172a;
+}
+
+.diagram-metadata-banner--demo {
+    background: rgba(219, 234, 254, 0.95);
+    border-color: rgba(147, 197, 253, 0.8);
+    color: #1d4ed8;
+}
+
+.diagram-metadata-banner__title {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+}
+
+.diagram-metadata-banner__description {
+    font-size: 0.85rem;
+    line-height: 1.45;
+    color: inherit;
+}
+
 .channel-diagram__wrapper {
     width: 100%;
     height: 100vh;
