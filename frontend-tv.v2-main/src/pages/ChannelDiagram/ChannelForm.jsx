@@ -1,11 +1,12 @@
 // src/pages/ChannelDiagram/ChannelForm.jsx
 import { Field, Formik, Form, useFormikContext } from "formik";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import api from "../../utils/api";
 import Select from "react-select";
 import Swal from "sweetalert2";
 import "./ChannelForm.css";
+import { prepareDiagramState } from "./diagramUtils";
 
 // Fallback numérico para MarkerType.ArrowClosed (React Flow = 1)
 const ARROW_CLOSED = { type: 1 };
@@ -31,6 +32,21 @@ const selectStyles = {
 };
 
 const STORAGE_KEY = "channel-form-draft";
+
+const formatSignalLabel = (signal) => {
+  if (!signal || typeof signal !== "object") return "";
+  const name =
+    signal?.nameChannel ||
+    signal?.nombre ||
+    signal?.signalName ||
+    signal?.signal ||
+    signal?.label;
+  const technology = signal?.tipoTecnologia || signal?.tipo || signal?.technology;
+  const parts = [];
+  if (name) parts.push(String(name));
+  if (technology) parts.push(String(technology));
+  return parts.join(" - ");
+};
 
 const defaultFormikValues = {
   // Nodo
@@ -172,6 +188,8 @@ function pickHandlesByGeometry(srcNode, tgtNode, direction /* 'ida' | 'vuelta' *
 const ChannelForm = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { id: channelIdParam } = useParams();
+  const isEditMode = Boolean(channelIdParam);
 
   // Señales
   const [optionsSelectChannel, setOptionSelectChannel] = useState([]);
@@ -180,6 +198,9 @@ const ChannelForm = () => {
   const [allEquipoOptions, setAllEquipoOptions] = useState([]); // ✅ copia maestra para "Vaciar todo"
   const [selectedValue, setSelectedValue] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
+  const [currentChannel, setCurrentChannel] = useState(null);
+  const [loadingChannel, setLoadingChannel] = useState(isEditMode);
+  const [channelError, setChannelError] = useState(null);
 
     // Equipos agrupados
     const [optionsSelectEquipo, setOptionSelectEquipo] = useState([]);
@@ -200,6 +221,12 @@ const ChannelForm = () => {
   const [formValues, setFormValues] = useState(defaultFormikValues);
   const [edgeDirection, setEdgeDirection] = useState(EDGE_DIR_OPTIONS[0]);
   const [isRestoring, setIsRestoring] = useState(true);
+
+  useEffect(() => {
+    if (isEditMode) {
+      setIsRestoring(false);
+    }
+  }, [isEditMode]);
 
   const persistDraft = useCallback(
     (payload) => {
@@ -223,6 +250,10 @@ const ChannelForm = () => {
   }, []);
 
   useEffect(() => {
+    if (isEditMode) {
+      return;
+    }
+
     if (typeof window === "undefined") {
       setIsRestoring(false);
       return;
@@ -263,10 +294,10 @@ const ChannelForm = () => {
     } finally {
       setIsRestoring(false);
     }
-  }, []);
+  }, [isEditMode]);
 
   useEffect(() => {
-    if (isRestoring) return;
+    if (isEditMode || isRestoring) return;
 
     const hasFormValues = Object.values(formValues || {}).some((val) => {
       if (typeof val === "number") return !Number.isNaN(val) && val !== 0;
@@ -322,7 +353,77 @@ const ChannelForm = () => {
     selectedIdEquipo,
     selectedValue,
     isRestoring,
+    isEditMode,
   ]);
+
+  useEffect(() => {
+    if (!isEditMode) {
+      setCurrentChannel(null);
+      setChannelError(null);
+      setLoadingChannel(false);
+      return;
+    }
+
+    let active = true;
+    setLoadingChannel(true);
+    setChannelError(null);
+
+    (async () => {
+      try {
+        const response = await api.getChannelDiagramById(channelIdParam);
+        const payload = response?.data ?? response;
+        const diagram = Array.isArray(payload) ? payload[0] : payload;
+
+        if (!diagram) {
+          throw new Error("No se encontró el diagrama solicitado para edición.");
+        }
+
+        if (diagram?.isSample) {
+          throw new Error("Los diagramas de demostración no se pueden editar.");
+        }
+
+        const { nodes: normalizedNodes, edges: normalizedEdges } =
+          prepareDiagramState(diagram);
+
+        if (!active) return;
+
+        setCurrentChannel(diagram);
+        setDraftNodes(normalizedNodes);
+        setDraftEdges(normalizedEdges);
+        setEdgeSourceSel(null);
+        setEdgeTargetSel(null);
+        setEdgeDirection(EDGE_DIR_OPTIONS[0]);
+
+        const signalData = diagram?.signal || diagram?.signalId || diagram?.channel;
+        const signalId = toId(signalData) || (typeof signalData === "string" ? signalData : null);
+        if (signalId) {
+          const signalLabel =
+            formatSignalLabel(
+              typeof signalData === "object" ? signalData : diagram?.signal
+            ) || signalId;
+          setSelectedValue(signalId);
+          setSelectedId(signalLabel);
+        }
+      } catch (error) {
+        if (!active) return;
+        const message =
+          error?.response?.data?.message ||
+          error?.response?.data?.error ||
+          error?.message ||
+          "No se pudo cargar el diagrama para editarlo.";
+        setChannelError(message);
+        Swal.fire("Error", message, "error");
+      } finally {
+        if (active) {
+          setLoadingChannel(false);
+        }
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [channelIdParam, isEditMode]);
 
   // Cargar señales y filtrar disponibles
   useEffect(() => {
@@ -341,22 +442,76 @@ const ChannelForm = () => {
 
         const usedSet = new Set(channels.map((ch) => toId(ch?.signal)).filter(Boolean));
 
+        let editingSignalOption = null;
+        if (isEditMode) {
+          const channelMatch = channels.find(
+            (ch) => String(ch?._id) === String(channelIdParam)
+          );
+          const baseSignal = channelMatch?.signal || currentChannel?.signal;
+          const editingSignalId =
+            toId(baseSignal) ||
+            (typeof baseSignal === "string" ? String(baseSignal) : null);
+          if (editingSignalId) {
+            usedSet.delete(editingSignalId);
+            const editingSignalLabel =
+              formatSignalLabel(
+                typeof baseSignal === "object" ? baseSignal : currentChannel?.signal
+              ) || editingSignalId;
+            editingSignalOption = {
+              value: editingSignalId,
+              label: editingSignalLabel,
+              raw:
+                (typeof baseSignal === "object" && baseSignal) ||
+                currentChannel?.signal ||
+                channelMatch?.signal ||
+                null,
+            };
+          }
+        }
+
         const unusedSignals = signals.filter((s) => !usedSet.has(toId(s?._id)));
 
-        const opts = unusedSignals.map((opt) => ({
-          label: `${opt.nameChannel ?? opt.nombre ?? "Sin nombre"} - ${opt.tipoTecnologia ?? opt.tipo ?? ""}`.trim(),
+        let options = unusedSignals.map((opt) => ({
+          label: `${opt.nameChannel ?? opt.nombre ?? "Sin nombre"} - ${
+            opt.tipoTecnologia ?? opt.tipo ?? ""
+          }`.trim(),
           value: opt._id,
           raw: opt,
         }));
 
+        if (editingSignalOption) {
+          const exists = options.some(
+            (opt) => String(opt.value) === String(editingSignalOption.value)
+          );
+          if (!exists) {
+            options = [editingSignalOption, ...options];
+          }
+        }
+
         if (!mounted) return;
-        setOptionSelectChannel(opts);
+        setOptionSelectChannel(options);
 
         setSelectedValue((prevSelectedValue) => {
+          if (isEditMode) {
+            const current = options.find(
+              (opt) => String(opt.value) === String(prevSelectedValue)
+            );
+            if (current) {
+              setSelectedId(current.label);
+              return prevSelectedValue;
+            }
+            if (editingSignalOption) {
+              setSelectedId(editingSignalOption.label);
+              return editingSignalOption.value;
+            }
+            setSelectedId(null);
+            return null;
+          }
+
           const preId = searchParams.get("signalId");
 
           if (preId) {
-            const found = opts.find((o) => String(o.value) === String(preId));
+            const found = options.find((o) => String(o.value) === String(preId));
             if (found) {
               setSelectedId(found.label);
               return found.value;
@@ -366,7 +521,7 @@ const ChannelForm = () => {
           }
 
           if (prevSelectedValue) {
-            const match = opts.find((o) => String(o.value) === String(prevSelectedValue));
+            const match = options.find((o) => String(o.value) === String(prevSelectedValue));
             if (match) {
               setSelectedId(match.label);
               return prevSelectedValue;
@@ -387,7 +542,7 @@ const ChannelForm = () => {
     return () => {
       mounted = false;
     };
-  }, [searchParams]);
+  }, [searchParams, isEditMode, channelIdParam, currentChannel]);
 
   // Cargar equipos
   useEffect(() => {
@@ -435,7 +590,17 @@ const ChannelForm = () => {
           { label: "Otros equipos", options: otros },
         ].filter((g) => g.options.length > 0);
 
-                if (mounted) setOptionSelectEquipo(grouped);
+        if (mounted) {
+          setAllEquipoOptions(grouped.map((g) => ({
+            label: g.label,
+            options: [...g.options],
+          })));
+          setOptionSelectEquipo(grouped.map((g) => ({
+            label: g.label,
+            options: [...g.options],
+          })));
+          setEquiposLoaded(true);
+        }
             } catch (e) {
                 console.warn("Error cargando equipos:", e?.message);
             }
@@ -445,6 +610,33 @@ const ChannelForm = () => {
             mounted = false;
         };
     }, []);
+
+  useEffect(() => {
+    if (!equiposLoaded || !allEquipoOptions.length) {
+      return;
+    }
+
+    setOptionSelectEquipo((prev) => {
+      let next = allEquipoOptions.map((group) => ({
+        label: group.label,
+        options: [...(group.options || [])],
+      }));
+
+      draftNodes.forEach((node) => {
+        const equipoId = node?.data?.equipoId;
+        if (equipoId) {
+          next = removeEquipoFromGroupedOptions(next, equipoId);
+        }
+      });
+
+      const prevSerialized = JSON.stringify(prev);
+      const nextSerialized = JSON.stringify(next);
+      if (prevSerialized === nextSerialized) {
+        return prev;
+      }
+      return next;
+    });
+  }, [draftNodes, allEquipoOptions, equiposLoaded]);
 
   const handleSelectedChannel = (e) => {
     setSelectedValue(e?.value || null);
@@ -525,6 +717,34 @@ const ChannelForm = () => {
       });
     },
     [draftNodes, draftEdges]
+  );
+
+  const handleRemoveEdge = useCallback(
+    async (edgeId) => {
+      const edge = draftEdges.find((e) => String(e.id) === String(edgeId));
+      if (!edge) return;
+
+      const confirm = await Swal.fire({
+        icon: "warning",
+        title: `Eliminar enlace "${edgeId}"`,
+        text: "El enlace seleccionado se eliminará del borrador.",
+        showCancelButton: true,
+        confirmButtonText: "Sí, eliminar",
+        cancelButtonText: "Cancelar",
+      });
+
+      if (!confirm.isConfirmed) return;
+
+      setDraftEdges((prev) => prev.filter((e) => String(e.id) !== String(edgeId)));
+
+      Swal.fire({
+        icon: "success",
+        title: "Enlace eliminado",
+        timer: 1200,
+        showConfirmButton: false,
+      });
+    },
+    [draftEdges]
   );
 
   // 🧹 Vaciar todo: limpia nodos/edges y restaura equipos al listado original
@@ -613,6 +833,28 @@ const ChannelForm = () => {
 
   const availableSignals = optionsSelectChannel.length;
 
+  if (isEditMode && channelError) {
+    return (
+      <div className="chf__wrapper">
+        <nav aria-label="breadcrumb" className="chf__breadcrumb">
+          <ol className="breadcrumb">
+            <li className="breadcrumb-item">
+              <Link to="/channel_diagram-list">Listar</Link>
+            </li>
+            <li className="breadcrumb-item active" aria-current="page">
+              Editar
+            </li>
+          </ol>
+        </nav>
+        <h2 className="chf__title">Editar diagrama</h2>
+        <div className="chf__alert chf__alert--error">{channelError}</div>
+        <button className="chf__btn chf__btn--primary" type="button" onClick={() => navigate(-1)}>
+          Volver
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="chf__wrapper">
       <nav aria-label="breadcrumb" className="chf__breadcrumb">
@@ -621,17 +863,34 @@ const ChannelForm = () => {
             <Link to="/channel_diagram-list">Listar</Link>
           </li>
           <li className="breadcrumb-item active" aria-current="page">
-            Formulario
+            {isEditMode ? "Editar" : "Formulario"}
           </li>
         </ol>
       </nav>
 
-      <h2 className="chf__title">Crear un diagrama</h2>
+      <h2 className="chf__title">{isEditMode ? "Editar diagrama" : "Crear un diagrama"}</h2>
+      {isEditMode && (selectedId || currentChannel) ? (
+        <p className="chf__subtitle">
+          Señal actual: {selectedId || formatSignalLabel(currentChannel?.signal) || "—"}
+        </p>
+      ) : null}
+      {isEditMode && loadingChannel ? (
+        <div className="chf__alert chf__alert--info">Cargando diagrama para edición…</div>
+      ) : null}
+      {isEditMode && !loadingChannel && currentChannel?.metadata?.title ? (
+        <div className="chf__alert chf__alert--muted">
+          {currentChannel.metadata.title}
+        </div>
+      ) : null}
 
       <Formik
         initialValues={initialValues}
         enableReinitialize
         onSubmit={async (_, { resetForm }) => {
+          const submittingEdit = isEditMode;
+          if (submittingEdit) {
+            setLoadingChannel(true);
+          }
           try {
             if (!selectedValue) {
               Swal.fire({
@@ -686,10 +945,38 @@ const ChannelForm = () => {
               signal: selectedValue,
               channel: selectedValue,
               signalId: selectedValue,
-              channelId: selectedValue,
+              channelId: isEditMode ? channelIdParam : selectedValue,
               nodes: normalizedNodes,
               edges: normalizedEdges,
             };
+
+            if (isEditMode) {
+              await api.updateChannelDiagram(channelIdParam, payload);
+
+              Swal.fire({
+                icon: "success",
+                title: "Flujo actualizado",
+                html: `
+                  <p><strong>Señal:</strong> ${selectedId}</p>
+                  <p><strong>Nodos:</strong> ${draftNodes.length}</p>
+                  <p><strong>Enlaces:</strong> ${draftEdges.length}</p>
+                `,
+              });
+
+              setCurrentChannel((prev) =>
+                prev
+                  ? {
+                      ...prev,
+                      nodes: normalizedNodes,
+                      edges: normalizedEdges,
+                      signal: selectedSignalOption?.raw || prev.signal,
+                    }
+                  : prev
+              );
+
+              navigate(`/channels/${String(channelIdParam)}`);
+              return;
+            }
 
             await api.createChannelDiagram(payload);
 
@@ -722,16 +1009,22 @@ const ChannelForm = () => {
             const data = e?.response?.data;
             Swal.fire({
               icon: "error",
-              title: "Error al crear flujo",
+              title: isEditMode ? "Error al actualizar flujo" : "Error al crear flujo",
               html: `
                 <div style="text-align:left">
                   <div><b>Status:</b> ${e?.response?.status || "?"}</div>
-                  <div><b>Mensaje:</b> ${data?.message || e.message || "Error desconocido"}</div>
+                  <div><b>Mensaje:</b> ${
+                    data?.message || data?.error || e.message || "Error desconocido"
+                  }</div>
                   ${data?.missing ? `<div><b>Faltan:</b> ${JSON.stringify(data.missing)}</div>` : ""}
                   ${data?.errors ? `<pre>${JSON.stringify(data.errors, null, 2)}</pre>` : ""}
                 </div>
               `,
             });
+          } finally {
+            if (submittingEdit) {
+              setLoadingChannel(false);
+            }
           }
         }}
       >
@@ -1082,17 +1375,38 @@ const ChannelForm = () => {
 
               {draftEdges.length > 0 && (
                 <ul className="chf__list">
-                  {draftEdges.map((e) => (
-                    <li key={e.id} className="chf__list-item">
-                      <code>{e.id}</code> — {e.source} ({e.sourceHandle}) → {e.target} ({e.targetHandle}) — {e.label}
-                      {e?.data?.multicast ? (
-                        <span className="chf__badge chf__badge--muted">mc: {e.data.multicast}</span>
-                      ) : null}
-                      <span className="chf__muted" style={{ marginLeft: 8, color: e.style?.stroke }}>
-                        {e.data?.direction}
-                      </span>
-                    </li>
-                  ))}
+                  {draftEdges.map((e) => {
+                    const label = e?.data?.label || e.label;
+                    return (
+                      <li
+                        key={e.id}
+                        className="chf__list-item"
+                        style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}
+                      >
+                        <div style={{ flex: "1 1 auto" }}>
+                          <code>{e.id}</code> — {e.source} ({e.sourceHandle}) → {e.target} (
+                          {e.targetHandle}) — {label}
+                          {e?.data?.multicast ? (
+                            <span className="chf__badge chf__badge--muted">mc: {e.data.multicast}</span>
+                          ) : null}
+                          <span
+                            className="chf__muted"
+                            style={{ marginLeft: 8, color: e.style?.stroke || "#475569" }}
+                          >
+                            {e.data?.direction}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          className="chf__btn chf__btn--danger"
+                          onClick={() => handleRemoveEdge(e.id)}
+                          title="Eliminar enlace"
+                        >
+                          🗑 Eliminar
+                        </button>
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </fieldset>
@@ -1101,10 +1415,16 @@ const ChannelForm = () => {
               <button
                 className="chf__btn chf__btn--primary"
                 type="submit"
-                disabled={!selectedValue}
-                title={!selectedValue ? "Seleccione una señal para continuar" : "Crear flujo"}
+                disabled={!selectedValue || (isEditMode && loadingChannel)}
+                title={
+                  !selectedValue
+                    ? "Seleccione una señal para continuar"
+                    : isEditMode
+                    ? "Actualizar flujo"
+                    : "Crear flujo"
+                }
               >
-                Crear flujo
+                {isEditMode ? "Actualizar flujo" : "Crear flujo"}
               </button>
               <button className="chf__btn" type="button" onClick={() => navigate(-1)}>
                 Cancelar

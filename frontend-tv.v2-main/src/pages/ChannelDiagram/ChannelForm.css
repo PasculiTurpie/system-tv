@@ -177,6 +177,18 @@
   color     : #991b1b;
 }
 
+.chf__alert--info {
+  border    : 1px solid #bfdbfe;
+  background: #eff6ff;
+  color     : #1d4ed8;
+}
+
+.chf__alert--muted {
+  border    : 1px solid #e2e8f0;
+  background: #f8fafc;
+  color     : #475569;
+}
+
 .chf__alert-actions {
   margin-top: 8px;
 }

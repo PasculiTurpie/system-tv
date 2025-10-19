@@ -121,6 +121,46 @@
     background: #ffffff;
 }
 
+.channel-diagram__toggle-sidebar {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    z-index: 12;
+    background: #0f172a;
+    color: #f8fafc;
+    border: none;
+    border-radius: 9999px;
+    padding: 0.4rem 0.95rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.22);
+    transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.channel-diagram__toggle-sidebar:hover {
+    background: #1e293b;
+    transform: translateY(-1px);
+}
+
+.channel-diagram__toggle-sidebar:focus {
+    outline: 2px solid #38bdf8;
+    outline-offset: 2px;
+}
+
+.channel-diagram__canvas .react-flow__edgelabel-renderer {
+    pointer-events: none;
+}
+
+.channel-diagram__canvas .react-flow__edgelabel-renderer > .react-flow__edgelabel {
+    display: none;
+}
+
+.channel-diagram__canvas .react-flow__edgelabel-renderer .nodrag,
+.channel-diagram__canvas .react-flow__edgelabel-renderer .nopan {
+    pointer-events: auto;
+}
+
 .channel-node-label {
     text-align: center;
     font-weight: 600;
