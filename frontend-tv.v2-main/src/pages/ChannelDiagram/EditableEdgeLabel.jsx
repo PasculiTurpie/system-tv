@@ -44,6 +44,7 @@ export default function EditableEdgeLabel({
   placeholder = "",
   onCommit,
   onPositionChange,
+  onPersist,
   style: styleOverride,
   className,
   allowEditing = true,
@@ -54,7 +55,12 @@ export default function EditableEdgeLabel({
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(text ?? "");
   const [dragging, setDragging] = useState(false);
-  const dragRef = useRef({ startOffset: { x: 0, y: 0 }, pointerStart: { x: 0, y: 0 } });
+  const dragRef = useRef({
+    startOffset: { x: 0, y: 0 },
+    initialPosition: null,
+    lastPosition: null,
+    dragging: false,
+  });
   const inputRef = useRef(null);
 
   const canEdit = allowEditing && !readOnly;
@@ -133,19 +139,36 @@ export default function EditableEdgeLabel({
         y: projected.y + dragRef.current.startOffset.y,
       };
       const clamped = clampPosition ? clampPosition(next) : next;
+      dragRef.current.lastPosition = clamped;
       onPositionChange?.(clamped);
     },
     [clampPosition, onPositionChange, projectClient]
   );
 
   const stopDragging = useCallback(() => {
+    if (!dragRef.current.dragging) return;
     setDragging(false);
     window.removeEventListener("mousemove", updatePosition);
     window.removeEventListener("mouseup", stopDragging);
     window.removeEventListener("touchmove", updatePosition);
     window.removeEventListener("touchend", stopDragging);
     window.removeEventListener("touchcancel", stopDragging);
-  }, [updatePosition]);
+    const finalPosition = dragRef.current.lastPosition || currentPosition;
+    const initialPosition = dragRef.current.initialPosition || currentPosition;
+    const moved =
+      Boolean(finalPosition) &&
+      Boolean(initialPosition) &&
+      (finalPosition.x !== initialPosition.x || finalPosition.y !== initialPosition.y);
+
+    dragRef.current.dragging = false;
+
+    if (typeof onPersist === "function") {
+      onPersist(finalPosition, {
+        moved,
+        initial: initialPosition,
+      });
+    }
+  }, [currentPosition, onPersist, updatePosition]);
 
   const startDragging = useCallback(
     (event) => {
@@ -158,6 +181,9 @@ export default function EditableEdgeLabel({
         x: currentPosition.x - projected.x,
         y: currentPosition.y - projected.y,
       };
+      dragRef.current.initialPosition = currentPosition;
+      dragRef.current.lastPosition = currentPosition;
+      dragRef.current.dragging = true;
       setDragging(true);
       window.addEventListener("mousemove", updatePosition);
       window.addEventListener("mouseup", stopDragging);
