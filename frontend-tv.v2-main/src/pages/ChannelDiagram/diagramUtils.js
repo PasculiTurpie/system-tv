@@ -91,7 +91,7 @@ const baseRouterEdge = (node, combo) => {
     className,
     style: { stroke: color, strokeWidth: 2 },
     markerEnd: withMarkerColor({ type: "arrowclosed" }, color),
-    updatable: true,
+    reconnectable: true,
     data: {
       label,
       direction,
@@ -460,7 +460,7 @@ export const mapEdgeFromApi = (edge) => {
     markerEnd: withMarkerColor(edge.markerEnd, color),
     markerStart: edge.markerStart ? withMarkerColor(edge.markerStart, color) : undefined,
     animated: edge.animated ?? true,
-    updatable: true,
+    reconnectable: true,
   };
 };
 
@@ -521,7 +521,7 @@ export const toApiEdge = (edge) => {
     markerStart: edge.markerStart ? withMarkerColor(edge.markerStart, color) : undefined,
     data,
     animated: edge.animated ?? true,
-    updatable: true,
+    reconnectable: true,
   };
 
   if (sourceHandle) {

@@ -25,6 +25,7 @@ export default function CustomWaypointEdge(props) {
     onEdgeLabelPositionChange,
     onEdgeEndpointLabelChange,
     onEdgeEndpointLabelPositionChange,
+    onEdgeEndpointLabelPersist,
     persistLabelPositions,
   } = useContext(DiagramContext);
 
@@ -100,6 +101,12 @@ export default function CustomWaypointEdge(props) {
     [id, onEdgeEndpointLabelPositionChange]
   );
 
+  const handleEndpointPersist = useCallback(
+    (endpoint, position, meta) =>
+      onEdgeEndpointLabelPersist?.(id, endpoint, position, meta),
+    [id, onEdgeEndpointLabelPersist]
+  );
+
   return (
     <>
       <BaseEdge id={id} path={edgePath} style={style} markerEnd={markerEnd} />
@@ -129,6 +136,9 @@ export default function CustomWaypointEdge(props) {
           onPositionChange={(position) =>
             handleEndpointPositionChange("source", position)
           }
+          onPersist={(position, meta) =>
+            handleEndpointPersist("source", position, meta)
+          }
         />
       )}
 
@@ -143,6 +153,9 @@ export default function CustomWaypointEdge(props) {
           onCommit={(value) => handleEndpointLabelCommit("target", value)}
           onPositionChange={(position) =>
             handleEndpointPositionChange("target", position)
+          }
+          onPersist={(position, meta) =>
+            handleEndpointPersist("target", position, meta)
           }
         />
       )}

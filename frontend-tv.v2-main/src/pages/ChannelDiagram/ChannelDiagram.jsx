@@ -120,6 +120,33 @@ const ROUTER_HANDLE_OPTIONS = Object.freeze({
 
 const SIDES = ["top", "bottom", "left", "right"];
 
+const DIRECTION_HANDLE_PREFERENCES = Object.freeze({
+  ida: { source: ["right", "bottom"], target: ["left", "top"] },
+  vuelta: { source: ["left", "top"], target: ["right", "bottom"] },
+});
+
+const mergePreferredSides = (...inputs) => {
+  const seen = new Set();
+  const result = [];
+  inputs.forEach((value) => {
+    const list = Array.isArray(value)
+      ? value
+      : value
+      ? [value]
+      : [];
+    list.forEach((side) => {
+      if (typeof side === "string") {
+        const normalized = side.toLowerCase();
+        if (!seen.has(normalized)) {
+          seen.add(normalized);
+          result.push(normalized);
+        }
+      }
+    });
+  });
+  return result;
+};
+
 const getCustomNodeHandleOptions = (node) => {
   if (!node) return [];
   const slots = node?.data?.slots || {};
@@ -165,17 +192,18 @@ const computePreferredSide = (fromNode, toNode) => {
   return dy >= 0 ? "bottom" : "top";
 };
 
-const allocateHandleId = (node, kind, preferredSide, usedSet, fallbackNormalized) => {
+const allocateHandleId = (node, kind, preferredSides, usedSet, fallbackNormalized) => {
   const options = getNodeHandleOptions(node, kind);
   if (!options.length) return fallbackNormalized || null;
 
   const ordered = options.slice();
-  if (preferredSide) {
+  const preferences = mergePreferredSides(preferredSides);
+  if (preferences.length) {
     ordered.sort((a, b) => {
-      const aPreferred = a.side === preferredSide;
-      const bPreferred = b.side === preferredSide;
-      if (aPreferred === bPreferred) return 0;
-      return aPreferred ? -1 : 1;
+      const aIndex = preferences.indexOf(a.side);
+      const bIndex = preferences.indexOf(b.side);
+      const normalizeIndex = (index) => (index === -1 ? Number.MAX_SAFE_INTEGER : index);
+      return normalizeIndex(aIndex) - normalizeIndex(bIndex);
     });
   }
 
@@ -193,7 +221,7 @@ const allocateHandleId = (node, kind, preferredSide, usedSet, fallbackNormalized
   return normalizeHandle(ordered[0].id);
 };
 
-const assignHandle = (node, kind, providedHandle, usedSet, preferredSide) => {
+const assignHandle = (node, kind, providedHandle, usedSet, preferredSides) => {
   const normalizedProvided = normalizeHandle(providedHandle);
 
   if (!node) {
@@ -209,7 +237,7 @@ const assignHandle = (node, kind, providedHandle, usedSet, preferredSide) => {
     return normalizedProvided;
   }
 
-  const allocated = allocateHandleId(node, kind, preferredSide, usedSet, normalizedProvided);
+  const allocated = allocateHandleId(node, kind, preferredSides, usedSet, normalizedProvided);
   if (allocated) {
     usedSet.add(allocated);
     return allocated;
@@ -238,20 +266,24 @@ const ensureEdgesUseDistinctHandles = (nodesList, edgesList) => {
 
     const preferredSourceSide = computePreferredSide(sourceNode, targetNode);
     const preferredTargetSide = computePreferredSide(targetNode, sourceNode);
+    const direction = typeof edge?.data?.direction === "string" ? edge.data.direction.toLowerCase() : null;
+    const directionPreferences = direction ? DIRECTION_HANDLE_PREFERENCES[direction] || {} : {};
+    const sourcePreferences = mergePreferredSides(directionPreferences.source, preferredSourceSide);
+    const targetPreferences = mergePreferredSides(directionPreferences.target, preferredTargetSide);
 
     const assignedSource = assignHandle(
       sourceNode,
       "source",
       edge.sourceHandle,
       sourceUsage,
-      preferredSourceSide
+      sourcePreferences
     );
     const assignedTarget = assignHandle(
       targetNode,
       "target",
       edge.targetHandle,
       targetUsage,
-      preferredTargetSide
+      targetPreferences
     );
 
     const nextEdge = { ...edge };
@@ -706,17 +738,6 @@ const ChannelDiagram = () => {
   const handleEdgeEndpointLabelPositionChange = useCallback(
     (edgeId, endpoint, position) => {
       const clamped = position ? clampPosition(position) : null;
-      const previousEdge = edgesRef.current.find((edge) => edge.id === edgeId);
-      const fallbackState =
-        confirmedEdgePositionsRef.current.get(edgeId) || {
-          labelPosition:
-            toPositionOrNull(previousEdge?.data?.labelPosition) ||
-            toPositionOrNull(previousEdge?.labelPosition) ||
-            null,
-          endpointLabelPositions: cloneEndpointPositions(previousEdge?.data?.endpointLabelPositions),
-          multicastPosition: toPositionOrNull(previousEdge?.data?.multicastPosition) || null,
-        };
-
       updateEdges((current) =>
         current.map((edge) => {
           if (edge.id !== edgeId) return edge;
@@ -726,43 +747,35 @@ const ChannelDiagram = () => {
           return { ...edge, data: { ...(edge.data || {}), endpointLabelPositions: currentPositions } };
         })
       );
-
-      if (isAuth) {
-        scheduleEdgePatch(
-          edgeId,
-          { endpointLabelPositions: { [endpoint]: clamped || null } },
-          {
-            onSuccess: () => {
-              const existing = confirmedEdgePositionsRef.current.get(edgeId);
-              const nextPositions = {
-                ...((existing && existing.endpointLabelPositions) || fallbackState.endpointLabelPositions || {}),
-              };
-              if (clamped) nextPositions[endpoint] = { ...clamped };
-              else delete nextPositions[endpoint];
-              confirmedEdgePositionsRef.current.set(edgeId, {
-                labelPosition: (existing && existing.labelPosition) || fallbackState.labelPosition || null,
-                endpointLabelPositions: nextPositions,
-                multicastPosition: (existing && existing.multicastPosition) || fallbackState.multicastPosition || null,
-              });
-            },
-            onError: () => {
-              updateEdges((current) =>
-                current.map((edge) => {
-                  if (edge.id !== edgeId) return edge;
-                  const fallbackPositions = { ...(fallbackState.endpointLabelPositions || {}) };
-                  const nextPositions = { ...(edge.data?.endpointLabelPositions || {}) };
-                  if (fallbackPositions[endpoint]) nextPositions[endpoint] = fallbackPositions[endpoint];
-                  else delete nextPositions[endpoint];
-                  return { ...edge, data: { ...(edge.data || {}), endpointLabelPositions: nextPositions } };
-                })
-              );
-            },
-          }
-        );
-      }
-      requestSave();
     },
-    [clampPosition, isAuth, scheduleEdgePatch, updateEdges, requestSave]
+    [clampPosition, updateEdges]
+  );
+
+  const handleEdgeEndpointLabelPersist = useCallback(
+    (edgeId, endpoint, position, meta = {}) => {
+      if (!meta?.moved || isReadOnly || !persistLabelPositions) {
+        return;
+      }
+      const clamped = position ? clampPosition(position) : null;
+      persistLabelPositions({
+        endpointLabelPositions: {
+          [edgeId]: {
+            [endpoint]: clamped || null,
+          },
+        },
+      }).catch((error) => {
+        console.error("Persist edge endpoint label position failed", error);
+        if (meta && Object.prototype.hasOwnProperty.call(meta, "initial")) {
+          handleEdgeEndpointLabelPositionChange(edgeId, endpoint, meta.initial);
+        }
+      });
+    },
+    [
+      clampPosition,
+      handleEdgeEndpointLabelPositionChange,
+      isReadOnly,
+      persistLabelPositions,
+    ]
   );
 
   const handleEdgeMulticastPositionChange = useCallback(
@@ -783,7 +796,7 @@ const ChannelDiagram = () => {
 
   const handleNodeDragStop = useCallback(() => { requestSave(); }, [requestSave]);
 
-  const handleEdgeUpdate = useCallback(
+  const handleEdgeReconnect = useCallback(
     (oldEdge, newConnection) => {
       if (!isAuth) return;
       updateEdges((current) => {
@@ -795,7 +808,7 @@ const ChannelDiagram = () => {
                 target: newConnection.target,
                 sourceHandle: newConnection.sourceHandle,
                 targetHandle: newConnection.targetHandle,
-                updatable: true,
+                reconnectable: true,
               }
             : edge
         );
@@ -828,7 +841,7 @@ const ChannelDiagram = () => {
             style: { stroke: color, strokeWidth: 2 },
             markerEnd: withMarkerColor(undefined, color),
             animated: true,
-            updatable: true,
+            reconnectable: true,
           },
           current
         );
@@ -963,6 +976,7 @@ const ChannelDiagram = () => {
       onEdgeLabelPositionChange: handleEdgeLabelPositionChange,
       onEdgeEndpointLabelChange: handleEdgeEndpointLabelChange,
       onEdgeEndpointLabelPositionChange: handleEdgeEndpointLabelPositionChange,
+      onEdgeEndpointLabelPersist: handleEdgeEndpointLabelPersist,
       onEdgeMulticastPositionChange: handleEdgeMulticastPositionChange,
       persistLabelPositions,
       clampPosition,
@@ -973,6 +987,7 @@ const ChannelDiagram = () => {
       ensureRouterEdges,
       handleEdgeEndpointLabelChange,
       handleEdgeEndpointLabelPositionChange,
+      handleEdgeEndpointLabelPersist,
       handleEdgeLabelChange,
       handleEdgeLabelPositionChange,
       handleEdgeMulticastPositionChange,
@@ -1039,10 +1054,10 @@ const ChannelDiagram = () => {
                 nodesDraggable={!isReadOnly}
                 nodesConnectable={!isReadOnly}
                 elementsSelectable
-                edgesUpdatable={!isReadOnly}
-                edgeUpdaterRadius={20}
+                edgesReconnectable={!isReadOnly}
+                reconnectRadius={20}
                 onNodeDragStop={handleNodeDragStop}
-                onEdgeUpdate={handleEdgeUpdate}
+                onReconnect={handleEdgeReconnect}
                 onConnect={handleConnect}
                 onNodesChange={handleNodesChange}
                 onEdgesChange={handleEdgesChange}
