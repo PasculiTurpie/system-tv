@@ -33,6 +33,15 @@ const selectStyles = {
 
 const STORAGE_KEY = "channel-form-draft";
 
+/** 🔒 Claves que se conservarán al limpiar localStorage (ajústalas a tu app) */
+const PRESERVE_KEYS = new Set([
+  "auth:user",          // datos no sensibles del usuario (si los guardas)
+  "theme",              // tema claro/oscuro
+  "ui:sidebarOpen",     // estado del sidebar
+  "reactflow:viewport", // zoom/posicion de react flow (si lo usas)
+  "persist:store",      // estado global persistido (p. ej. Zustand)
+]);
+
 const formatSignalLabel = (signal) => {
   if (!signal || typeof signal !== "object") return "";
   const name =
@@ -202,12 +211,12 @@ const ChannelForm = () => {
   const [loadingChannel, setLoadingChannel] = useState(isEditMode);
   const [channelError, setChannelError] = useState(null);
 
-    // Equipos agrupados
-    const [optionsSelectEquipo, setOptionSelectEquipo] = useState([]);
-    const [selectedEquipoValue, setSelectedEquipoValue] = useState(null);
-    const [selectedIdEquipo, setSelectedIdEquipo] = useState(null);
-    const [selectedEquipoTipo, setSelectedEquipoTipo] = useState(null);
-    const [equiposLoaded, setEquiposLoaded] = useState(false);
+  // Equipos agrupados
+  const [optionsSelectEquipo, setOptionSelectEquipo] = useState([]);
+  const [selectedEquipoValue, setSelectedEquipoValue] = useState(null);
+  const [selectedIdEquipo, setSelectedIdEquipo] = useState(null);
+  const [selectedEquipoTipo, setSelectedEquipoTipo] = useState(null);
+  const [equiposLoaded, setEquiposLoaded] = useState(false);
 
   // Borradores
   const [draftNodes, setDraftNodes] = useState([]);
@@ -821,15 +830,31 @@ const ChannelForm = () => {
     return null;
   }, [optionsSelectEquipo, selectedEquipoValue]);
 
-    useEffect(() => {
-        if (!selectedValue || selectedSignalOption) return;
-        // Si la señal seleccionada ya no existe, limpiar label asociado.
-        setSelectedId(null);
-    }, [selectedSignalOption, selectedValue]);
+  useEffect(() => {
+    if (!selectedValue || selectedSignalOption) return;
+    // Si la señal seleccionada ya no existe, limpiar label asociado.
+    setSelectedId(null);
+  }, [selectedSignalOption, selectedValue]);
 
   const handleFormValuesChange = useCallback((vals) => {
     setFormValues(vals);
   }, []);
+
+  /** 🧼 Opción A: limpiar localStorage al hacer click en "Crear flujo" (no en edición) */
+  const handleCreateFlowClick = useCallback(() => {
+    if (isEditMode) return;
+    try {
+      if (PRESERVE_KEYS.size === 0) {
+        localStorage.clear();
+      } else {
+        const keys = Object.keys(localStorage);
+        for (const k of keys) if (!PRESERVE_KEYS.has(k)) localStorage.removeItem(k);
+      }
+      console.info("localStorage limpiado por click en 'Crear flujo'");
+    } catch (e) {
+      console.warn("No se pudo limpiar localStorage:", e);
+    }
+  }, [isEditMode]);
 
   const availableSignals = optionsSelectChannel.length;
 
@@ -1075,7 +1100,7 @@ const ChannelForm = () => {
                     </div>
                     <div className="chf__available">
                       <span className="chf__badge chf__badge--primary">
-                        {availableSignals} disponibles
+                        {optionsSelectChannel.length} disponibles
                       </span>
                     </div>
                   </div>
@@ -1199,7 +1224,6 @@ const ChannelForm = () => {
                       <div style={{ flex: "1 1 auto" }}>
                         <code>{n.id}</code> — {n.data?.label} — {n.data?.equipoNombre}{" "}
                         <span className="chf__badge">{n.data?.equipoTipo || "-"}</span>{" "}
-                        <span className="chf__muted">({n.position.x}, {n.position.y})</span>
                       </div>
                       <button
                         type="button"
@@ -1423,6 +1447,8 @@ const ChannelForm = () => {
                     ? "Actualizar flujo"
                     : "Crear flujo"
                 }
+                /** 🧼 Limpia localStorage AL HACER CLICK en "Crear flujo" (solo en modo creación) */
+                onClick={!isEditMode ? handleCreateFlowClick : undefined}
               >
                 {isEditMode ? "Actualizar flujo" : "Crear flujo"}
               </button>

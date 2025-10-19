@@ -43,14 +43,9 @@ const BOUNDS_MARGIN = 480;
 const DEFAULT_BOUNDS = { minX: -4000, maxX: 4000, minY: -4000, maxY: 4000 };
 
 const computeBoundsFromNodes = (nodesList) => {
-  if (!Array.isArray(nodesList) || nodesList.length === 0) {
-    return DEFAULT_BOUNDS;
-  }
+  if (!Array.isArray(nodesList) || nodesList.length === 0) return DEFAULT_BOUNDS;
 
-  let minX = Infinity;
-  let maxX = -Infinity;
-  let minY = Infinity;
-  let maxY = -Infinity;
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
 
   nodesList.forEach((node) => {
     const x = Number(node?.position?.x);
@@ -65,9 +60,7 @@ const computeBoundsFromNodes = (nodesList) => {
     }
   });
 
-  if (!Number.isFinite(minX) || !Number.isFinite(maxX) || !Number.isFinite(minY) || !Number.isFinite(maxY)) {
-    return DEFAULT_BOUNDS;
-  }
+  if (![minX, maxX, minY, maxY].every(Number.isFinite)) return DEFAULT_BOUNDS;
 
   return {
     minX: minX - BOUNDS_MARGIN,
@@ -92,9 +85,7 @@ const toPositionOrNull = (point) => {
 };
 
 const cloneEndpointPositions = (positions) => {
-  if (!positions || typeof positions !== "object") {
-    return {};
-  }
+  if (!positions || typeof positions !== "object") return {};
   const next = {};
   const source = toPositionOrNull(positions.source);
   const target = toPositionOrNull(positions.target);
@@ -151,12 +142,8 @@ const getCustomNodeHandleOptions = (node) => {
 const getNodeHandleOptions = (node, kind) => {
   if (!node) return [];
   const normalizedKind = kind === "target" ? "target" : "source";
-  if (isRouterNode(node)) {
-    return ROUTER_HANDLE_OPTIONS[normalizedKind] || [];
-  }
-  return getCustomNodeHandleOptions(node).filter(
-    (handle) => handle.kind === normalizedKind
-  );
+  if (isRouterNode(node)) return ROUTER_HANDLE_OPTIONS[normalizedKind] || [];
+  return getCustomNodeHandleOptions(node).filter((h) => h.kind === normalizedKind);
 };
 
 const getNodePositionPoint = (node) => {
@@ -164,10 +151,7 @@ const getNodePositionPoint = (node) => {
   const pos = node.position || {};
   const x = Number(pos.x);
   const y = Number(pos.y);
-  if (!Number.isFinite(x) || !Number.isFinite(y)) {
-    return null;
-  }
-  return { x, y };
+  return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
 };
 
 const computePreferredSide = (fromNode, toNode) => {
@@ -176,20 +160,14 @@ const computePreferredSide = (fromNode, toNode) => {
   if (!fromPos || !toPos) return null;
   const dx = toPos.x - fromPos.x;
   const dy = toPos.y - fromPos.y;
-  if (Math.abs(dx) > Math.abs(dy)) {
-    return dx >= 0 ? "right" : "left";
-  }
-  if (dy === 0) {
-    return dx >= 0 ? "right" : "left";
-  }
+  if (Math.abs(dx) > Math.abs(dy)) return dx >= 0 ? "right" : "left";
+  if (dy === 0) return dx >= 0 ? "right" : "left";
   return dy >= 0 ? "bottom" : "top";
 };
 
 const allocateHandleId = (node, kind, preferredSide, usedSet, fallbackNormalized) => {
   const options = getNodeHandleOptions(node, kind);
-  if (!options.length) {
-    return fallbackNormalized || null;
-  }
+  if (!options.length) return fallbackNormalized || null;
 
   const ordered = options.slice();
   if (preferredSide) {
@@ -203,24 +181,15 @@ const allocateHandleId = (node, kind, preferredSide, usedSet, fallbackNormalized
 
   if (fallbackNormalized) {
     const fallbackOption = ordered.find(
-      (option) => normalizeHandle(option.id) === fallbackNormalized && !usedSet.has(fallbackNormalized)
+      (o) => normalizeHandle(o.id) === fallbackNormalized && !usedSet.has(fallbackNormalized)
     );
-    if (fallbackOption) {
-      return normalizeHandle(fallbackOption.id);
-    }
+    if (fallbackOption) return normalizeHandle(fallbackOption.id);
   }
 
-  const available = ordered.find(
-    (option) => !usedSet.has(normalizeHandle(option.id))
-  );
-  if (available) {
-    return normalizeHandle(available.id);
-  }
+  const available = ordered.find((o) => !usedSet.has(normalizeHandle(o.id)));
+  if (available) return normalizeHandle(available.id);
 
-  if (fallbackNormalized) {
-    return fallbackNormalized;
-  }
-
+  if (fallbackNormalized) return fallbackNormalized;
   return normalizeHandle(ordered[0].id);
 };
 
@@ -240,44 +209,24 @@ const assignHandle = (node, kind, providedHandle, usedSet, preferredSide) => {
     return normalizedProvided;
   }
 
-  const allocated = allocateHandleId(
-    node,
-    kind,
-    preferredSide,
-    usedSet,
-    normalizedProvided
-  );
-
+  const allocated = allocateHandleId(node, kind, preferredSide, usedSet, normalizedProvided);
   if (allocated) {
     usedSet.add(allocated);
     return allocated;
   }
-
   return normalizedProvided || providedHandle || null;
 };
 
 const ensureEdgesUseDistinctHandles = (nodesList, edgesList) => {
-  if (!Array.isArray(edgesList) || edgesList.length === 0) {
-    return edgesList;
-  }
+  if (!Array.isArray(edgesList) || edgesList.length === 0) return edgesList;
 
-  const nodeLookup = new Map(
-    Array.isArray(nodesList)
-      ? nodesList.map((node) => [node.id, node])
-      : []
-  );
+  const nodeLookup = new Map(Array.isArray(nodesList) ? nodesList.map((n) => [n.id, n]) : []);
 
-  const usage = {
-    source: new Map(),
-    target: new Map(),
-  };
-
+  const usage = { source: new Map(), target: new Map() };
   const getUsageSet = (direction, nodeId) => {
     if (!nodeId) return new Set();
     const map = usage[direction];
-    if (!map.has(nodeId)) {
-      map.set(nodeId, new Set());
-    }
+    if (!map.has(nodeId)) map.set(nodeId, new Set());
     return map.get(nodeId);
   };
 
@@ -306,16 +255,8 @@ const ensureEdgesUseDistinctHandles = (nodesList, edgesList) => {
     );
 
     const nextEdge = { ...edge };
-    if (assignedSource) {
-      nextEdge.sourceHandle = assignedSource;
-    } else {
-      delete nextEdge.sourceHandle;
-    }
-    if (assignedTarget) {
-      nextEdge.targetHandle = assignedTarget;
-    } else {
-      delete nextEdge.targetHandle;
-    }
+    if (assignedSource) nextEdge.sourceHandle = assignedSource; else delete nextEdge.sourceHandle;
+    if (assignedTarget) nextEdge.targetHandle = assignedTarget; else delete nextEdge.targetHandle;
     return nextEdge;
   });
 };
@@ -324,18 +265,12 @@ const ChannelDiagram = () => {
   const { id: channelIdParam } = useParams();
 
   const nodeTypes = useMemo(
-    () => ({
-      custom: CustomNode,
-      router: RouterNode,
-    }),
+    () => ({ custom: CustomNode, router: RouterNode }),
     []
   );
 
   const edgeTypes = useMemo(
-    () => ({
-      directional: CustomDirectionalEdge,
-      waypoint: CustomWaypointEdge,
-    }),
+    () => ({ directional: CustomDirectionalEdge, waypoint: CustomWaypointEdge }),
     []
   );
 
@@ -375,10 +310,7 @@ const ChannelDiagram = () => {
       const data = node?.data || {};
       const labelPosition = toPositionOrNull(data.labelPosition) || null;
       const multicastPosition = toPositionOrNull(data.multicastPosition) || null;
-      store.set(node.id, {
-        labelPosition,
-        multicastPosition,
-      });
+      store.set(node.id, { labelPosition, multicastPosition });
     });
   }, []);
 
@@ -389,11 +321,8 @@ const ChannelDiagram = () => {
       const labelPosition =
         toPositionOrNull(edge?.data?.labelPosition) ||
         toPositionOrNull(edge?.labelPosition);
-      const endpointPositions = cloneEndpointPositions(
-        edge?.data?.endpointLabelPositions
-      );
-      const multicastPosition =
-        toPositionOrNull(edge?.data?.multicastPosition) || null;
+      const endpointPositions = cloneEndpointPositions(edge?.data?.endpointLabelPositions);
+      const multicastPosition = toPositionOrNull(edge?.data?.multicastPosition) || null;
       store.set(edge.id, {
         labelPosition: labelPosition || null,
         endpointLabelPositions: endpointPositions,
@@ -405,8 +334,7 @@ const ChannelDiagram = () => {
   const updateNodes = useCallback(
     (updater) => {
       setNodesState((current) => {
-        const next =
-          typeof updater === "function" ? updater(current) : Array.isArray(updater) ? updater : current;
+        const next = typeof updater === "function" ? updater(current) : Array.isArray(updater) ? updater : current;
         nodesRef.current = next;
         return next;
       });
@@ -417,8 +345,7 @@ const ChannelDiagram = () => {
   const updateEdges = useCallback(
     (updater) => {
       setEdgesState((current) => {
-        const next =
-          typeof updater === "function" ? updater(current) : Array.isArray(updater) ? updater : current;
+        const next = typeof updater === "function" ? updater(current) : Array.isArray(updater) ? updater : current;
         edgesRef.current = next;
         return next;
       });
@@ -430,18 +357,13 @@ const ChannelDiagram = () => {
     setSidebarVisible((prev) => !prev);
   }, []);
 
-
   const selectedNode = useMemo(
     () => nodes.find((node) => node.id === selectedNodeId) || null,
     [nodes, selectedNodeId]
   );
 
   const computeBounds = useCallback(() => computeBoundsFromNodes(nodesRef.current), []);
-
-  const clampPosition = useCallback(
-    (pos) => clampPositionWithinBounds(pos, computeBounds()),
-    [computeBounds]
-  );
+  const clampPosition = useCallback((pos) => clampPositionWithinBounds(pos, computeBounds()), [computeBounds]);
 
   const saveTimer = useRef(null);
 
@@ -467,38 +389,27 @@ const ChannelDiagram = () => {
 
   const ensureRouterEdges = useCallback(
     (node, options = {}) => {
-      if (!node || !isRouterNode(node)) {
-        return { added: 0, removed: 0 };
-      }
+      if (!node || !isRouterNode(node)) return { added: 0, removed: 0 };
 
       let summary = { added: 0, removed: 0 };
       updateEdges((current) => {
         const { toAdd, toRemove } = ensureRouterTemplateEdges(node, current, options);
-        if (!toAdd.length && !toRemove.length) {
-          return current;
-        }
-        const toRemoveIds = new Set(toRemove.map((edge) => edge.id));
+        if (!toAdd.length && !toRemove.length) return current;
+
+        const toRemoveIds = new Set(toRemove.map((e) => e.id));
         summary = { added: toAdd.length, removed: toRemove.length };
-        const next = current.filter((edge) => !toRemoveIds.has(edge.id));
+        const next = current.filter((e) => !toRemoveIds.has(e.id));
         const merged = [...next, ...toAdd];
         return ensureEdgesUseDistinctHandles(nodesRef.current, merged);
       });
 
-      if ((summary.added || summary.removed) && isAuth) {
-        requestSave();
-      }
-
+      if ((summary.added || summary.removed) && isAuth) requestSave();
       return summary;
     },
     [updateEdges, isAuth, requestSave]
   );
 
-  useEffect(
-    () => () => {
-      if (saveTimer.current) clearTimeout(saveTimer.current);
-    },
-    []
-  );
+  useEffect(() => () => { if (saveTimer.current) clearTimeout(saveTimer.current); }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -509,25 +420,18 @@ const ChannelDiagram = () => {
         setError(null);
 
         const requestedId = String(channelIdParam || "").trim();
-        if (!requestedId) {
-          throw new Error("El identificador del canal es obligatorio.");
-        }
+        if (!requestedId) throw new Error("El identificador del canal es obligatorio.");
 
         const sampleDiagram = getSampleDiagramById(requestedId);
         if (sampleDiagram) {
-          const { nodes: normalizedNodes, edges: normalizedEdges } =
-            prepareDiagramState(sampleDiagram);
-
+          const { nodes: normalizedNodes, edges: normalizedEdges } = prepareDiagramState(sampleDiagram);
           if (cancelled) return;
 
           setChannelId(String(sampleDiagram._id || requestedId));
           setIsSampleDiagram(true);
           setDiagramMetadata(sampleDiagram.metadata || null);
           updateNodes(() => normalizedNodes);
-          const edgesWithHandles = ensureEdgesUseDistinctHandles(
-            normalizedNodes,
-            normalizedEdges
-          );
+          const edgesWithHandles = ensureEdgesUseDistinctHandles(normalizedNodes, normalizedEdges);
           updateEdges(() => edgesWithHandles);
           syncConfirmedNodePositions(normalizedNodes);
           syncConfirmedNodeLabelPositions(normalizedNodes);
@@ -539,24 +443,16 @@ const ChannelDiagram = () => {
         const response = await api.getChannelDiagramById(requestedId);
         const payload = response?.data ?? response;
         const diagram = Array.isArray(payload) ? payload[0] : payload;
+        if (!diagram) throw new Error("No existe un diagrama para el canal indicado.");
 
-        if (!diagram) {
-          throw new Error("No existe un diagrama para el canal indicado.");
-        }
-
-        const { nodes: normalizedNodes, edges: normalizedEdges } =
-          prepareDiagramState(diagram);
-
+        const { nodes: normalizedNodes, edges: normalizedEdges } = prepareDiagramState(diagram);
         if (cancelled) return;
 
         setChannelId(String(diagram._id));
         setIsSampleDiagram(false);
         setDiagramMetadata(diagram?.metadata || null);
         updateNodes(() => normalizedNodes);
-        const edgesWithHandles = ensureEdgesUseDistinctHandles(
-          normalizedNodes,
-          normalizedEdges
-        );
+        const edgesWithHandles = ensureEdgesUseDistinctHandles(normalizedNodes, normalizedEdges);
         updateEdges(() => edgesWithHandles);
         syncConfirmedNodePositions(normalizedNodes);
         syncConfirmedNodeLabelPositions(normalizedNodes);
@@ -574,17 +470,12 @@ const ChannelDiagram = () => {
           syncConfirmedEdgePositions([]);
         }
       } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+        if (!cancelled) setLoading(false);
       }
     };
 
     fetchDiagram();
-
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [
     channelIdParam,
     updateNodes,
@@ -596,52 +487,29 @@ const ChannelDiagram = () => {
 
   const nodePatchScheduler = useMemo(() => {
     if (!channelId || !isAuth || isSampleDiagram) return null;
-    return createPatchScheduler((nodeKey, payload) =>
-      api.patchChannelNode(channelId, nodeKey, payload)
-    );
+    return createPatchScheduler((nodeKey, payload) => api.patchChannelNode(channelId, nodeKey, payload));
   }, [channelId, isAuth, isSampleDiagram]);
 
   const edgePatchScheduler = useMemo(() => {
     if (!channelId || !isAuth || isSampleDiagram) return null;
-    return createPatchScheduler((edgeKey, payload) =>
-      api.patchChannelEdge(channelId, edgeKey, payload)
-    );
+    return createPatchScheduler((edgeKey, payload) => api.patchChannelEdge(channelId, edgeKey, payload));
   }, [channelId, isAuth, isSampleDiagram]);
 
-  useEffect(
-    () => () => {
-      nodePatchScheduler?.cancelAll();
-    },
-    [nodePatchScheduler]
-  );
-
-  useEffect(
-    () => () => {
-      edgePatchScheduler?.cancelAll();
-    },
-    [edgePatchScheduler]
-  );
+  useEffect(() => () => { nodePatchScheduler?.cancelAll(); }, [nodePatchScheduler]);
+  useEffect(() => () => { edgePatchScheduler?.cancelAll(); }, [edgePatchScheduler]);
 
   const scheduleNodePatch = useCallback(
-    (nodeId, patch, options) => {
-      if (!nodePatchScheduler) return;
-      nodePatchScheduler.schedule(nodeId, patch, options);
-    },
+    (nodeId, patch, options) => { if (nodePatchScheduler) nodePatchScheduler.schedule(nodeId, patch, options); },
     [nodePatchScheduler]
   );
 
   const scheduleEdgePatch = useCallback(
-    (edgeId, patch, options) => {
-      if (!edgePatchScheduler) return;
-      edgePatchScheduler.schedule(edgeId, patch, options);
-    },
+    (edgeId, patch, options) => { if (edgePatchScheduler) edgePatchScheduler.schedule(edgeId, patch, options); },
     [edgePatchScheduler]
   );
 
   const persistLabelPositions = useMemo(() => {
-    if (!channelId || !isAuth || isSampleDiagram) {
-      return null;
-    }
+    if (!channelId || !isAuth || isSampleDiagram) return null;
     return createPersistLabelPositions({
       getChannelId: () => channelId,
       getIsAuth: () => isAuth,
@@ -661,9 +529,7 @@ const ChannelDiagram = () => {
             : node
         )
       );
-      if (isAuth) {
-        scheduleNodePatch(nodeId, { label: sanitized });
-      }
+      if (isAuth) scheduleNodePatch(nodeId, { label: sanitized });
       requestSave();
     },
     [isAuth, scheduleNodePatch, updateNodes, requestSave]
@@ -675,13 +541,7 @@ const ChannelDiagram = () => {
       updateNodes((current) =>
         current.map((node) =>
           node.id === nodeId
-            ? {
-                ...node,
-                data: {
-                  ...(node.data || {}),
-                  labelPosition: clamped ?? undefined,
-                },
-              }
+            ? { ...node, data: { ...(node.data || {}), labelPosition: clamped ?? undefined } }
             : node
         )
       );
@@ -695,13 +555,7 @@ const ChannelDiagram = () => {
       updateNodes((current) =>
         current.map((node) =>
           node.id === nodeId
-            ? {
-                ...node,
-                data: {
-                  ...(node.data || {}),
-                  multicastPosition: clamped ?? undefined,
-                },
-              }
+            ? { ...node, data: { ...(node.data || {}), multicastPosition: clamped ?? undefined } }
             : node
         )
       );
@@ -711,28 +565,15 @@ const ChannelDiagram = () => {
 
   const handleNodeDataPatch = useCallback(
     (nodeId, dataPatch = {}) => {
-      if (!nodeId || !dataPatch || typeof dataPatch !== "object") {
-        return;
-      }
+      if (!nodeId || !dataPatch || typeof dataPatch !== "object") return;
 
       updateNodes((current) =>
         current.map((node) =>
-          node.id === nodeId
-            ? {
-                ...node,
-                data: {
-                  ...(node.data || {}),
-                  ...dataPatch,
-                },
-              }
-            : node
+          node.id === nodeId ? { ...node, data: { ...(node.data || {}), ...dataPatch } } : node
         )
       );
 
-      if (isAuth) {
-        scheduleNodePatch(nodeId, { data: dataPatch });
-      }
-
+      if (isAuth) scheduleNodePatch(nodeId, { data: dataPatch });
       requestSave();
     },
     [isAuth, scheduleNodePatch, updateNodes, requestSave]
@@ -744,22 +585,11 @@ const ChannelDiagram = () => {
       updateNodes((current) =>
         current.map((node) =>
           node.id === nodeId
-            ? {
-                ...node,
-                draggable: !isLocked,
-                data: { ...(node.data || {}), locked: isLocked },
-              }
+            ? { ...node, draggable: !isLocked, data: { ...(node.data || {}), locked: isLocked } }
             : node
         )
       );
-
-      if (isAuth) {
-        scheduleNodePatch(nodeId, {
-          draggable: !isLocked,
-          data: { locked: isLocked },
-        });
-      }
-
+      if (isAuth) scheduleNodePatch(nodeId, { draggable: !isLocked, data: { locked: isLocked } });
       requestSave();
     },
     [isAuth, scheduleNodePatch, updateNodes, requestSave]
@@ -810,16 +640,11 @@ const ChannelDiagram = () => {
         position: { x: offsetX, y: offsetY },
         selected: false,
         dragging: false,
-        data: {
-          ...(original.data || {}),
-          label: `${original.data?.label || original.id} (copy)`,
-        },
+        data: { ...(original.data || {}), label: `${original.data?.label || original.id} (copy)` },
       };
 
       updateNodes((current) => [...current, duplicated]);
-      if (isRouterNode(duplicated)) {
-        ensureRouterEdges(duplicated);
-      }
+      if (isRouterNode(duplicated)) ensureRouterEdges(duplicated);
       requestSave();
       return duplicated;
     },
@@ -832,17 +657,11 @@ const ChannelDiagram = () => {
       updateEdges((current) =>
         current.map((edge) =>
           edge.id === edgeId
-            ? {
-                ...edge,
-                label: sanitized,
-                data: { ...(edge.data || {}), label: sanitized },
-              }
+            ? { ...edge, label: sanitized, data: { ...(edge.data || {}), label: sanitized } }
             : edge
         )
       );
-      if (isAuth) {
-        scheduleEdgePatch(edgeId, { label: sanitized });
-      }
+      if (isAuth) scheduleEdgePatch(edgeId, { label: sanitized });
       requestSave();
     },
     [isAuth, scheduleEdgePatch, updateEdges, requestSave]
@@ -873,25 +692,12 @@ const ChannelDiagram = () => {
         current.map((edge) => {
           if (edge.id !== edgeId) return edge;
           const currentLabels = { ...(edge.data?.endpointLabels || {}) };
-          if (!sanitized) {
-            delete currentLabels[endpoint];
-          } else {
-            currentLabels[endpoint] = sanitized;
-          }
-          return {
-            ...edge,
-            data: {
-              ...(edge.data || {}),
-              endpointLabels: currentLabels,
-            },
-          };
+          if (!sanitized) delete currentLabels[endpoint];
+          else currentLabels[endpoint] = sanitized;
+          return { ...edge, data: { ...(edge.data || {}), endpointLabels: currentLabels } };
         })
       );
-      if (isAuth) {
-        scheduleEdgePatch(edgeId, {
-          endpointLabels: { [endpoint]: sanitized || null },
-        });
-      }
+      if (isAuth) scheduleEdgePatch(edgeId, { endpointLabels: { [endpoint]: sanitized || null } });
       requestSave();
     },
     [isAuth, scheduleEdgePatch, updateEdges, requestSave]
@@ -907,84 +713,47 @@ const ChannelDiagram = () => {
             toPositionOrNull(previousEdge?.data?.labelPosition) ||
             toPositionOrNull(previousEdge?.labelPosition) ||
             null,
-          endpointLabelPositions: cloneEndpointPositions(
-            previousEdge?.data?.endpointLabelPositions
-          ),
-          multicastPosition:
-            toPositionOrNull(previousEdge?.data?.multicastPosition) || null,
+          endpointLabelPositions: cloneEndpointPositions(previousEdge?.data?.endpointLabelPositions),
+          multicastPosition: toPositionOrNull(previousEdge?.data?.multicastPosition) || null,
         };
+
       updateEdges((current) =>
         current.map((edge) => {
           if (edge.id !== edgeId) return edge;
-          const currentPositions = {
-            ...(edge.data?.endpointLabelPositions || {}),
-          };
-          if (!clamped) {
-            delete currentPositions[endpoint];
-          } else {
-            currentPositions[endpoint] = clamped;
-          }
-          return {
-            ...edge,
-            data: {
-              ...(edge.data || {}),
-              endpointLabelPositions: currentPositions,
-            },
-          };
+          const currentPositions = { ...(edge.data?.endpointLabelPositions || {}) };
+          if (!clamped) delete currentPositions[endpoint];
+          else currentPositions[endpoint] = clamped;
+          return { ...edge, data: { ...(edge.data || {}), endpointLabelPositions: currentPositions } };
         })
       );
+
       if (isAuth) {
         scheduleEdgePatch(
           edgeId,
-          {
-            endpointLabelPositions: { [endpoint]: clamped || null },
-          },
+          { endpointLabelPositions: { [endpoint]: clamped || null } },
           {
             onSuccess: () => {
               const existing = confirmedEdgePositionsRef.current.get(edgeId);
               const nextPositions = {
-                ...((existing && existing.endpointLabelPositions) ||
-                  fallbackState.endpointLabelPositions || {}),
+                ...((existing && existing.endpointLabelPositions) || fallbackState.endpointLabelPositions || {}),
               };
-              if (clamped) {
-                nextPositions[endpoint] = { ...clamped };
-              } else {
-                delete nextPositions[endpoint];
-              }
+              if (clamped) nextPositions[endpoint] = { ...clamped };
+              else delete nextPositions[endpoint];
               confirmedEdgePositionsRef.current.set(edgeId, {
-                labelPosition:
-                  (existing && existing.labelPosition) ||
-                  fallbackState.labelPosition ||
-                  null,
+                labelPosition: (existing && existing.labelPosition) || fallbackState.labelPosition || null,
                 endpointLabelPositions: nextPositions,
-                multicastPosition:
-                  (existing && existing.multicastPosition) ||
-                  fallbackState.multicastPosition ||
-                  null,
+                multicastPosition: (existing && existing.multicastPosition) || fallbackState.multicastPosition || null,
               });
             },
             onError: () => {
               updateEdges((current) =>
                 current.map((edge) => {
                   if (edge.id !== edgeId) return edge;
-                  const fallbackPositions = {
-                    ...(fallbackState.endpointLabelPositions || {}),
-                  };
-                  const nextPositions = {
-                    ...(edge.data?.endpointLabelPositions || {}),
-                  };
-                  if (fallbackPositions[endpoint]) {
-                    nextPositions[endpoint] = fallbackPositions[endpoint];
-                  } else {
-                    delete nextPositions[endpoint];
-                  }
-                  return {
-                    ...edge,
-                    data: {
-                      ...(edge.data || {}),
-                      endpointLabelPositions: nextPositions,
-                    },
-                  };
+                  const fallbackPositions = { ...(fallbackState.endpointLabelPositions || {}) };
+                  const nextPositions = { ...(edge.data?.endpointLabelPositions || {}) };
+                  if (fallbackPositions[endpoint]) nextPositions[endpoint] = fallbackPositions[endpoint];
+                  else delete nextPositions[endpoint];
+                  return { ...edge, data: { ...(edge.data || {}), endpointLabelPositions: nextPositions } };
                 })
               );
             },
@@ -1003,11 +772,8 @@ const ChannelDiagram = () => {
         current.map((edge) => {
           if (edge.id !== edgeId) return edge;
           const nextData = { ...(edge.data || {}) };
-          if (!clamped) {
-            delete nextData.multicastPosition;
-          } else {
-            nextData.multicastPosition = clamped;
-          }
+          if (!clamped) delete nextData.multicastPosition;
+          else nextData.multicastPosition = clamped;
           return { ...edge, data: nextData };
         })
       );
@@ -1015,9 +781,7 @@ const ChannelDiagram = () => {
     [clampPosition, updateEdges]
   );
 
-  const handleNodeDragStop = useCallback(() => {
-    requestSave();
-  }, [requestSave]);
+  const handleNodeDragStop = useCallback(() => { requestSave(); }, [requestSave]);
 
   const handleEdgeUpdate = useCallback(
     (oldEdge, newConnection) => {
@@ -1080,39 +844,29 @@ const ChannelDiagram = () => {
       const previousNodes = nodesRef.current;
       const previousPositions = new Map();
       previousNodes.forEach((node) => {
-        previousPositions.set(
-          node.id,
-          toPositionOrNull(node.position) || { x: 0, y: 0 }
-        );
+        previousPositions.set(node.id, toPositionOrNull(node.position) || { x: 0, y: 0 });
       });
 
       const routerAdditions = [];
       changes.forEach((change) => {
         if (change.type === "add") {
-          const candidate = change.item ||
-            previousNodes.find((node) => node.id === change.id);
-          if (candidate && isRouterNode(candidate)) {
-            routerAdditions.push(candidate.id);
-          }
+          const candidate = change.item || previousNodes.find((node) => node.id === change.id);
+          if (candidate && isRouterNode(candidate)) routerAdditions.push(candidate.id);
         }
       });
 
       updateNodes((current) => applyNodeChanges(changes, current));
-      const finalPositionChanges = changes.filter(
-        (change) => change.type === "position" && change.dragging === false
-      );
+      const finalPositionChanges = changes.filter((c) => c.type === "position" && c.dragging === false);
 
       if (finalPositionChanges.length && isAuth) {
         finalPositionChanges.forEach(({ id }) => {
-          const nextNode = nodesRef.current.find((node) => node.id === id);
+          const nextNode = nodesRef.current.find((n) => n.id === id);
           if (!nextNode) return;
-          const nextPosition = toPositionOrNull(nextNode.position) || {
-            x: 0,
-            y: 0,
-          };
+          const nextPosition = toPositionOrNull(nextNode.position) || { x: 0, y: 0 };
           const confirmedPosition =
             confirmedNodePositionsRef.current.get(id) ||
-            previousPositions.get(id) || { x: 0, y: 0 };
+            previousPositions.get(id) ||
+            { x: 0, y: 0 };
 
           scheduleNodePatch(
             id,
@@ -1124,9 +878,7 @@ const ChannelDiagram = () => {
               onError: () => {
                 updateNodes((current) =>
                   current.map((node) =>
-                    node.id === id
-                      ? { ...node, position: { ...confirmedPosition } }
-                      : node
+                    node.id === id ? { ...node, position: { ...confirmedPosition } } : node
                   )
                 );
               },
@@ -1135,39 +887,24 @@ const ChannelDiagram = () => {
         });
       }
 
-      if (finalPositionChanges.length) {
-        requestSave();
-      }
+      if (finalPositionChanges.length) requestSave();
 
       routerAdditions.forEach((routerId) => {
         const routerNode = nodesRef.current.find((node) => node.id === routerId);
         if (!routerNode) return;
         const summary = ensureRouterEdges(routerNode);
         if (summary.added) {
-          console.info(
-            `Router ${routerNode.id}: se generaron ${summary.added} aristas por defecto.`
-          );
+          console.info(`Router ${routerNode.id}: se generaron ${summary.added} aristas por defecto.`);
         }
       });
     },
-    [
-      isAuth,
-      scheduleNodePatch,
-      updateNodes,
-      requestSave,
-      ensureRouterEdges,
-    ]
+    [isAuth, scheduleNodePatch, updateNodes, requestSave, ensureRouterEdges]
   );
+
   const handleEdgesChange = useCallback((changes) => onEdgesChange(changes), [onEdgesChange]);
 
-  const handleNodeClick = useCallback((_, node) => {
-    setSelectedNodeId(node?.id ?? null);
-  }, []);
-
-  const handlePaneClick = useCallback(() => {
-    setSelectedNodeId(null);
-  }, []);
-
+  const handleNodeClick = useCallback((_, node) => { setSelectedNodeId(node?.id ?? null); }, []);
+  const handlePaneClick = useCallback(() => { setSelectedNodeId(null); }, []);
   const handleSelectionChange = useCallback((selection) => {
     const node = Array.isArray(selection?.nodes) ? selection.nodes[0] : null;
     setSelectedNodeId(node?.id ?? null);
@@ -1175,40 +912,26 @@ const ChannelDiagram = () => {
 
   const fitViewToContent = useCallback(() => {
     if (!reactFlowInstance) return;
-    requestAnimationFrame(() => {
-      reactFlowInstance.fitView({ padding: FIT_VIEW_PADDING });
-    });
+    requestAnimationFrame(() => { reactFlowInstance.fitView({ padding: FIT_VIEW_PADDING }); });
   }, [reactFlowInstance]);
 
   const handleInit = useCallback((instance) => {
     setReactFlowInstance(instance);
-    requestAnimationFrame(() => {
-      instance.fitView({ padding: FIT_VIEW_PADDING });
-    });
+    requestAnimationFrame(() => { instance.fitView({ padding: FIT_VIEW_PADDING }); });
   }, []);
 
   useEffect(() => {
     if (!reactFlowInstance || loading) return;
     fitViewToContent();
-  }, [
-    reactFlowInstance,
-    channelId,
-    loading,
-    nodes.length,
-    edges.length,
-    fitViewToContent,
-  ]);
+  }, [reactFlowInstance, channelId, loading, nodes.length, edges.length, fitViewToContent]);
 
   useEffect(() => {
     if (!reactFlowInstance) return;
     const handleKey = (event) => {
       if (event.target instanceof HTMLElement) {
         const tagName = event.target.tagName.toLowerCase();
-        if (tagName === "input" || tagName === "textarea" || event.target.isContentEditable) {
-          return;
-        }
+        if (tagName === "input" || tagName === "textarea" || event.target.isContentEditable) return;
       }
-
       if (event.key === "+" || event.key === "=") {
         if (typeof reactFlowInstance.zoomIn === "function") {
           reactFlowInstance.zoomIn({ duration: ZOOM_DURATION });
@@ -1217,7 +940,6 @@ const ChannelDiagram = () => {
           reactFlowInstance.zoomTo?.(currentZoom * 1.2, { duration: ZOOM_DURATION });
         }
       }
-
       if (event.key === "-" || event.key === "_") {
         if (typeof reactFlowInstance.zoomOut === "function") {
           reactFlowInstance.zoomOut({ duration: ZOOM_DURATION });
@@ -1227,7 +949,6 @@ const ChannelDiagram = () => {
         }
       }
     };
-
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
   }, [reactFlowInstance]);
@@ -1286,9 +1007,7 @@ const ChannelDiagram = () => {
           <div className="channel-diagram__canvas">
             {isReadOnly && (
               <div className="diagram-readonly-banner">
-                {isSampleDiagram
-                  ? "Diagrama de ejemplo: modo solo lectura."
-                  : "Modo solo lectura."}
+                {isSampleDiagram ? "Diagrama de ejemplo: modo solo lectura." : "Modo solo lectura."}
               </div>
             )}
             <button
@@ -1300,9 +1019,7 @@ const ChannelDiagram = () => {
             </button>
             {diagramMetadata?.description && (
               <div
-                className={`diagram-metadata-banner${
-                  isSampleDiagram ? " diagram-metadata-banner--demo" : ""
-                }`}
+                className={`diagram-metadata-banner${isSampleDiagram ? " diagram-metadata-banner--demo" : ""}`}
               >
                 <strong className="diagram-metadata-banner__title">
                   {diagramMetadata?.title || "Diagrama"}
