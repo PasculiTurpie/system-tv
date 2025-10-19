@@ -34,6 +34,7 @@ import {
 } from "./diagramUtils";
 import { createPersistLabelPositions } from "./persistLabelPositions";
 import { getSampleDiagramById } from "./samples";
+import normalizeHandle from "../../utils/normalizeHandle";
 
 const AUTO_SAVE_DELAY = 320;
 const FIT_VIEW_PADDING = 0.2;
@@ -100,6 +101,223 @@ const cloneEndpointPositions = (positions) => {
   if (source) next.source = source;
   if (target) next.target = target;
   return next;
+};
+
+const DEFAULT_CUSTOM_NODE_SLOTS = Object.freeze({
+  top: [20, 50, 80],
+  bottom: [20, 50, 80],
+  left: [30, 70],
+  right: [30, 70],
+});
+
+const ROUTER_HANDLE_OPTIONS = Object.freeze({
+  source: [
+    { id: "out-right-1", side: "right" },
+    { id: "out-right-2", side: "right" },
+    { id: "out-bottom-1", side: "bottom" },
+    { id: "out-bottom-2", side: "bottom" },
+    { id: "out-bottom-3", side: "bottom" },
+  ],
+  target: [
+    { id: "in-left-1", side: "left" },
+    { id: "in-left-2", side: "left" },
+    { id: "in-bottom-1", side: "bottom" },
+    { id: "in-bottom-2", side: "bottom" },
+    { id: "in-bottom-3", side: "bottom" },
+  ],
+});
+
+const SIDES = ["top", "bottom", "left", "right"];
+
+const getCustomNodeHandleOptions = (node) => {
+  if (!node) return [];
+  const slots = node?.data?.slots || {};
+  const handles = [];
+
+  SIDES.forEach((side) => {
+    const configured = Array.isArray(slots[side]) && slots[side].length
+      ? slots[side]
+      : DEFAULT_CUSTOM_NODE_SLOTS[side];
+    const count = Array.isArray(configured) ? configured.length : 0;
+    for (let index = 1; index <= count; index += 1) {
+      handles.push({ id: `in-${side}-${index}`, kind: "target", side });
+      handles.push({ id: `out-${side}-${index}`, kind: "source", side });
+    }
+  });
+
+  return handles;
+};
+
+const getNodeHandleOptions = (node, kind) => {
+  if (!node) return [];
+  const normalizedKind = kind === "target" ? "target" : "source";
+  if (isRouterNode(node)) {
+    return ROUTER_HANDLE_OPTIONS[normalizedKind] || [];
+  }
+  return getCustomNodeHandleOptions(node).filter(
+    (handle) => handle.kind === normalizedKind
+  );
+};
+
+const getNodePositionPoint = (node) => {
+  if (!node) return null;
+  const pos = node.position || {};
+  const x = Number(pos.x);
+  const y = Number(pos.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    return null;
+  }
+  return { x, y };
+};
+
+const computePreferredSide = (fromNode, toNode) => {
+  const fromPos = getNodePositionPoint(fromNode);
+  const toPos = getNodePositionPoint(toNode);
+  if (!fromPos || !toPos) return null;
+  const dx = toPos.x - fromPos.x;
+  const dy = toPos.y - fromPos.y;
+  if (Math.abs(dx) > Math.abs(dy)) {
+    return dx >= 0 ? "right" : "left";
+  }
+  if (dy === 0) {
+    return dx >= 0 ? "right" : "left";
+  }
+  return dy >= 0 ? "bottom" : "top";
+};
+
+const allocateHandleId = (node, kind, preferredSide, usedSet, fallbackNormalized) => {
+  const options = getNodeHandleOptions(node, kind);
+  if (!options.length) {
+    return fallbackNormalized || null;
+  }
+
+  const ordered = options.slice();
+  if (preferredSide) {
+    ordered.sort((a, b) => {
+      const aPreferred = a.side === preferredSide;
+      const bPreferred = b.side === preferredSide;
+      if (aPreferred === bPreferred) return 0;
+      return aPreferred ? -1 : 1;
+    });
+  }
+
+  if (fallbackNormalized) {
+    const fallbackOption = ordered.find(
+      (option) => normalizeHandle(option.id) === fallbackNormalized && !usedSet.has(fallbackNormalized)
+    );
+    if (fallbackOption) {
+      return normalizeHandle(fallbackOption.id);
+    }
+  }
+
+  const available = ordered.find(
+    (option) => !usedSet.has(normalizeHandle(option.id))
+  );
+  if (available) {
+    return normalizeHandle(available.id);
+  }
+
+  if (fallbackNormalized) {
+    return fallbackNormalized;
+  }
+
+  return normalizeHandle(ordered[0].id);
+};
+
+const assignHandle = (node, kind, providedHandle, usedSet, preferredSide) => {
+  const normalizedProvided = normalizeHandle(providedHandle);
+
+  if (!node) {
+    if (normalizedProvided) {
+      usedSet.add(normalizedProvided);
+      return normalizedProvided;
+    }
+    return providedHandle || null;
+  }
+
+  if (normalizedProvided && !usedSet.has(normalizedProvided)) {
+    usedSet.add(normalizedProvided);
+    return normalizedProvided;
+  }
+
+  const allocated = allocateHandleId(
+    node,
+    kind,
+    preferredSide,
+    usedSet,
+    normalizedProvided
+  );
+
+  if (allocated) {
+    usedSet.add(allocated);
+    return allocated;
+  }
+
+  return normalizedProvided || providedHandle || null;
+};
+
+const ensureEdgesUseDistinctHandles = (nodesList, edgesList) => {
+  if (!Array.isArray(edgesList) || edgesList.length === 0) {
+    return edgesList;
+  }
+
+  const nodeLookup = new Map(
+    Array.isArray(nodesList)
+      ? nodesList.map((node) => [node.id, node])
+      : []
+  );
+
+  const usage = {
+    source: new Map(),
+    target: new Map(),
+  };
+
+  const getUsageSet = (direction, nodeId) => {
+    if (!nodeId) return new Set();
+    const map = usage[direction];
+    if (!map.has(nodeId)) {
+      map.set(nodeId, new Set());
+    }
+    return map.get(nodeId);
+  };
+
+  return edgesList.map((edge) => {
+    const sourceNode = nodeLookup.get(edge.source);
+    const targetNode = nodeLookup.get(edge.target);
+    const sourceUsage = getUsageSet("source", edge.source);
+    const targetUsage = getUsageSet("target", edge.target);
+
+    const preferredSourceSide = computePreferredSide(sourceNode, targetNode);
+    const preferredTargetSide = computePreferredSide(targetNode, sourceNode);
+
+    const assignedSource = assignHandle(
+      sourceNode,
+      "source",
+      edge.sourceHandle,
+      sourceUsage,
+      preferredSourceSide
+    );
+    const assignedTarget = assignHandle(
+      targetNode,
+      "target",
+      edge.targetHandle,
+      targetUsage,
+      preferredTargetSide
+    );
+
+    const nextEdge = { ...edge };
+    if (assignedSource) {
+      nextEdge.sourceHandle = assignedSource;
+    } else {
+      delete nextEdge.sourceHandle;
+    }
+    if (assignedTarget) {
+      nextEdge.targetHandle = assignedTarget;
+    } else {
+      delete nextEdge.targetHandle;
+    }
+    return nextEdge;
+  });
 };
 
 const ChannelDiagram = () => {
@@ -262,7 +480,8 @@ const ChannelDiagram = () => {
         const toRemoveIds = new Set(toRemove.map((edge) => edge.id));
         summary = { added: toAdd.length, removed: toRemove.length };
         const next = current.filter((edge) => !toRemoveIds.has(edge.id));
-        return [...next, ...toAdd];
+        const merged = [...next, ...toAdd];
+        return ensureEdgesUseDistinctHandles(nodesRef.current, merged);
       });
 
       if ((summary.added || summary.removed) && isAuth) {
@@ -305,10 +524,14 @@ const ChannelDiagram = () => {
           setIsSampleDiagram(true);
           setDiagramMetadata(sampleDiagram.metadata || null);
           updateNodes(() => normalizedNodes);
-          updateEdges(() => normalizedEdges);
+          const edgesWithHandles = ensureEdgesUseDistinctHandles(
+            normalizedNodes,
+            normalizedEdges
+          );
+          updateEdges(() => edgesWithHandles);
           syncConfirmedNodePositions(normalizedNodes);
           syncConfirmedNodeLabelPositions(normalizedNodes);
-          syncConfirmedEdgePositions(normalizedEdges);
+          syncConfirmedEdgePositions(edgesWithHandles);
           setSelectedNodeId(null);
           return;
         }
@@ -330,10 +553,14 @@ const ChannelDiagram = () => {
         setIsSampleDiagram(false);
         setDiagramMetadata(diagram?.metadata || null);
         updateNodes(() => normalizedNodes);
-        updateEdges(() => normalizedEdges);
+        const edgesWithHandles = ensureEdgesUseDistinctHandles(
+          normalizedNodes,
+          normalizedEdges
+        );
+        updateEdges(() => edgesWithHandles);
         syncConfirmedNodePositions(normalizedNodes);
         syncConfirmedNodeLabelPositions(normalizedNodes);
-        syncConfirmedEdgePositions(normalizedEdges);
+        syncConfirmedEdgePositions(edgesWithHandles);
         setSelectedNodeId(null);
       } catch (err) {
         if (!cancelled) {
@@ -795,8 +1022,8 @@ const ChannelDiagram = () => {
   const handleEdgeUpdate = useCallback(
     (oldEdge, newConnection) => {
       if (!isAuth) return;
-      updateEdges((current) =>
-        current.map((edge) =>
+      updateEdges((current) => {
+        const next = current.map((edge) =>
           edge.id === oldEdge.id
             ? {
                 ...edge,
@@ -807,8 +1034,9 @@ const ChannelDiagram = () => {
                 updatable: true,
               }
             : edge
-        )
-      );
+        );
+        return ensureEdgesUseDistinctHandles(nodesRef.current, next);
+      });
       requestSave();
     },
     [isAuth, requestSave, updateEdges]
@@ -819,8 +1047,8 @@ const ChannelDiagram = () => {
       if (!isAuth) return;
       const direction = "ida";
       const color = getEdgeColor(undefined, direction);
-      updateEdges((current) =>
-        addEdge(
+      updateEdges((current) => {
+        const next = addEdge(
           {
             ...connection,
             id: `edge-${Date.now()}`,
@@ -839,8 +1067,9 @@ const ChannelDiagram = () => {
             updatable: true,
           },
           current
-        )
-      );
+        );
+        return ensureEdgesUseDistinctHandles(nodesRef.current, next);
+      });
       requestSave();
     },
     [isAuth, requestSave, updateEdges]
