@@ -2,6 +2,7 @@ import React, { useCallback, useContext, useMemo } from "react";
 import { BaseEdge } from "@xyflow/react";
 import { DiagramContext } from "./DiagramContext";
 import EdgeLabelDraggable from "./EdgeLabelDraggable";
+import EditableEdgeLabel from "./EditableEdgeLabel";
 import { computeParallelPath } from "./diagramUtils";
 
 export default function CustomDirectionalEdge(props) {

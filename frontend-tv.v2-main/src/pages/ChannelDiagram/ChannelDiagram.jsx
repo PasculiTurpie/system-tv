@@ -796,7 +796,7 @@ const ChannelDiagram = () => {
 
   const handleNodeDragStop = useCallback(() => { requestSave(); }, [requestSave]);
 
-  const handleEdgeUpdate = useCallback(
+  const handleEdgeReconnect = useCallback(
     (oldEdge, newConnection) => {
       if (!isAuth) return;
       updateEdges((current) => {
@@ -808,7 +808,7 @@ const ChannelDiagram = () => {
                 target: newConnection.target,
                 sourceHandle: newConnection.sourceHandle,
                 targetHandle: newConnection.targetHandle,
-                updatable: true,
+                reconnectable: true,
               }
             : edge
         );
@@ -841,7 +841,7 @@ const ChannelDiagram = () => {
             style: { stroke: color, strokeWidth: 2 },
             markerEnd: withMarkerColor(undefined, color),
             animated: true,
-            updatable: true,
+            reconnectable: true,
           },
           current
         );
@@ -1054,10 +1054,10 @@ const ChannelDiagram = () => {
                 nodesDraggable={!isReadOnly}
                 nodesConnectable={!isReadOnly}
                 elementsSelectable
-                edgesUpdatable={!isReadOnly}
-                edgeUpdaterRadius={20}
+                edgesReconnectable={!isReadOnly}
+                reconnectRadius={20}
                 onNodeDragStop={handleNodeDragStop}
-                onEdgeUpdate={handleEdgeUpdate}
+                onReconnect={handleEdgeReconnect}
                 onConnect={handleConnect}
                 onNodesChange={handleNodesChange}
                 onEdgesChange={handleEdgesChange}
