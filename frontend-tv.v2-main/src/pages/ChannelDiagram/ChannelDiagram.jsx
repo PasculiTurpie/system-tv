@@ -6,6 +6,7 @@ import {
   useEdgesState,
   useNodesState,
   addEdge,
+  applyEdgeChanges,
   applyNodeChanges,
   ReactFlowProvider,
 } from "@xyflow/react";
@@ -869,6 +870,13 @@ const ChannelDiagram = () => {
       });
 
       updateNodes((current) => applyNodeChanges(changes, current));
+      const requiresHandleRecalculation = changes.some((change) =>
+        change.type === "add" || change.type === "position" || change.type === "remove"
+      );
+
+      if (requiresHandleRecalculation) {
+        updateEdges((current) => ensureEdgesUseDistinctHandles(nodesRef.current, current));
+      }
       const finalPositionChanges = changes.filter((c) => c.type === "position" && c.dragging === false);
 
       if (finalPositionChanges.length && isAuth) {
@@ -914,7 +922,19 @@ const ChannelDiagram = () => {
     [isAuth, scheduleNodePatch, updateNodes, requestSave, ensureRouterEdges]
   );
 
-  const handleEdgesChange = useCallback((changes) => onEdgesChange(changes), [onEdgesChange]);
+  const handleEdgesChange = useCallback(
+    (changes) => {
+      if (!Array.isArray(changes) || changes.length === 0) {
+        onEdgesChange(changes);
+        return;
+      }
+      updateEdges((current) => {
+        const next = applyEdgeChanges(changes, current);
+        return ensureEdgesUseDistinctHandles(nodesRef.current, next);
+      });
+    },
+    [onEdgesChange, updateEdges]
+  );
 
   const handleNodeClick = useCallback((_, node) => { setSelectedNodeId(node?.id ?? null); }, []);
   const handlePaneClick = useCallback(() => { setSelectedNodeId(null); }, []);
