@@ -7,8 +7,11 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { Handle, Position } from "@xyflow/react";
+import { Handle, Position, useStore } from "@xyflow/react";
+import { shallow } from "zustand/shallow";
 import { DiagramContext } from "./DiagramContext";
+import NodeLabelDraggable from "./NodeLabelDraggable";
+import NodeMulticastDraggable from "./NodeMulticastDraggable";
 
 const styles = {
   box: {
@@ -21,6 +24,7 @@ const styles = {
     textAlign: "center",
     boxShadow: "0 2px 8px rgba(0,0,0,.06)",
     overflow: "hidden",
+    userSelect: "none",
   },
   title: { fontWeight: 800, color: "#1f2937", cursor: "text", padding: "2px 4px" },
   input: {
@@ -46,11 +50,57 @@ export default function RouterNode({ id, data }) {
   const [value, setValue] = useState(() => data?.label ?? "Router");
   const inputRef = useRef(null);
 
+  const { xAbs, yAbs, width, ready } = useStore(
+    useCallback((state) => {
+      const map = state?.nodeInternals;
+      if (!map || typeof map.get !== "function") {
+        return { xAbs: null, yAbs: null, width: 0, ready: false };
+      }
+      const node = map.get(id);
+      const pos = node?.positionAbsolute;
+      return {
+        xAbs: Number.isFinite(pos?.x) ? pos.x : null,
+        yAbs: Number.isFinite(pos?.y) ? pos.y : null,
+        width: Number.isFinite(node?.width) ? node.width : 0,
+        ready: true,
+      };
+    }, [id]),
+    shallow
+  );
+
+  const hasStoredLabelPosition =
+    data?.labelPosition &&
+    Number.isFinite(data.labelPosition.x) &&
+    Number.isFinite(data.labelPosition.y);
+
+  const defaultLabelPosition = useMemo(() => {
+    if (!ready || !Number.isFinite(xAbs) || !Number.isFinite(yAbs)) return null;
+    const cx = xAbs + (Number.isFinite(width) ? width : 0) / 2;
+    const cy = yAbs - 24;
+    return { x: cx, y: cy };
+  }, [ready, xAbs, yAbs, width]);
+
+  const effectiveLabelDefault = useMemo(() => {
+    if (hasStoredLabelPosition) return data?.labelPosition;
+    if (defaultLabelPosition) return defaultLabelPosition;
+    return null;
+  }, [hasStoredLabelPosition, data?.labelPosition, defaultLabelPosition]);
+
+  const multicastDefaultPosition = useMemo(() => {
+    if (!ready || !Number.isFinite(xAbs) || !Number.isFinite(yAbs)) return null;
+    const offsetX = Number.isFinite(width) ? width : 0;
+    return {
+      x: xAbs + offsetX + 28,
+      y: yAbs + 18,
+    };
+  }, [ready, xAbs, yAbs, width]);
+
   const backgroundSource = data?.backgroundImage || data?.icon || null;
 
   const boxStyle = useMemo(() => {
     const base = {
       ...styles.box,
+      cursor: isReadOnly ? "default" : "grab",
     };
 
     if (!backgroundSource) {
@@ -64,7 +114,7 @@ export default function RouterNode({ id, data }) {
       backgroundPosition: "center",
       backgroundRepeat: "no-repeat",
     };
-  }, [backgroundSource]);
+  }, [backgroundSource, isReadOnly]);
 
   useEffect(() => {
     setValue(data?.label ?? "Router");
@@ -92,69 +142,87 @@ export default function RouterNode({ id, data }) {
   }, [commit, data?.label]);
 
   return (
-    <div style={boxStyle} title={data?.tooltip || data?.label || "Router"}>
-      {!editing ? (
-        <div
-          style={{ ...styles.title, cursor: canEdit ? "text" : "default" }}
-          onDoubleClick={startEdit}
-          title={canEdit ? "Doble click para editar" : "Solo lectura"}
-        >
-          {data?.label ?? "Router"}
-        </div>
-      ) : (
-        <input
-          ref={(el) => {
-            if (el) {
-              el.focus();
-              el.select();
-            }
-            inputRef.current = el;
-          }}
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onBlur={commit}
-          onKeyDown={onKeyDown}
-          style={styles.input}
-          aria-label="Editar etiqueta del router"
-        />
-      )}
+    <>
+      <div style={boxStyle} title={data?.tooltip || data?.label || "Router"}>
+        {!editing ? (
+          <div
+            style={{ ...styles.title, cursor: canEdit ? "text" : "default" }}
+            onDoubleClick={startEdit}
+            title={canEdit ? "Doble click para editar" : "Solo lectura"}
+          >
+            {data?.label ?? "Router"}
+          </div>
+        ) : (
+          <input
+            ref={(el) => {
+              if (el) {
+                el.focus();
+                el.select();
+              }
+              inputRef.current = el;
+            }}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onBlur={commit}
+            onKeyDown={onKeyDown}
+            style={styles.input}
+            aria-label="Editar etiqueta del router"
+          />
+        )}
 
-      {leftSlots.map((p, index) => (
-        <Handle
-          key={`in-left-${index + 1}`}
-          id={`in-left-${index + 1}`}
-          type="target"
-          position={Position.Left}
-          style={{ ...styles.dot, top: `${p}%` }}
-        />
-      ))}
-
-      {rightSlots.map((p, index) => (
-        <Handle
-          key={`out-right-${index + 1}`}
-          id={`out-right-${index + 1}`}
-          type="source"
-          position={Position.Right}
-          style={{ ...styles.dot, top: `${p}%` }}
-        />
-      ))}
-
-      {bottomSlots.map((p, index) => (
-        <React.Fragment key={`bottom-${index}`}>
+        {leftSlots.map((p, index) => (
           <Handle
-            id={`in-bottom-${index + 1}`}
+            key={`in-left-${index + 1}`}
+            id={`in-left-${index + 1}`}
             type="target"
-            position={Position.Bottom}
-            style={{ ...styles.dot, left: `${p}%` }}
+            position={Position.Left}
+            style={{ ...styles.dot, top: `${p}%` }}
           />
+        ))}
+
+        {rightSlots.map((p, index) => (
           <Handle
-            id={`out-bottom-${index + 1}`}
+            key={`out-right-${index + 1}`}
+            id={`out-right-${index + 1}`}
             type="source"
-            position={Position.Bottom}
-            style={{ ...styles.dot, left: `${p}%` }}
+            position={Position.Right}
+            style={{ ...styles.dot, top: `${p}%` }}
           />
-        </React.Fragment>
-      ))}
-    </div>
+        ))}
+
+        {bottomSlots.map((p, index) => (
+          <React.Fragment key={`bottom-${index}`}>
+            <Handle
+              id={`in-bottom-${index + 1}`}
+              type="target"
+              position={Position.Bottom}
+              style={{ ...styles.dot, left: `${p}%` }}
+            />
+            <Handle
+              id={`out-bottom-${index + 1}`}
+              type="source"
+              position={Position.Bottom}
+              style={{ ...styles.dot, left: `${p}%` }}
+            />
+          </React.Fragment>
+        ))}
+      </div>
+
+      <NodeLabelDraggable
+        nodeId={id}
+        text={data?.label ?? "Router"}
+        position={data?.labelPosition}
+        defaultPosition={effectiveLabelDefault}
+        readOnly={!!isReadOnly}
+      />
+
+      <NodeMulticastDraggable
+        nodeId={id}
+        text={data?.multicast || ""}
+        position={data?.multicastPosition}
+        defaultPosition={multicastDefaultPosition}
+        readOnly={!!isReadOnly}
+      />
+    </>
   );
 }
