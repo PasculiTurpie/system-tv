@@ -3,31 +3,33 @@
 
 body,
 html {
-    height    : 100%;
-    margin    : 0;
-    padding   : 0;
+    height: 100%;
+    margin: 0;
+    padding: 0;
     box-sizing: border-box;
 }
-
 
 .outlet-main {
     display: flex;
     flex-direction: column;
-    margin:0 auto;
+    margin: 0 auto;
     align-items: center;
-    width     : 100%;
+    width: 100%;
     min-height: calc(100vh - 274px);
-    padding   : 50px 80px;
+    padding: 50px 80px;
 }
 
 .react-flow__edge,
 .react-flow__edge-path {
-  opacity: 1 !important;
-  stroke-opacity: 1 !important;
+    opacity: 1 !important;
+    stroke-opacity: 1 !important;
 }
 
-
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
 }
