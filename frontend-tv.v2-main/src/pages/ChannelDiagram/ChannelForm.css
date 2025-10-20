@@ -196,9 +196,14 @@
 /* Buttons */
 .chf__actions {
   display   : flex;
-  justify-content: right;
+  justify-content: left;
   gap       : 10px;
   margin-top: 4px;
+}
+
+.chf__container{
+  display: flex;
+  justify-content: end;
 }
 
 .chf__btn {

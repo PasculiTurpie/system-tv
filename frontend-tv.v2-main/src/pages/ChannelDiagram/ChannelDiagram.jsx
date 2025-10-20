@@ -1056,13 +1056,6 @@ const ChannelDiagram = () => {
             <div className="channel-diagram__action-bar">
               <button
                 type="button"
-                className="channel-diagram__clear-storage"
-                onClick={handleClearLocalStorageClick}
-              >
-                Limpiar datos locales
-              </button>
-              <button
-                type="button"
                 className="channel-diagram__toggle-sidebar"
                 onClick={toggleSidebar}
               >

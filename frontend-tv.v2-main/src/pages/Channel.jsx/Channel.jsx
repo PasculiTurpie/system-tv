@@ -189,9 +189,7 @@ const Channel = () => {
                                                 <option value={"Radio"}>
                                                     Radio
                                                 </option>
-                                                <option value={"TV"}>
-                                                    TV
-                                                </option>
+                                                <option value={"TV"}>TV</option>
                                             </Field>
                                         </label>
 
@@ -246,18 +244,20 @@ const Channel = () => {
                                                 <option value={""}>
                                                     --Seleccionar--
                                                 </option>
-                                                {tipoTechs.map((tipoTech) => {
-                                                    return (
-                                                        <option
-                                                            key={tipoTech._id}
-                                                            value={
-                                                                tipoTech.nombreTipo.toUpperCase()
-                                                            }
-                                                        >
-                                                            {tipoTech.nombreTipo.toUpperCase()}
-                                                        </option>
-                                                    );
-                                                })}
+                                                {tipoTechs.map((t, i) => (
+                                                    <option
+                                                        key={`${
+                                                            t?._id ?? "tipoTech"
+                                                        }-${i}`} // fallback con índice
+                                                        value={(
+                                                            t?.nombreTipo ?? ""
+                                                        ).toUpperCase()}
+                                                    >
+                                                        {(
+                                                            t?.nombreTipo ?? ""
+                                                        ).toUpperCase()}
+                                                    </option>
+                                                ))}
                                             </Field>
                                         </label>
 

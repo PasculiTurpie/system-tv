@@ -1303,7 +1303,7 @@ const ChannelForm = () => {
                 </label>
               </div>
 
-              <div>
+              <div className="chf__container">
                 <button
                   className="chf__btn chf__btn--secondary btn--enlace"
                   type="button"
