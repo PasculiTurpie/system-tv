@@ -122,21 +122,32 @@
     background: #ffffff;
 }
 
-.channel-diagram__toggle-sidebar {
+.channel-diagram__action-bar {
     position: absolute;
     top: 16px;
     right: 16px;
     z-index: 12;
-    background: #0f172a;
-    color: #f8fafc;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    justify-content: flex-end;
+}
+
+.channel-diagram__toggle-sidebar,
+.channel-diagram__clear-storage {
     border: none;
     border-radius: 9999px;
     padding: 0.4rem 0.95rem;
     font-size: 0.85rem;
     font-weight: 600;
     cursor: pointer;
-    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.22);
     transition: background 0.2s ease, transform 0.2s ease;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.22);
+}
+
+.channel-diagram__toggle-sidebar {
+    background: #0f172a;
+    color: #f8fafc;
 }
 
 .channel-diagram__toggle-sidebar:hover {
@@ -146,6 +157,22 @@
 
 .channel-diagram__toggle-sidebar:focus {
     outline: 2px solid #38bdf8;
+    outline-offset: 2px;
+}
+
+.channel-diagram__clear-storage {
+    background: #dc2626;
+    color: #f8fafc;
+    box-shadow: 0 10px 24px rgba(220, 38, 38, 0.24);
+}
+
+.channel-diagram__clear-storage:hover {
+    background: #b91c1c;
+    transform: translateY(-1px);
+}
+
+.channel-diagram__clear-storage:focus {
+    outline: 2px solid #f87171;
     outline-offset: 2px;
 }
 

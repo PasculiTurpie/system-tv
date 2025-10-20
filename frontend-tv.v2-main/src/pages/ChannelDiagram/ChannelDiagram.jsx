@@ -36,6 +36,7 @@ import {
 import { createPersistLabelPositions } from "./persistLabelPositions";
 import { getSampleDiagramById } from "./samples";
 import normalizeHandle from "../../utils/normalizeHandle";
+import { clearLocalStorage } from "../../utils/localStorageUtils";
 
 const AUTO_SAVE_DELAY = 320;
 const FIT_VIEW_PADDING = 0.2;
@@ -388,6 +389,13 @@ const ChannelDiagram = () => {
 
   const toggleSidebar = useCallback(() => {
     setSidebarVisible((prev) => !prev);
+  }, []);
+
+  const handleClearLocalStorageClick = useCallback(() => {
+    const cleaned = clearLocalStorage();
+    if (cleaned) {
+      console.info("localStorage limpiado desde el visor de topología");
+    }
   }, []);
 
   const selectedNode = useMemo(
@@ -1045,13 +1053,22 @@ const ChannelDiagram = () => {
                 {isSampleDiagram ? "Diagrama de ejemplo: modo solo lectura." : "Modo solo lectura."}
               </div>
             )}
-            <button
-              type="button"
-              className="channel-diagram__toggle-sidebar"
-              onClick={toggleSidebar}
-            >
-              {sidebarVisible ? "Ocultar inspector" : "Mostrar inspector"}
-            </button>
+            <div className="channel-diagram__action-bar">
+              <button
+                type="button"
+                className="channel-diagram__clear-storage"
+                onClick={handleClearLocalStorageClick}
+              >
+                Limpiar datos locales
+              </button>
+              <button
+                type="button"
+                className="channel-diagram__toggle-sidebar"
+                onClick={toggleSidebar}
+              >
+                {sidebarVisible ? "Ocultar inspector" : "Mostrar inspector"}
+              </button>
+            </div>
             {diagramMetadata?.description && (
               <div
                 className={`diagram-metadata-banner${isSampleDiagram ? " diagram-metadata-banner--demo" : ""}`}

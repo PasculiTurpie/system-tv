@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import api from "../../utils/api";
 import { getSampleChannelSummaries } from "./samples";
+import { clearLocalStorage } from "../../utils/localStorageUtils";
 
 const PAGE_SIZE = 10;
 
@@ -43,6 +44,14 @@ const ChannelListDiagram = () => {
   useEffect(() => {
     fetchChannels();
   }, []);
+
+  const handleCreateNewChannel = useCallback(() => {
+    const cleaned = clearLocalStorage();
+    if (cleaned) {
+      console.info("localStorage limpiado antes de crear un nuevo canal");
+    }
+    navigate("/channels/new");
+  }, [navigate]);
 
   useEffect(() => {
     if (!filterText.trim()) {
@@ -152,7 +161,7 @@ const ChannelListDiagram = () => {
       <h2>Lista de Channels</h2>
       <button
         className="button btn-primary"
-        onClick={() => navigate("/channels/new")}
+        onClick={handleCreateNewChannel}
         style={{ marginBottom: "1rem" }}
       >
         + Crear nuevo Channel
