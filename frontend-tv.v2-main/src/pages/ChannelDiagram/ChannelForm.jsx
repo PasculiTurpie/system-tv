@@ -7,6 +7,7 @@ import Select from "react-select";
 import Swal from "sweetalert2";
 import "./ChannelForm.css";
 import { prepareDiagramState } from "./diagramUtils";
+import { clearLocalStorage } from "../../utils/localStorageUtils";
 
 // Fallback numérico para MarkerType.ArrowClosed (React Flow = 1)
 const ARROW_CLOSED = { type: 1 };
@@ -32,15 +33,6 @@ const selectStyles = {
 };
 
 const STORAGE_KEY = "channel-form-draft";
-
-/** 🔒 Claves que se conservarán al limpiar localStorage (ajústalas a tu app) */
-const PRESERVE_KEYS = new Set([
-  "auth:user",          // datos no sensibles del usuario (si los guardas)
-  "theme",              // tema claro/oscuro
-  "ui:sidebarOpen",     // estado del sidebar
-  "reactflow:viewport", // zoom/posicion de react flow (si lo usas)
-  "persist:store",      // estado global persistido (p. ej. Zustand)
-]);
 
 const formatSignalLabel = (signal) => {
   if (!signal || typeof signal !== "object") return "";
@@ -843,16 +835,9 @@ const ChannelForm = () => {
   /** 🧼 Opción A: limpiar localStorage al hacer click en "Crear flujo" (no en edición) */
   const handleCreateFlowClick = useCallback(() => {
     if (isEditMode) return;
-    try {
-      if (PRESERVE_KEYS.size === 0) {
-        localStorage.clear();
-      } else {
-        const keys = Object.keys(localStorage);
-        for (const k of keys) if (!PRESERVE_KEYS.has(k)) localStorage.removeItem(k);
-      }
+    const cleaned = clearLocalStorage();
+    if (cleaned) {
       console.info("localStorage limpiado por click en 'Crear flujo'");
-    } catch (e) {
-      console.warn("No se pudo limpiar localStorage:", e);
     }
   }, [isEditMode]);
 

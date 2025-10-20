@@ -2,11 +2,19 @@ import React, { useContext } from 'react';
 import './Sidebar.css';
 import { Link } from 'react-router-dom';
 import { UserContext } from '../context/UserContext';
+import { clearLocalStorage } from '../../utils/localStorageUtils';
 
 
 
 const Sidebar = () => {
   const { user } = useContext(UserContext);
+
+  const handleCreateTopologyClick = () => {
+    const cleaned = clearLocalStorage();
+    if (cleaned) {
+      console.info("localStorage limpiado desde el sidebar");
+    }
+  };
 
 
   return (
@@ -73,7 +81,7 @@ const Sidebar = () => {
           Topología de Señal
         </p>
         <li>
-          <Link to="/channel-form">Crear topología</Link>
+          <Link to="/channel-form" onClick={handleCreateTopologyClick}>Crear topología</Link>
         </li>
         <hr />
         <p className="nodo">
