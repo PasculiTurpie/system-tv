@@ -70,7 +70,11 @@ const ChannelListDiagram = () => {
 
     const { _id: id } = channel || {};
     if (!id) {
-      Swal.fire("Canal no disponible", "No se pudo determinar el canal a eliminar.", "warning");
+      Swal.fire(
+        "Canal no disponible",
+        "No se pudo determinar el canal a eliminar.",
+        "warning"
+      );
       return;
     }
 
@@ -99,6 +103,17 @@ const ChannelListDiagram = () => {
           });
       }
     });
+  };
+
+  // Ir a visualizar el diagrama (visor)
+  const handleView = (channel) => {
+    // Si es un canal real con _id, vamos a /channels/:id/view
+    if (channel?._id) {
+      navigate(`/channels/${String(channel._id)}`);
+      return;
+    }
+    // Si es demo (sin _id), enviamos el objeto por state al visor genérico
+    navigate("/channels/view", { state: { channel } });
   };
 
   // Ir a editar el diagrama por ID del canal
@@ -144,6 +159,7 @@ const ChannelListDiagram = () => {
       </button>
 
       <input
+      className="form__group-input"
         type="text"
         placeholder="Filtrar por nombre de canal..."
         value={filterText}
@@ -197,7 +213,7 @@ const ChannelListDiagram = () => {
             </tr>
           ) : (
             pagedChannels.map((channel) => (
-              <tr key={channel._id} style={{ borderBottom: "1px solid #ccc" }}>
+              <tr key={channel._id || channel.signal?.nameChannel} style={{ borderBottom: "1px solid #ccc" }}>
                 <td>
                   {channel.signal?.nameChannel || "Sin nombre"}
                   {channel.isSample ? (
@@ -218,6 +234,16 @@ const ChannelListDiagram = () => {
                 <td>{channel.nodes?.length || 0}</td>
                 <td>{channel.edges?.length || 0}</td>
                 <td>
+                  {/* Nuevo botón verde: Ver diagrama */}
+                  <button
+                    className="button btn-success"
+                    onClick={() => handleView(channel)}
+                    style={{ marginRight: "0.5rem" }}
+                    title="Visualizar diagrama"
+                  >
+                    Ver
+                  </button>
+
                   <button
                     className="button btn-warning"
                     onClick={() => handleEdit(channel)}

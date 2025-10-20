@@ -228,7 +228,7 @@ const IrdListar = () => {
           {/* 🔎 Buscador */}
           <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
             <input
-              className="form__input"
+              className="form__group-input"
               type="text"
               placeholder="Buscar por nombre, marca, multicast o IP…"
               value={query}
