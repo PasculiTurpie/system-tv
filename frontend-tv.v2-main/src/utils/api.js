@@ -245,6 +245,42 @@ class Api {
             .then((r) => r.data);
     }
 
+    getContact(){
+        return this._axios.get("/contacts").then((r) => r);
+    }
+    createContact(){
+        return this._axios.post("/contacts").then((r) => r);
+    }
+    deleteContact(id){
+        return this._axios.post(`/contact/${id}`).then((r) => r);
+    }
+    updateContact(id){
+        return this._axios.put(`/contact/${id}`).then((r) => r);
+    }
+    getIdContact(){
+        return this._axios.get(`/contact/${id}`).then((r) => r);
+    }
+
+    getTipoTech() {
+        return this._axios.get("/type-tech").then((r) => r);
+    }
+    deleteTipoTech(id) {
+        return this._axios.delete(`/type-tech/${id}`).then((r) => r);
+    }
+    createTipoTech(values) {
+        return this._axios.post("/type-tech", values).then((r) => r.data);
+    }
+    getIdTipoTech(id) {
+        return this._axios.get(`/type-tech/${id}`).then((r) => r);
+    }
+    updateTipoTech(id, values) {
+        return this._axios.put(`/type-tech/${id}`, values).then((r) => r);
+    }
+
+
+
+
+
     getEquipo() {
         return this._axios.get("/equipos").then((r) => r);
     }

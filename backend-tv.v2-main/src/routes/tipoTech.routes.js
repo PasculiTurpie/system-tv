@@ -3,7 +3,7 @@ const TipoTechController = require("../controllers/tipoTech.controller");
 
 const router = express.Router();
 
-const basePaths = ["/tipo-tech", "/tecnologia"]; // alias para compatibilidad
+const basePaths = ["/type-tech"]; // alias para compatibilidad
 
 basePaths.forEach((path) => {
   router
