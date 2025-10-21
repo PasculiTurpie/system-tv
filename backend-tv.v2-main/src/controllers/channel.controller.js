@@ -14,6 +14,33 @@ const {
   sanitizeDiagramPayload,
 } = require("../services/diagramSanitizer");
 
+const sanitizeHandleId = (value) => {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  const str = String(value).trim();
+  return str.length ? str : null;
+};
+
+const sanitizePlainObject = (value) => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  return JSON.parse(JSON.stringify(value));
+};
+
+const sanitizeSerializable = (value) => {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (Array.isArray(value)) {
+    return value.map((entry) => sanitizeSerializable(entry));
+  }
+  if (typeof value === "object") {
+    const plain = sanitizePlainObject(value);
+    return plain === null ? null : plain;
+  }
+  return value;
+};
+
 const buildChannelFilter = (query = {}) => {
   const filter = {};
   const signal = query.signal || query.signalId;
@@ -283,6 +310,15 @@ exports.patchEdge = async (req, res) => {
     endpointLabelPositions,
     multicast,
     multicastPosition,
+    source,
+    target,
+    sourceHandle,
+    targetHandle,
+    style,
+    markerStart,
+    markerEnd,
+    animated,
+    type: edgeType,
     data: rawData,
   } = req.body || {};
 
@@ -340,6 +376,78 @@ exports.patchEdge = async (req, res) => {
     const sanitizedLabel = clampLabel(resolvedLabel);
     setUpdate["edges.$.label"] = sanitizedLabel;
     setUpdate["edges.$.data.label"] = sanitizedLabel;
+  }
+
+  if (source !== undefined) {
+    const sanitizedSource = String(source ?? "").trim();
+    if (!sanitizedSource) {
+      return res.status(400).json({ error: "Source inválido" });
+    }
+    setUpdate["edges.$.source"] = sanitizedSource;
+  }
+
+  if (target !== undefined) {
+    const sanitizedTarget = String(target ?? "").trim();
+    if (!sanitizedTarget) {
+      return res.status(400).json({ error: "Target inválido" });
+    }
+    setUpdate["edges.$.target"] = sanitizedTarget;
+  }
+
+  if (sourceHandle !== undefined) {
+    const sanitizedSourceHandle = sanitizeHandleId(sourceHandle);
+    if (sanitizedSourceHandle) {
+      setUpdate["edges.$.sourceHandle"] = sanitizedSourceHandle;
+    } else {
+      unsetUpdate["edges.$.sourceHandle"] = "";
+    }
+  }
+
+  if (targetHandle !== undefined) {
+    const sanitizedTargetHandle = sanitizeHandleId(targetHandle);
+    if (sanitizedTargetHandle) {
+      setUpdate["edges.$.targetHandle"] = sanitizedTargetHandle;
+    } else {
+      unsetUpdate["edges.$.targetHandle"] = "";
+    }
+  }
+
+  if (style !== undefined) {
+    const sanitizedStyle = sanitizePlainObject(style);
+    if (sanitizedStyle && Object.keys(sanitizedStyle).length) {
+      setUpdate["edges.$.style"] = sanitizedStyle;
+    } else {
+      unsetUpdate["edges.$.style"] = "";
+    }
+  }
+
+  if (markerStart !== undefined) {
+    const sanitizedMarkerStart = sanitizePlainObject(markerStart);
+    if (sanitizedMarkerStart && Object.keys(sanitizedMarkerStart).length) {
+      setUpdate["edges.$.markerStart"] = sanitizedMarkerStart;
+    } else {
+      unsetUpdate["edges.$.markerStart"] = "";
+    }
+  }
+
+  if (markerEnd !== undefined) {
+    const sanitizedMarkerEnd = sanitizePlainObject(markerEnd);
+    if (sanitizedMarkerEnd && Object.keys(sanitizedMarkerEnd).length) {
+      setUpdate["edges.$.markerEnd"] = sanitizedMarkerEnd;
+    } else {
+      unsetUpdate["edges.$.markerEnd"] = "";
+    }
+  }
+
+  if (animated !== undefined) {
+    setUpdate["edges.$.animated"] = Boolean(animated);
+  }
+
+  if (edgeType !== undefined) {
+    const sanitizedType = String(edgeType ?? "").trim();
+    if (sanitizedType) {
+      setUpdate["edges.$.type"] = sanitizedType;
+    }
   }
 
   if (resolvedLabelPosition !== undefined) {
@@ -428,7 +536,13 @@ exports.patchEdge = async (req, res) => {
       ) {
         return;
       }
-      const value = dataPayload[key];
+      let value = dataPayload[key];
+      if (key === "direction" && typeof value === "string") {
+        const normalized = value.trim().toLowerCase();
+        value = normalized === "vuelta" ? "vuelta" : "ida";
+      } else {
+        value = sanitizeSerializable(value);
+      }
       if (value === undefined) return;
       if (value === null) {
         unsetUpdate[`edges.$.data.${key}`] = "";
