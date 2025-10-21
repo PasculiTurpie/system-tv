@@ -8,6 +8,7 @@ import {
   sortNodesById,
   sortEdgesById,
   createPatchScheduler,
+  toApiNode,
 } from "./diagramUtils.js";
 
 describe("diagramUtils", () => {
@@ -90,6 +91,59 @@ describe("diagramUtils", () => {
     const edgeSecond = mapEdgeFromApi(edgePayload);
     assert.deepStrictEqual(edgeFirst, edgeSecond);
     assert.equal(edgeFirst.data.endpointLabels.source, "foo");
+  });
+
+  it("toApiNode preserves equipo identifiers", () => {
+    const baseNode = {
+      id: "node-1",
+      data: {
+        label: "Nodo 1",
+        equipoId: "equip-123",
+      },
+      position: { x: 10, y: 20 },
+    };
+
+    const result = toApiNode(baseNode);
+    assert.equal(result.equipo, "equip-123");
+    assert.equal(result.data.label, "Nodo 1");
+    assert.equal(result.data.equipoId, "equip-123");
+
+    const withObjectEquipo = {
+      ...baseNode,
+      data: { ...baseNode.data, equipo: { _id: "equip-999" } },
+    };
+
+    const resultFromObject = toApiNode(withObjectEquipo);
+    assert.equal(resultFromObject.equipo, "equip-999");
+    assert.equal(resultFromObject.data.equipoId, "equip-999");
+
+    const withRootEquipo = {
+      ...baseNode,
+      data: { label: "Nodo 1", equipoId: "" },
+      equipo: "equip-777",
+    };
+
+    const resultFromRoot = toApiNode(withRootEquipo);
+    assert.equal(resultFromRoot.equipo, "equip-777");
+    assert.equal(resultFromRoot.data.equipoId, "equip-777");
+  });
+
+  it("mapNodeFromApi normalizes equipo identifiers", () => {
+    const nodePayload = {
+      id: "node-7",
+      equipo: "equip-321",
+      data: {
+        label: "Nodo 7",
+        labelPosition: { x: 5, y: 6 },
+        multicastPosition: { x: 7, y: 8 },
+      },
+      position: { x: 100, y: 200 },
+    };
+
+    const mapped = mapNodeFromApi(nodePayload);
+    assert.equal(mapped.equipo, "equip-321");
+    assert.equal(mapped.data.equipoId, "equip-321");
+    assert.deepStrictEqual(mapped.data.labelPosition, { x: 5, y: 6 });
   });
 
   it("createPatchScheduler merges payloads and resolves success callbacks", async () => {

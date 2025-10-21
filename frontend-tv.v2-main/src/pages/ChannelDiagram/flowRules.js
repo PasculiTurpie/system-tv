@@ -1,4 +1,4 @@
-import normalizeHandle from "../../utils/normalizeHandle";
+import normalizeHandle from "../../utils/normalizeHandle.js";
 
 const EDGE_COLORS = Object.freeze({
   ida: "#ef4444",
