@@ -342,6 +342,56 @@ class Api {
             .then((r) => r.data);
     }
 
+    getDiagramNodes(diagramId) {
+        if (!diagramId) return Promise.resolve([]);
+        return this._axios
+            .get(`/diagrams/${diagramId}/nodes`)
+            .then((r) => r.data?.nodes ?? []);
+    }
+
+    createDiagramNode(diagramId, payload) {
+        return this._axios
+            .post(`/diagrams/${diagramId}/nodes`, payload)
+            .then((r) => r.data?.nodes ?? []);
+    }
+
+    updateDiagramNode(diagramId, nodeId, payload) {
+        return this._axios
+            .put(`/diagrams/${diagramId}/nodes/${nodeId}`, payload)
+            .then((r) => r.data?.node ?? null);
+    }
+
+    deleteDiagramNode(diagramId, nodeId) {
+        return this._axios
+            .delete(`/diagrams/${diagramId}/nodes/${nodeId}`)
+            .then((r) => r.data);
+    }
+
+    getDiagramEdges(diagramId) {
+        if (!diagramId) return Promise.resolve([]);
+        return this._axios
+            .get(`/diagrams/${diagramId}/edges`)
+            .then((r) => r.data?.edges ?? []);
+    }
+
+    createDiagramEdge(diagramId, payload) {
+        return this._axios
+            .post(`/diagrams/${diagramId}/edges`, payload)
+            .then((r) => r.data?.edges ?? []);
+    }
+
+    updateDiagramEdge(diagramId, edgeId, payload) {
+        return this._axios
+            .put(`/diagrams/${diagramId}/edges/${edgeId}`, payload)
+            .then((r) => r.data?.edge ?? null);
+    }
+
+    deleteDiagramEdge(diagramId, edgeId) {
+        return this._axios
+            .delete(`/diagrams/${diagramId}/edges/${edgeId}`)
+            .then((r) => r.data);
+    }
+
     patchChannelNode(channelId, nodeId, payload) {
         return this._axios
             .patch(`/channels/${channelId}/node/${nodeId}`, payload)

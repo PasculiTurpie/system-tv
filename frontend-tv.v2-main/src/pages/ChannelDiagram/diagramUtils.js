@@ -1,5 +1,6 @@
 import { getSmoothStepPath } from "@xyflow/react";
 import normalizeHandle from "../../utils/normalizeHandle.js";
+import { enforceSateliteToIrd, normalizeEdgeHandles } from "./flowRules";
 
 export const ARROW_CLOSED = { type: "arrowclosed" };
 
@@ -557,7 +558,12 @@ export const prepareDiagramState = (diagram) => {
     (edge) => validNodeIds.has(edge.source) && validNodeIds.has(edge.target)
   );
 
-  return { nodes: sortedNodes, edges: sortedEdges };
+  const normalizedEdges = sortedEdges.map((edge) => {
+    const withHandles = normalizeEdgeHandles(edge, sortedNodes);
+    return enforceSateliteToIrd(withHandles, sortedNodes);
+  });
+
+  return { nodes: sortedNodes, edges: normalizedEdges };
 };
 
 export const clampPositionWithinBounds = (pos, bounds) => {
