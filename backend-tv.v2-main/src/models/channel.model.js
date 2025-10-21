@@ -37,6 +37,8 @@ const NodeSchema = new mongoose.Schema({
 const EdgeDataSchema = new mongoose.Schema(
   {
     label: { type: String },
+    labelStart: { type: String },
+    labelEnd: { type: String },
     direction: {
       type: String,
       enum: ["ida", "vuelta"],

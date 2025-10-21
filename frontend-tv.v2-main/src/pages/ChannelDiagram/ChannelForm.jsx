@@ -60,6 +60,8 @@ const defaultFormikValues = {
   source: "",
   target: "",
   edgeLabel: "",
+  edgeLabelStart: "",
+  edgeLabelEnd: "",
   edgeMulticast: "",
 };
 
@@ -1303,6 +1305,26 @@ const ChannelForm = () => {
                 </label>
               </div>
 
+              <div className="chf__grid chf__grid--2 chf__grid--align-end">
+                <label className="chf__label">
+                  Etiqueta inicio
+                  <Field
+                    className="chf__input"
+                    placeholder="p.ej. Puerto origen"
+                    name="edgeLabelStart"
+                  />
+                </label>
+
+                <label className="chf__label">
+                  Etiqueta fin
+                  <Field
+                    className="chf__input"
+                    placeholder="p.ej. Puerto destino"
+                    name="edgeLabelEnd"
+                  />
+                </label>
+              </div>
+
               <div className="chf__container">
                 <button
                   className="chf__btn chf__btn--secondary btn--enlace"
@@ -1342,20 +1364,33 @@ const ChannelForm = () => {
                     const color = dir === "vuelta" ? "green" : "red";
                     const handleByDir = pickHandlesByGeometry(srcNode, tgtNode, dir);
 
+                    const trimmedLabel = values.edgeLabel?.trim();
+                    const labelStart = values.edgeLabelStart?.trim();
+                    const labelEnd = values.edgeLabelEnd?.trim();
+
+                    const endpointLabels = {};
+                    if (labelStart) endpointLabels.source = labelStart;
+                    if (labelEnd) endpointLabels.target = labelEnd;
+
                     const edge = {
                       id,
                       source: src,
                       target: tgt,
                       sourceHandle: handleByDir.sourceHandle,
                       targetHandle: handleByDir.targetHandle,
-                      label: values.edgeLabel?.trim() || id,
+                      label: trimmedLabel || id,
                       type: "directional",
                       style: { stroke: color, strokeWidth: 2 },
                       markerEnd: { ...ARROW_CLOSED },
                       data: {
                         direction: dir,
-                        label: values.edgeLabel?.trim() || id,
+                        label: trimmedLabel || id,
+                        ...(labelStart ? { labelStart } : {}),
+                        ...(labelEnd ? { labelEnd } : {}),
                         multicast: values.edgeMulticast?.trim() || "",
+                        ...(Object.keys(endpointLabels).length
+                          ? { endpointLabels }
+                          : {}),
                       },
                     };
 
@@ -1372,6 +1407,8 @@ const ChannelForm = () => {
                     setFieldValue("source", "");
                     setFieldValue("target", "");
                     setFieldValue("edgeLabel", "");
+                    setFieldValue("edgeLabelStart", "");
+                    setFieldValue("edgeLabelEnd", "");
                     setFieldValue("edgeMulticast", "");
                     setEdgeSourceSel(null);
                     setEdgeTargetSel(null);
@@ -1386,6 +1423,10 @@ const ChannelForm = () => {
                 <ul className="chf__list">
                   {draftEdges.map((e) => {
                     const label = e?.data?.label || e.label;
+                    const labelStart =
+                      e?.data?.labelStart || e?.data?.endpointLabels?.source || "";
+                    const labelEnd =
+                      e?.data?.labelEnd || e?.data?.endpointLabels?.target || "";
                     return (
                       <li
                         key={e.id}
@@ -1395,6 +1436,12 @@ const ChannelForm = () => {
                         <div style={{ flex: "1 1 auto" }}>
                           <code>{e.id}</code> — {e.source} ({e.sourceHandle}) → {e.target} (
                           {e.targetHandle}) — {label}
+                          {labelStart ? (
+                            <span className="chf__badge chf__badge--muted">ini: {labelStart}</span>
+                          ) : null}
+                          {labelEnd ? (
+                            <span className="chf__badge chf__badge--muted">fin: {labelEnd}</span>
+                          ) : null}
                           {e?.data?.multicast ? (
                             <span className="chf__badge chf__badge--muted">mc: {e.data.multicast}</span>
                           ) : null}

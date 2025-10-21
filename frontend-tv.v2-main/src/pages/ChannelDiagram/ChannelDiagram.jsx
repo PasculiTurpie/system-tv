@@ -813,10 +813,27 @@ const ChannelDiagram = () => {
           const currentLabels = { ...(edge.data?.endpointLabels || {}) };
           if (!sanitized) delete currentLabels[endpoint];
           else currentLabels[endpoint] = sanitized;
-          return { ...edge, data: { ...(edge.data || {}), endpointLabels: currentLabels } };
+          const nextData = { ...(edge.data || {}), endpointLabels: currentLabels };
+          if (endpoint === "source") {
+            if (sanitized) nextData.labelStart = sanitized;
+            else delete nextData.labelStart;
+          } else if (endpoint === "target") {
+            if (sanitized) nextData.labelEnd = sanitized;
+            else delete nextData.labelEnd;
+          }
+          return { ...edge, data: nextData };
         })
       );
-      if (isAuth) scheduleEdgePatch(edgeId, { endpointLabels: { [endpoint]: sanitized || null } });
+      if (isAuth) {
+        const payload = {
+          endpointLabels: { [endpoint]: sanitized || null },
+          data:
+            endpoint === "source"
+              ? { labelStart: sanitized || null }
+              : { labelEnd: sanitized || null },
+        };
+        scheduleEdgePatch(edgeId, payload);
+      }
       requestSave();
     },
     [isAuth, scheduleEdgePatch, updateEdges, requestSave]
