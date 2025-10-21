@@ -34,6 +34,7 @@ import {
   isRouterNode,
 } from "./diagramUtils";
 import {
+  autoLabelEdge,
   createRouterEdges,
   enforceSateliteToIrd,
   getEdgeStyle,
@@ -400,6 +401,29 @@ const ChannelDiagram = () => {
     [setEdgesState]
   );
 
+  const refreshAutoLabelsForNodes = useCallback(
+    (nodeIds) => {
+      if (!nodeIds || nodeIds.size === 0) return;
+      updateEdges((current) => {
+        const nodesList = nodesRef.current;
+        let changed = false;
+        const next = current.map((edge) => {
+          if (!edge?.data) return edge;
+          if (edge.data.autoLabel === false) return edge;
+          if (!nodeIds.has(edge.source) && !nodeIds.has(edge.target)) return edge;
+          const relabeled = autoLabelEdge(edge, nodesList);
+          if (relabeled !== edge) {
+            changed = true;
+            return relabeled;
+          }
+          return edge;
+        });
+        return changed ? next : current;
+      });
+    },
+    [updateEdges]
+  );
+
   const toggleSidebar = useCallback(() => {
     setSidebarVisible((prev) => !prev);
   }, []);
@@ -449,6 +473,7 @@ const ChannelDiagram = () => {
       const neighbors = nodesList.filter((candidate) => candidate.id !== node.id);
       const templateEdges = createRouterEdges(node, neighbors)
         .map((edge) => normalizeEdgeHandles(edge, nodesList))
+        .map((edge) => autoLabelEdge(edge, nodesList))
         .map((edge) => ({
           ...enforceSateliteToIrd(edge, nodesList),
           reconnectable: true,
@@ -600,10 +625,11 @@ const ChannelDiagram = () => {
             : node
         )
       );
+      refreshAutoLabelsForNodes(new Set([nodeId]));
       if (isAuth) scheduleNodePatch(nodeId, { label: sanitized });
       requestSave();
     },
-    [isAuth, scheduleNodePatch, updateNodes, requestSave]
+    [isAuth, refreshAutoLabelsForNodes, scheduleNodePatch, updateNodes, requestSave]
   );
 
   const handleNodeLabelPositionChange = useCallback(
@@ -637,6 +663,7 @@ const ChannelDiagram = () => {
   const handleNodeDataPatch = useCallback(
     (nodeId, dataPatch = {}) => {
       if (!nodeId || !dataPatch || typeof dataPatch !== "object") return;
+      const affectsLabel = Object.prototype.hasOwnProperty.call(dataPatch, "label");
 
       updateNodes((current) =>
         current.map((node) =>
@@ -644,10 +671,14 @@ const ChannelDiagram = () => {
         )
       );
 
+      if (affectsLabel) {
+        refreshAutoLabelsForNodes(new Set([nodeId]));
+      }
+
       if (isAuth) scheduleNodePatch(nodeId, { data: dataPatch });
       requestSave();
     },
-    [isAuth, scheduleNodePatch, updateNodes, requestSave]
+    [isAuth, refreshAutoLabelsForNodes, scheduleNodePatch, updateNodes, requestSave]
   );
 
   const handleNodeLockChange = useCallback(
@@ -725,14 +756,31 @@ const ChannelDiagram = () => {
   const handleEdgeLabelChange = useCallback(
     (edgeId, nextLabel) => {
       const sanitized = clampLabelText(nextLabel);
+      const existing = edgesRef.current.find((edge) => edge.id === edgeId);
+      const hadAutoLabel =
+        existing?.data?.autoLabel !== false &&
+        (existing?.data?.autoLabel || existing?.data?.routerTemplate);
       updateEdges((current) =>
         current.map((edge) =>
           edge.id === edgeId
-            ? { ...edge, label: sanitized, data: { ...(edge.data || {}), label: sanitized } }
+            ? {
+                ...edge,
+                label: sanitized,
+                data: {
+                  ...(edge.data || {}),
+                  label: sanitized,
+                  ...(edge.data?.autoLabel ? { autoLabel: false } : {}),
+                },
+              }
             : edge
         )
       );
-      if (isAuth) scheduleEdgePatch(edgeId, { label: sanitized });
+      if (isAuth) {
+        const patchPayload = hadAutoLabel
+          ? { label: sanitized, data: { label: sanitized, autoLabel: false } }
+          : { label: sanitized, data: { label: sanitized } };
+        scheduleEdgePatch(edgeId, patchPayload);
+      }
       requestSave();
     },
     [isAuth, scheduleEdgePatch, updateEdges, requestSave]
@@ -838,6 +886,9 @@ const ChannelDiagram = () => {
   const handleEdgeReconnect = useCallback(
     (oldEdge, newConnection) => {
       if (!isAuth) return;
+      let updatedEdgeSnapshot = null;
+      let labelPositionCleared = false;
+
       updateEdges((current) => {
         const nodesList = nodesRef.current;
         const next = current.map((edge) => {
@@ -851,13 +902,69 @@ const ChannelDiagram = () => {
             reconnectable: true,
           };
           const withHandles = normalizeEdgeHandles(updated, nodesList);
-          return enforceSateliteToIrd(withHandles, nodesList);
+          const enforced = enforceSateliteToIrd(withHandles, nodesList);
+          const relabeled = autoLabelEdge(enforced, nodesList);
+          labelPositionCleared =
+            (edge?.data?.labelPosition || edge?.labelPosition) &&
+            !(relabeled?.data?.labelPosition || relabeled?.labelPosition);
+          updatedEdgeSnapshot = relabeled;
+          return relabeled;
         });
         return ensureEdgesUseDistinctHandles(nodesList, next);
       });
+
+      if (!updatedEdgeSnapshot) {
+        requestSave();
+        return;
+      }
+
+      if (labelPositionCleared) {
+        const store = confirmedEdgePositionsRef.current;
+        const existingEntry = store.get(updatedEdgeSnapshot.id) || {};
+        store.set(updatedEdgeSnapshot.id, {
+          labelPosition: null,
+          endpointLabelPositions: existingEntry.endpointLabelPositions || {},
+          multicastPosition: existingEntry.multicastPosition || null,
+        });
+        if (persistLabelPositions && !isReadOnly) {
+          persistLabelPositions({
+            edges: { [updatedEdgeSnapshot.id]: { labelPosition: null } },
+          }).catch((error) => {
+            console.error("Persist auto-label reset failed", error);
+          });
+        }
+      }
+
+      if (isAuth) {
+        const payload = {
+          source: updatedEdgeSnapshot.source,
+          target: updatedEdgeSnapshot.target,
+          sourceHandle: updatedEdgeSnapshot.sourceHandle || null,
+          targetHandle: updatedEdgeSnapshot.targetHandle || null,
+          label: updatedEdgeSnapshot.data?.label || updatedEdgeSnapshot.label || "",
+          data: {
+            ...(updatedEdgeSnapshot.data || {}),
+            label: updatedEdgeSnapshot.data?.label || updatedEdgeSnapshot.label || "",
+            ...(labelPositionCleared ? { labelPosition: null } : {}),
+          },
+          style: updatedEdgeSnapshot.style,
+          markerStart: updatedEdgeSnapshot.markerStart,
+          markerEnd: updatedEdgeSnapshot.markerEnd,
+          animated: updatedEdgeSnapshot.animated,
+        };
+        scheduleEdgePatch(updatedEdgeSnapshot.id, payload);
+      }
+
       requestSave();
     },
-    [isAuth, requestSave, updateEdges]
+    [
+      isAuth,
+      isReadOnly,
+      persistLabelPositions,
+      requestSave,
+      scheduleEdgePatch,
+      updateEdges,
+    ]
   );
 
   const handleConnect = useCallback(
@@ -890,8 +997,8 @@ const ChannelDiagram = () => {
         reconnectable: true,
       };
 
-      const normalizedEdge = enforceSateliteToIrd(
-        normalizeEdgeHandles(baseEdge, nodesList),
+      const normalizedEdge = autoLabelEdge(
+        enforceSateliteToIrd(normalizeEdgeHandles(baseEdge, nodesList), nodesList),
         nodesList
       );
 

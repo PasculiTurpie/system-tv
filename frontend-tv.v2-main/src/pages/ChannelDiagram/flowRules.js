@@ -97,6 +97,17 @@ const getNodeType = (node) => {
   return (fromNode || fromData || "default").toLowerCase();
 };
 
+const getNodeLabel = (node) => {
+  if (!node) return "";
+  if (typeof node?.data?.label === "string" && node.data.label.trim()) {
+    return node.data.label.trim();
+  }
+  if (typeof node?.label === "string" && node.label.trim()) {
+    return node.label.trim();
+  }
+  return String(node?.id ?? "").trim();
+};
+
 const resolveHandles = (node) => {
   const type = getNodeType(node);
   const handles = node?.handles || node?.data?.handles;
@@ -229,6 +240,53 @@ export const enforceSateliteToIrd = (edge, nodes = []) => {
   return nextEdge;
 };
 
+const shouldAutoLabel = (data = {}) => {
+  if (data.autoLabel === false) return false;
+  if (data.autoLabel) return true;
+  return !!data.routerTemplate;
+};
+
+export const autoLabelEdge = (edge, nodes = []) => {
+  if (!edge || typeof edge !== "object") return edge;
+  const data = edge.data || {};
+  if (!shouldAutoLabel(data)) return edge;
+
+  const direction = data.direction === "vuelta" ? "vuelta" : "ida";
+  const neighborId = direction === "vuelta" ? edge.source : edge.target;
+
+  const nodeMap = new Map();
+  nodes.forEach((node) => {
+    if (node?.id) nodeMap.set(node.id, node);
+  });
+
+  const neighbor = nodeMap.get(neighborId);
+  const prefix = direction === "vuelta" ? "RETORNO" : "IDA";
+  const neighborLabel = getNodeLabel(neighbor);
+  const labelText = neighborLabel ? `${prefix} ${neighborLabel}` : prefix;
+
+  const currentLabel = (edge.data?.label || edge.label || "").trim();
+  const hasSameLabel = currentLabel === labelText;
+  const hadLabelPosition =
+    Object.prototype.hasOwnProperty.call(data, "labelPosition") ||
+    Object.prototype.hasOwnProperty.call(edge, "labelPosition");
+
+  if (hasSameLabel && !hadLabelPosition && data.autoLabel === true) {
+    return edge;
+  }
+
+  const nextData = { ...data, label: labelText, autoLabel: true };
+  if (Object.prototype.hasOwnProperty.call(nextData, "labelPosition")) {
+    delete nextData.labelPosition;
+  }
+
+  const nextEdge = { ...edge, label: labelText, data: nextData };
+  if (Object.prototype.hasOwnProperty.call(nextEdge, "labelPosition")) {
+    delete nextEdge.labelPosition;
+  }
+
+  return nextEdge;
+};
+
 const asNode = (candidate) => {
   if (!candidate) return null;
   if (typeof candidate === "string") {
@@ -262,6 +320,8 @@ export const createRouterEdges = (routerNode, neighbors = []) => {
     const neighbor = neighborNodes[neighborIndex];
     const { style, markerEnd, markerStart, animated } = getEdgeStyle("ida");
     const targetHandle = pickHandle(neighbor, "left", "target") || pickHandle(neighbor, null, "target");
+    const neighborLabel = getNodeLabel(neighbor);
+    const labelText = neighborLabel ? `IDA ${neighborLabel}` : "IDA";
     edges.push({
       id: `${router.id}-ida-${i + 1}`,
       type: "smoothstep",
@@ -276,8 +336,10 @@ export const createRouterEdges = (routerNode, neighbors = []) => {
       data: {
         direction: "ida",
         routerTemplate: router.id,
-        label: neighbor?.data?.label ? `IDA ${neighbor.data.label}` : undefined,
+        autoLabel: true,
+        label: labelText,
       },
+      label: labelText,
     });
   }
 
@@ -287,6 +349,8 @@ export const createRouterEdges = (routerNode, neighbors = []) => {
     const neighbor = neighborNodes[neighborIndex];
     const { style, markerEnd, markerStart, animated } = getEdgeStyle("vuelta");
     const sourceHandle = pickHandle(neighbor, "top", "source") || pickHandle(neighbor, null, "source");
+    const neighborLabel = getNodeLabel(neighbor);
+    const labelText = neighborLabel ? `RETORNO ${neighborLabel}` : "RETORNO";
     edges.push({
       id: `${router.id}-vuelta-${i + 1}`,
       type: "smoothstep",
@@ -301,8 +365,10 @@ export const createRouterEdges = (routerNode, neighbors = []) => {
       data: {
         direction: "vuelta",
         routerTemplate: router.id,
-        label: neighbor?.data?.label ? `RETORNO ${neighbor.data.label}` : undefined,
+        autoLabel: true,
+        label: labelText,
       },
+      label: labelText,
     });
   }
 
