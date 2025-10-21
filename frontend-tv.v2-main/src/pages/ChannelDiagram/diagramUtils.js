@@ -330,6 +330,35 @@ const clampLabel = (value) => {
     : trimmed;
 };
 
+const extractEquipoId = (rawValue) => {
+  if (rawValue === undefined || rawValue === null) return null;
+
+  if (typeof rawValue === "string" || typeof rawValue === "number") {
+    const normalized = String(rawValue).trim();
+    return normalized ? normalized : null;
+  }
+
+  if (Array.isArray(rawValue)) {
+    for (const value of rawValue) {
+      const extracted = extractEquipoId(value);
+      if (extracted) return extracted;
+    }
+    return null;
+  }
+
+  if (typeof rawValue === "object") {
+    return (
+      extractEquipoId(rawValue._id) ??
+      extractEquipoId(rawValue.id) ??
+      extractEquipoId(rawValue.value) ??
+      extractEquipoId(rawValue.equipoId) ??
+      null
+    );
+  }
+
+  return null;
+};
+
 const toPointOrNull = (point) => {
   if (!point || typeof point !== "object") return null;
   const x = Number(point.x);
@@ -504,11 +533,18 @@ export const toApiNode = (node) => {
     data.multicastPosition = node.data.multicastPosition;
   }
 
+  const equipoId =
+    extractEquipoId(node.data?.equipoId) ??
+    extractEquipoId(node.data?.equipo) ??
+    extractEquipoId(node.equipoId) ??
+    extractEquipoId(node.equipo);
+
   return {
     id: node.id,
     type: node.type || "custom",
     label,
     data,
+    ...(equipoId ? { equipo: equipoId } : {}),
     position: {
       x: Number.isFinite(+node.position?.x) ? +node.position.x : 0,
       y: Number.isFinite(+node.position?.y) ? +node.position.y : 0,

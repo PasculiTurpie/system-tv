@@ -8,6 +8,7 @@ import {
   sortNodesById,
   sortEdgesById,
   createPatchScheduler,
+  toApiNode,
 } from "./diagramUtils.js";
 
 describe("diagramUtils", () => {
@@ -90,6 +91,29 @@ describe("diagramUtils", () => {
     const edgeSecond = mapEdgeFromApi(edgePayload);
     assert.deepStrictEqual(edgeFirst, edgeSecond);
     assert.equal(edgeFirst.data.endpointLabels.source, "foo");
+  });
+
+  it("toApiNode preserves equipo identifiers", () => {
+    const baseNode = {
+      id: "node-1",
+      data: {
+        label: "Nodo 1",
+        equipoId: "equip-123",
+      },
+      position: { x: 10, y: 20 },
+    };
+
+    const result = toApiNode(baseNode);
+    assert.equal(result.equipo, "equip-123");
+    assert.equal(result.data.label, "Nodo 1");
+
+    const withObjectEquipo = {
+      ...baseNode,
+      data: { ...baseNode.data, equipo: { _id: "equip-999" } },
+    };
+
+    const resultFromObject = toApiNode(withObjectEquipo);
+    assert.equal(resultFromObject.equipo, "equip-999");
   });
 
   it("createPatchScheduler merges payloads and resolves success callbacks", async () => {
