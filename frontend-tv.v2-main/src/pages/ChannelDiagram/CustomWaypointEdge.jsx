@@ -3,6 +3,7 @@ import { BaseEdge, getSmoothStepPath } from "@xyflow/react";
 import { DiagramContext } from "./DiagramContext";
 import EdgeLabelDraggable from "./EdgeLabelDraggable";
 import EditableEdgeLabel from "./EditableEdgeLabel";
+import { computeEndpointLabelDefaults } from "./edgeLabelUtils";
 
 const SOURCE_FALLBACK_OFFSET = Object.freeze({ x: -20, y: -24 });
 const TARGET_FALLBACK_OFFSET = Object.freeze({ x: 20, y: -24 });
@@ -75,14 +76,18 @@ export default function CustomWaypointEdge(props) {
   };
   const endpointLabelPositions = data?.endpointLabelPositions || {};
 
-  const endpointDefaults = useMemo(() => {
-    const sourceOffset = resolveEndpointOffset(sourcePosition, "source");
-    const targetOffset = resolveEndpointOffset(targetPosition, "target");
-    return {
-      source: { x: sourceX + sourceOffset.x, y: sourceY + sourceOffset.y },
-      target: { x: targetX + targetOffset.x, y: targetY + targetOffset.y },
-    };
-  }, [sourcePosition, sourceX, sourceY, targetPosition, targetX, targetY]);
+  const endpointDefaults = useMemo(
+    () =>
+      computeEndpointLabelDefaults({
+        sourceX,
+        sourceY,
+        sourcePosition,
+        targetX,
+        targetY,
+        targetPosition,
+      }),
+    [sourcePosition, sourceX, sourceY, targetPosition, targetX, targetY]
+  );
 
   const handleCentralLabelCommit = useCallback(
     (nextLabel) => onEdgeLabelChange?.(id, nextLabel),

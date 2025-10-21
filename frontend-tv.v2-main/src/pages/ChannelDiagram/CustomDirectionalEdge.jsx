@@ -2,7 +2,9 @@ import React, { useCallback, useContext, useMemo } from "react";
 import { BaseEdge } from "@xyflow/react";
 import { DiagramContext } from "./DiagramContext";
 import EdgeLabelDraggable from "./EdgeLabelDraggable";
+import EditableEdgeLabel from "./EditableEdgeLabel";
 import { computeParallelPath } from "./diagramUtils";
+import { computeEndpointLabelDefaults } from "./edgeLabelUtils";
 
 export default function CustomDirectionalEdge(props) {
   const {
@@ -23,6 +25,9 @@ export default function CustomDirectionalEdge(props) {
     isReadOnly,
     onEdgeLabelChange,
     onEdgeLabelPositionChange,
+    onEdgeEndpointLabelChange,
+    onEdgeEndpointLabelPositionChange,
+    onEdgeEndpointLabelPersist,
     onEdgeMulticastPositionChange,
     persistLabelPositions,
   } = useContext(DiagramContext);
@@ -58,6 +63,15 @@ export default function CustomDirectionalEdge(props) {
     return { x: defaultLabelX, y: defaultLabelY };
   }, [data?.labelPosition, data?.labelPos, defaultLabelX, defaultLabelY]);
 
+  const rawEndpointLabels = data?.endpointLabels || {};
+  const labelStart = data?.labelStart ?? rawEndpointLabels.source;
+  const labelEnd = data?.labelEnd ?? rawEndpointLabels.target;
+  const endpointLabels = {
+    ...(labelStart ? { source: labelStart } : {}),
+    ...(labelEnd ? { target: labelEnd } : {}),
+  };
+  const endpointLabelPositions = data?.endpointLabelPositions || {};
+
   const multicast = data?.multicast;
   const multicastDefaultPosition = useMemo(() => {
     if (!multicast) return null;
@@ -67,6 +81,19 @@ export default function CustomDirectionalEdge(props) {
       y: sourceY + (shift?.oy || 0) - BASE_OFFSET,
     };
   }, [multicast, shift?.ox, shift?.oy, sourceX, sourceY]);
+
+  const endpointDefaults = useMemo(
+    () =>
+      computeEndpointLabelDefaults({
+        sourceX,
+        sourceY,
+        sourcePosition,
+        targetX,
+        targetY,
+        targetPosition,
+      }),
+    [sourcePosition, sourceX, sourceY, targetPosition, targetX, targetY]
+  );
 
   const handleCentralLabelCommit = useCallback(
     (nextLabel) => onEdgeLabelChange?.(id, nextLabel),
@@ -95,6 +122,23 @@ export default function CustomDirectionalEdge(props) {
       });
     },
     [id, isReadOnly, onEdgeLabelPositionChange, persistLabelPositions]
+  );
+
+  const handleEndpointLabelCommit = useCallback(
+    (endpoint, nextLabel) => onEdgeEndpointLabelChange?.(id, endpoint, nextLabel),
+    [id, onEdgeEndpointLabelChange]
+  );
+
+  const handleEndpointPositionChange = useCallback(
+    (endpoint, position) =>
+      onEdgeEndpointLabelPositionChange?.(id, endpoint, position),
+    [id, onEdgeEndpointLabelPositionChange]
+  );
+
+  const handleEndpointPersist = useCallback(
+    (endpoint, position, meta) =>
+      onEdgeEndpointLabelPersist?.(id, endpoint, position, meta),
+    [id, onEdgeEndpointLabelPersist]
   );
 
   const handleMulticastPersist = useCallback(
@@ -133,6 +177,42 @@ export default function CustomDirectionalEdge(props) {
         onPositionChange={handleCentralPositionChange}
         onPersist={handleCentralPersist}
       />
+
+      {(endpointLabels.source || !isReadOnly) && (
+        <EditableEdgeLabel
+          text={endpointLabels.source || ""}
+          position={endpointLabelPositions.source}
+          defaultPosition={endpointDefaults.source}
+          readOnly={isReadOnly}
+          ariaLabel="Etiqueta del extremo de origen"
+          placeholder="Etiqueta origen"
+          onCommit={(value) => handleEndpointLabelCommit("source", value)}
+          onPositionChange={(position) =>
+            handleEndpointPositionChange("source", position)
+          }
+          onPersist={(position, meta) =>
+            handleEndpointPersist("source", position, meta)
+          }
+        />
+      )}
+
+      {(endpointLabels.target || !isReadOnly) && (
+        <EditableEdgeLabel
+          text={endpointLabels.target || ""}
+          position={endpointLabelPositions.target}
+          defaultPosition={endpointDefaults.target}
+          readOnly={isReadOnly}
+          ariaLabel="Etiqueta del extremo de destino"
+          placeholder="Etiqueta destino"
+          onCommit={(value) => handleEndpointLabelCommit("target", value)}
+          onPositionChange={(position) =>
+            handleEndpointPositionChange("target", position)
+          }
+          onPersist={(position, meta) =>
+            handleEndpointPersist("target", position, meta)
+          }
+        />
+      )}
 
       {multicast && multicastDefaultPosition && (
         <EdgeLabelDraggable
