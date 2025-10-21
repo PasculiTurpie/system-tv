@@ -50,7 +50,13 @@ export default function CustomWaypointEdge(props) {
     return { x: defaultLabelX, y: defaultLabelY };
   }, [data?.labelPosition, data?.labelPos, defaultLabelX, defaultLabelY]);
 
-  const endpointLabels = data?.endpointLabels || {};
+  const rawEndpointLabels = data?.endpointLabels || {};
+  const labelStart = data?.labelStart ?? rawEndpointLabels.source;
+  const labelEnd = data?.labelEnd ?? rawEndpointLabels.target;
+  const endpointLabels = {
+    ...(labelStart ? { source: labelStart } : {}),
+    ...(labelEnd ? { target: labelEnd } : {}),
+  };
   const endpointLabelPositions = data?.endpointLabelPositions || {};
 
   const endpointDefaults = useMemo(
