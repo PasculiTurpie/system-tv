@@ -33,6 +33,7 @@ const TipoEquipoRoutes = require("./routes/tipoEquipo.routes");
 const AuditRoutes = require("./routes/audit.routes");
 const BulkIrdRoutes = require("./routes/bulkIrd.routes");
 const TitanRoutes = require("./routes/titans.routes");
+const DiagramRoutes = require("./routes/diagram.routes");
 
 const API_PREFIX = "/api/v2";
 
@@ -130,6 +131,7 @@ app.use(
   PolarizationRoutes,
   SignalRoutes,
   ContactRoutes,
+  DiagramRoutes,
   ChannelRoutes,
   TipoTechRoutes,
   EquipoRoutes,

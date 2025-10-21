@@ -13,6 +13,7 @@ const NodeDataSchema = new mongoose.Schema(
     labelPosition: { ...positionDefinition },
     multicast: { type: String },
     multicastPosition: { ...positionDefinition },
+    handles: { type: mongoose.Schema.Types.Mixed, default: {} },
   },
   { _id: false, strict: false, minimize: false }
 );
@@ -30,11 +31,17 @@ const NodeSchema = new mongoose.Schema({
     y: { type: Number, required: true },
   },
   data: { type: NodeDataSchema, required: true },
+  handles: { type: mongoose.Schema.Types.Mixed, default: {} },
 });
 
 const EdgeDataSchema = new mongoose.Schema(
   {
     label: { type: String },
+    direction: {
+      type: String,
+      enum: ["ida", "vuelta"],
+      default: "ida",
+    },
     labelPosition: { ...positionDefinition },
     endpointLabels: { type: mongoose.Schema.Types.Mixed, default: {} },
     endpointLabelPositions: { type: mongoose.Schema.Types.Mixed, default: {} },
@@ -50,9 +57,7 @@ const EdgeSchema = new mongoose.Schema({
   target: { type: String, required: true },
   type: { type: String, default: "smoothstep" },
   animated: { type: Boolean, default: true },
-  style: {
-    stroke: { type: String, default: "red" },
-  },
+  style: { type: mongoose.Schema.Types.Mixed, default: {} },
   sourceHandle: String,
   targetHandle: String,
   label: String,
@@ -60,6 +65,8 @@ const EdgeSchema = new mongoose.Schema({
     x: { type: Number },
     y: { type: Number },
   },
+  markerStart: { type: mongoose.Schema.Types.Mixed, default: undefined },
+  markerEnd: { type: mongoose.Schema.Types.Mixed, default: undefined },
 
   // 👇 necesario para guardar multicast y otros campos del front
   data: { type: EdgeDataSchema, default: {} },

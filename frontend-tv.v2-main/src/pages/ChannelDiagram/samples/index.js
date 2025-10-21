@@ -1,6 +1,7 @@
+import flowRulesDiagram from "./flowRulesDemo";
 import routerAsrDiagram from "./routerAsrDiagram";
 
-const RAW_SAMPLES = [routerAsrDiagram];
+const RAW_SAMPLES = [flowRulesDiagram, routerAsrDiagram];
 
 const clone = (diagram) => JSON.parse(JSON.stringify(diagram));
 
