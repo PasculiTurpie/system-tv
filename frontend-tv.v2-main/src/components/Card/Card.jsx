@@ -19,7 +19,6 @@ const Card = () => {
         setIsLoading(true);
         try {
             const res = await api.getChannelDiagram();
-            console.log(res)
             const raw = Array.isArray(res?.data) ? res.data : [];
             const signals = raw.map((it) => it?.signal ?? null).filter(Boolean);
 
@@ -83,10 +82,6 @@ const Card = () => {
     const indexOfFirstCard = indexOfLastCard - cardsPerPage;
     const currentCards = signalTv.slice(indexOfFirstCard, indexOfLastCard);
 
-    console.log(signalTv)
-
-    console.log(currentCards)
-
     const paginate = (pageNumber) => setCurrentPage(pageNumber);
     const nextPage = () => setCurrentPage((prev) => Math.min(prev + 1, totalPages));
     const prevPage = () => setCurrentPage((prev) => Math.max(prev - 1, 1));
@@ -112,7 +107,6 @@ const Card = () => {
 
                     <div className="card__grid">
                         {currentCards.map((signalItem) => {
-                            console.log(currentCards)
                             const isImgLoading = imageLoading[signalItem._id];
                             return (
                                 <div

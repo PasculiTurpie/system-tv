@@ -9,9 +9,7 @@ async function bootstrap() {
   try {
     await connectMongoose();
 
-    app.listen(PORT, () => {
-      console.log(`🚀 API listening on http://localhost:${PORT}/api/v2`);
-    });
+    app.listen(PORT);
   } catch (error) {
     console.error("Failed to start server", error);
     process.exit(1);

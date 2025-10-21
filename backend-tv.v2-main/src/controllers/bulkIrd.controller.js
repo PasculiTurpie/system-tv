@@ -69,7 +69,6 @@ const getOrCreateIrdTipoEquipo = async () => {
       descripcion: "Integrated Receiver Decoder",
     });
     await tipoIrd.save();
-    console.log('✅ TipoEquipo "IRD" creado automáticamente');
   }
 
   return tipoIrd;
@@ -201,11 +200,6 @@ const bulkCreateIrds = async (req, res) => {
 // Función para validar el formato del Excel antes de procesar
 const validateExcelFormat = async (req, res) => {
   try {
-    console.log(
-      "Archivo recibido:",
-      req.file ? req.file.originalname : "No file"
-    );
-
     if (!req.file) {
       return res.status(400).json({
         success: false,
