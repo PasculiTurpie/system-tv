@@ -175,10 +175,28 @@ const sanitizeEdgePayload = (edge) => {
   }
 
   const mergedLabels = mergeEndpointPayload(edge);
+  if (Object.prototype.hasOwnProperty.call(data, "labelStart")) {
+    mergedLabels.source = data.labelStart;
+  }
+  if (Object.prototype.hasOwnProperty.call(data, "labelEnd")) {
+    mergedLabels.target = data.labelEnd;
+  }
+
   const sanitizedLabels = sanitizeEndpointLabels(mergedLabels);
   const nextLabels = {};
-  if (sanitizedLabels.source) nextLabels.source = sanitizedLabels.source;
-  if (sanitizedLabels.target) nextLabels.target = sanitizedLabels.target;
+  if (sanitizedLabels.source) {
+    nextLabels.source = sanitizedLabels.source;
+    data.labelStart = sanitizedLabels.source;
+  } else if (Object.prototype.hasOwnProperty.call(data, "labelStart")) {
+    delete data.labelStart;
+  }
+  if (sanitizedLabels.target) {
+    nextLabels.target = sanitizedLabels.target;
+    data.labelEnd = sanitizedLabels.target;
+  } else if (Object.prototype.hasOwnProperty.call(data, "labelEnd")) {
+    delete data.labelEnd;
+  }
+
   if (Object.keys(nextLabels).length) {
     data.endpointLabels = nextLabels;
   } else if (data.endpointLabels !== undefined) {
@@ -225,6 +243,8 @@ const sanitizeEdgePayload = (edge) => {
     "endpointLabelPositions",
     "multicast",
     "multicastPosition",
+    "labelStart",
+    "labelEnd",
   ].forEach((key) => {
     if (Object.prototype.hasOwnProperty.call(payload, key)) {
       delete payload[key];

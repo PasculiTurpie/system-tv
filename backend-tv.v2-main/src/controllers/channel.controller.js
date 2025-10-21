@@ -526,6 +526,21 @@ exports.patchEdge = async (req, res) => {
 
   if (dataPayload) {
     Object.keys(dataPayload).forEach((key) => {
+      if (key === "labelStart" || key === "labelEnd") {
+        const rawValue = dataPayload[key];
+        const sanitized = rawValue === null ? null : clampLabel(rawValue);
+        const dataPath = `edges.$.data.${key}`;
+        const endpointKey = key === "labelStart" ? "source" : "target";
+        const endpointPath = `edges.$.data.endpointLabels.${endpointKey}`;
+        if (sanitized) {
+          setUpdate[dataPath] = sanitized;
+          setUpdate[endpointPath] = sanitized;
+        } else {
+          unsetUpdate[dataPath] = "";
+          unsetUpdate[endpointPath] = "";
+        }
+        return;
+      }
       if (
         key === "label" ||
         key === "labelPosition" ||
