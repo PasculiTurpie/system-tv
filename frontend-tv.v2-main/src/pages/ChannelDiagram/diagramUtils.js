@@ -432,9 +432,15 @@ export const mapEdgeFromApi = (edge) => {
 
   const labelPosition = normalizeLabelPosition(edge);
   let endpointLabels = normalizeEndpointLabels(rawData.endpointLabels);
-  const endpointLabelPositions = normalizeEndpointLabelPositions(
-    rawData.endpointLabelPositions
-  );
+  const rawEndpointPositions = {
+    ...(edge.endpointLabelPositions && typeof edge.endpointLabelPositions === "object"
+      ? edge.endpointLabelPositions
+      : {}),
+    ...(rawData.endpointLabelPositions && typeof rawData.endpointLabelPositions === "object"
+      ? rawData.endpointLabelPositions
+      : {}),
+  };
+  const endpointLabelPositions = normalizeEndpointLabelPositions(rawEndpointPositions);
   const multicastPosition = toPointOrNull(rawData.multicastPosition);
   const labelStart = clampLabel(rawData.labelStart || endpointLabels.source || "");
   const labelEnd = clampLabel(rawData.labelEnd || endpointLabels.target || "");

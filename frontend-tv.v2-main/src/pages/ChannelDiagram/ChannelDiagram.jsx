@@ -800,8 +800,9 @@ const ChannelDiagram = () => {
             : edge
         )
       );
+      requestSave();
     },
-    [clampPosition, updateEdges]
+    [clampPosition, updateEdges, requestSave]
   );
 
   const handleEdgeEndpointLabelChange = useCallback(
@@ -851,8 +852,9 @@ const ChannelDiagram = () => {
           return { ...edge, data: { ...(edge.data || {}), endpointLabelPositions: currentPositions } };
         })
       );
+      requestSave();
     },
-    [clampPosition, updateEdges]
+    [clampPosition, updateEdges, requestSave]
   );
 
   const handleEdgeEndpointLabelPersist = useCallback(
@@ -894,8 +896,9 @@ const ChannelDiagram = () => {
           return { ...edge, data: nextData };
         })
       );
+      requestSave();
     },
-    [clampPosition, updateEdges]
+    [clampPosition, updateEdges, requestSave]
   );
 
   const handleNodeDragStop = useCallback(() => { requestSave(); }, [requestSave]);
