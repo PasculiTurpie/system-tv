@@ -149,7 +149,6 @@ module.exports.getChannelId = async (req, res) => {
     }
 
     const signalId = channel?.signal ? String(channel.signal).trim() : null;
-   console.log(signalId)
     let resolvedSignal = channel.signal;
     if (signalId) {
       resolvedSignal = await Signal.findById(signalId)

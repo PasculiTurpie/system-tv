@@ -28,7 +28,6 @@ const Login = () => {
                 onSubmit={async (values, { resetForm }) => {
                     try {
                         const response = await api.login(values);
-                        console.log('Response completo del login:', response); // Debug
                         setUser(response?.user || response || null); // Guardar todos los datos
                         setIsAuth(true);
 

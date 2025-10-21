@@ -59,9 +59,7 @@ const DetailCard = () => {
 
     try {
       const res = await api.getChannelDiagramBySignal(id);
-      console.log(res);
       const payload = res;
-      console.log(payload);
 
       // Normalizar posible respuesta (objeto o array)
       const asArray = Array.isArray(payload) ? payload : payload ? [payload] : [];
@@ -70,7 +68,6 @@ const DetailCard = () => {
       const foundChannel = asArray.find((item) => {
         const signal = item?.signal;
         if (!signal) return false;
-        console.log(signal);
 
         if (typeof signal === "string") {
           return String(signal) === String(id);
@@ -80,7 +77,6 @@ const DetailCard = () => {
       });
 
       if (foundChannel?._id) {
-        console.log(foundChannel._id)
         navigate(`/channels/${foundChannel._id}`);
         return;
       }
