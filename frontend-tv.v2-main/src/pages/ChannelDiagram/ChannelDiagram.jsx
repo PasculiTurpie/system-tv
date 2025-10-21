@@ -800,8 +800,9 @@ const ChannelDiagram = () => {
             : edge
         )
       );
+      requestSave();
     },
-    [clampPosition, updateEdges]
+    [clampPosition, updateEdges, requestSave]
   );
 
   const handleEdgeEndpointLabelChange = useCallback(
@@ -813,10 +814,27 @@ const ChannelDiagram = () => {
           const currentLabels = { ...(edge.data?.endpointLabels || {}) };
           if (!sanitized) delete currentLabels[endpoint];
           else currentLabels[endpoint] = sanitized;
-          return { ...edge, data: { ...(edge.data || {}), endpointLabels: currentLabels } };
+          const nextData = { ...(edge.data || {}), endpointLabels: currentLabels };
+          if (endpoint === "source") {
+            if (sanitized) nextData.labelStart = sanitized;
+            else delete nextData.labelStart;
+          } else if (endpoint === "target") {
+            if (sanitized) nextData.labelEnd = sanitized;
+            else delete nextData.labelEnd;
+          }
+          return { ...edge, data: nextData };
         })
       );
-      if (isAuth) scheduleEdgePatch(edgeId, { endpointLabels: { [endpoint]: sanitized || null } });
+      if (isAuth) {
+        const payload = {
+          endpointLabels: { [endpoint]: sanitized || null },
+          data:
+            endpoint === "source"
+              ? { labelStart: sanitized || null }
+              : { labelEnd: sanitized || null },
+        };
+        scheduleEdgePatch(edgeId, payload);
+      }
       requestSave();
     },
     [isAuth, scheduleEdgePatch, updateEdges, requestSave]
@@ -834,8 +852,9 @@ const ChannelDiagram = () => {
           return { ...edge, data: { ...(edge.data || {}), endpointLabelPositions: currentPositions } };
         })
       );
+      requestSave();
     },
-    [clampPosition, updateEdges]
+    [clampPosition, updateEdges, requestSave]
   );
 
   const handleEdgeEndpointLabelPersist = useCallback(
@@ -877,8 +896,9 @@ const ChannelDiagram = () => {
           return { ...edge, data: nextData };
         })
       );
+      requestSave();
     },
-    [clampPosition, updateEdges]
+    [clampPosition, updateEdges, requestSave]
   );
 
   const handleNodeDragStop = useCallback(() => { requestSave(); }, [requestSave]);
@@ -888,11 +908,17 @@ const ChannelDiagram = () => {
       if (!isAuth) return;
       let updatedEdgeSnapshot = null;
       let labelPositionCleared = false;
+      const clearedEndpoints = new Set();
 
       updateEdges((current) => {
         const nodesList = nodesRef.current;
         const next = current.map((edge) => {
           if (edge.id !== oldEdge.id) return edge;
+          const connectionChanged =
+            edge.source !== newConnection.source ||
+            edge.target !== newConnection.target ||
+            edge.sourceHandle !== newConnection.sourceHandle ||
+            edge.targetHandle !== newConnection.targetHandle;
           const updated = {
             ...edge,
             source: newConnection.source,
@@ -903,7 +929,22 @@ const ChannelDiagram = () => {
           };
           const withHandles = normalizeEdgeHandles(updated, nodesList);
           const enforced = enforceSateliteToIrd(withHandles, nodesList);
-          const relabeled = autoLabelEdge(enforced, nodesList);
+          let relabeled = autoLabelEdge(enforced, nodesList);
+
+          if (connectionChanged) {
+            const previousPositions = edge?.data?.endpointLabelPositions || {};
+            const hadSource = Boolean(previousPositions.source);
+            const hadTarget = Boolean(previousPositions.target);
+            if (hadSource || hadTarget) {
+              const nextData = { ...(relabeled.data || {}) };
+              if (Object.prototype.hasOwnProperty.call(nextData, "endpointLabelPositions")) {
+                delete nextData.endpointLabelPositions;
+              }
+              relabeled = { ...relabeled, data: nextData };
+              if (hadSource) clearedEndpoints.add("source");
+              if (hadTarget) clearedEndpoints.add("target");
+            }
+          }
           labelPositionCleared =
             (edge?.data?.labelPosition || edge?.labelPosition) &&
             !(relabeled?.data?.labelPosition || relabeled?.labelPosition);
@@ -931,6 +972,33 @@ const ChannelDiagram = () => {
             edges: { [updatedEdgeSnapshot.id]: { labelPosition: null } },
           }).catch((error) => {
             console.error("Persist auto-label reset failed", error);
+          });
+        }
+      }
+
+      if (clearedEndpoints.size) {
+        const store = confirmedEdgePositionsRef.current;
+        const existingEntry = store.get(updatedEdgeSnapshot.id) || {};
+        const nextEntry = {
+          labelPosition: existingEntry.labelPosition || null,
+          endpointLabelPositions: { ...(existingEntry.endpointLabelPositions || {}) },
+          multicastPosition: existingEntry.multicastPosition || null,
+        };
+        clearedEndpoints.forEach((endpoint) => {
+          delete nextEntry.endpointLabelPositions[endpoint];
+        });
+        store.set(updatedEdgeSnapshot.id, nextEntry);
+        if (persistLabelPositions && !isReadOnly) {
+          const endpointPayload = {};
+          clearedEndpoints.forEach((endpoint) => {
+            endpointPayload[endpoint] = null;
+          });
+          persistLabelPositions({
+            endpointLabelPositions: {
+              [updatedEdgeSnapshot.id]: endpointPayload,
+            },
+          }).catch((error) => {
+            console.error("Persist endpoint label reset failed", error);
           });
         }
       }

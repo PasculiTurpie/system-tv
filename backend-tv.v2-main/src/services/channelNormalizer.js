@@ -144,6 +144,24 @@ const normalizeEdge = (edge) => {
   );
   normalized.label = normalized.data.label;
 
+  if (Object.prototype.hasOwnProperty.call(normalized.data, "labelStart")) {
+    const sanitized = sanitizeLabel(normalized.data.labelStart);
+    if (sanitized) {
+      normalized.data.labelStart = sanitized;
+    } else {
+      delete normalized.data.labelStart;
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(normalized.data, "labelEnd")) {
+    const sanitized = sanitizeLabel(normalized.data.labelEnd);
+    if (sanitized) {
+      normalized.data.labelEnd = sanitized;
+    } else {
+      delete normalized.data.labelEnd;
+    }
+  }
+
   if (normalized.data.labelPosition) {
     const { x, y } = normalizePosition(normalized.data.labelPosition);
     normalized.data.labelPosition = { x, y };
@@ -189,6 +207,12 @@ const normalizeEdge = (edge) => {
         delete labels[key];
       } else {
         labels[key] = sanitizeLabel(labels[key]);
+        if (key === "source" && !normalized.data.labelStart) {
+          normalized.data.labelStart = labels[key];
+        }
+        if (key === "target" && !normalized.data.labelEnd) {
+          normalized.data.labelEnd = labels[key];
+        }
       }
     });
   }

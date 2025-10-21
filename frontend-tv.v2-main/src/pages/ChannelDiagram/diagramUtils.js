@@ -431,14 +431,48 @@ export const mapEdgeFromApi = (edge) => {
     : { stroke: color, strokeWidth: 2 };
 
   const labelPosition = normalizeLabelPosition(edge);
-  const endpointLabels = normalizeEndpointLabels(rawData.endpointLabels);
-  const endpointLabelPositions = normalizeEndpointLabelPositions(
-    rawData.endpointLabelPositions
-  );
+  let endpointLabels = normalizeEndpointLabels(rawData.endpointLabels);
+  const rawEndpointPositions = {
+    ...(edge.endpointLabelPositions && typeof edge.endpointLabelPositions === "object"
+      ? edge.endpointLabelPositions
+      : {}),
+    ...(rawData.endpointLabelPositions && typeof rawData.endpointLabelPositions === "object"
+      ? rawData.endpointLabelPositions
+      : {}),
+  };
+  const endpointLabelPositions = normalizeEndpointLabelPositions(rawEndpointPositions);
   const multicastPosition = toPointOrNull(rawData.multicastPosition);
+  const labelStart = clampLabel(rawData.labelStart || endpointLabels.source || "");
+  const labelEnd = clampLabel(rawData.labelEnd || endpointLabels.target || "");
+  if (labelStart) {
+    endpointLabels = { ...endpointLabels, source: labelStart };
+  }
+  if (labelEnd) {
+    endpointLabels = { ...endpointLabels, target: labelEnd };
+  }
 
   const sourceHandle = normalizeHandle(edge.sourceHandle);
   const targetHandle = normalizeHandle(edge.targetHandle);
+
+  const data = {
+    ...rawData,
+    label,
+    direction,
+    labelPosition,
+    endpointLabels,
+    endpointLabelPositions,
+    multicastPosition,
+  };
+  if (labelStart) {
+    data.labelStart = labelStart;
+  } else if (Object.prototype.hasOwnProperty.call(data, "labelStart")) {
+    delete data.labelStart;
+  }
+  if (labelEnd) {
+    data.labelEnd = labelEnd;
+  } else if (Object.prototype.hasOwnProperty.call(data, "labelEnd")) {
+    delete data.labelEnd;
+  }
 
   return {
     id,
@@ -448,15 +482,7 @@ export const mapEdgeFromApi = (edge) => {
     ...(targetHandle ? { targetHandle } : {}),
     type: edge.type || "directional",
     label,
-    data: {
-      ...rawData,
-      label,
-      direction,
-      labelPosition,
-      endpointLabels,
-      endpointLabelPositions,
-      multicastPosition,
-    },
+    data,
     style,
     markerEnd: withMarkerColor(edge.markerEnd, color),
     markerStart: edge.markerStart ? withMarkerColor(edge.markerStart, color) : undefined,
@@ -498,6 +524,10 @@ export const toApiEdge = (edge) => {
   const endpointLabels = edge.data?.endpointLabels || {};
   const endpointLabelPositions = edge.data?.endpointLabelPositions || {};
   const multicastPosition = edge.data?.multicastPosition || null;
+  const labelStart = clampLabel(
+    edge.data?.labelStart || endpointLabels.source || ""
+  );
+  const labelEnd = clampLabel(edge.data?.labelEnd || endpointLabels.target || "");
   const sourceHandle = normalizeHandle(edge.sourceHandle);
   const targetHandle = normalizeHandle(edge.targetHandle);
 
@@ -510,6 +540,20 @@ export const toApiEdge = (edge) => {
     endpointLabelPositions,
     multicastPosition,
   };
+
+  if (labelStart) {
+    data.labelStart = labelStart;
+    data.endpointLabels = { ...data.endpointLabels, source: labelStart };
+  } else if (Object.prototype.hasOwnProperty.call(data, "labelStart")) {
+    delete data.labelStart;
+  }
+
+  if (labelEnd) {
+    data.labelEnd = labelEnd;
+    data.endpointLabels = { ...data.endpointLabels, target: labelEnd };
+  } else if (Object.prototype.hasOwnProperty.call(data, "labelEnd")) {
+    delete data.labelEnd;
+  }
 
   const payload = {
     id: edge.id,
