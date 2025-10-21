@@ -1,6 +1,6 @@
 import { getSmoothStepPath } from "@xyflow/react";
 import normalizeHandle from "../../utils/normalizeHandle.js";
-import { autoLabelEdge, enforceSateliteToIrd, normalizeEdgeHandles } from "./flowRules";
+import { autoLabelEdge, enforceSateliteToIrd, normalizeEdgeHandles } from "./flowRules.js";
 
 export const ARROW_CLOSED = { type: "arrowclosed" };
 
@@ -347,13 +347,22 @@ const extractEquipoId = (rawValue) => {
   }
 
   if (typeof rawValue === "object") {
-    return (
-      extractEquipoId(rawValue._id) ??
-      extractEquipoId(rawValue.id) ??
-      extractEquipoId(rawValue.value) ??
-      extractEquipoId(rawValue.equipoId) ??
-      null
-    );
+    const candidateKeys = [
+      "_id",
+      "id",
+      "value",
+      "key",
+      "equipoId",
+      "equipoID",
+      "equipo",
+      "idEquipo",
+    ];
+    for (const key of candidateKeys) {
+      if (!Object.prototype.hasOwnProperty.call(rawValue, key)) continue;
+      const extracted = extractEquipoId(rawValue[key]);
+      if (extracted) return extracted;
+    }
+    return null;
   }
 
   return null;
@@ -380,20 +389,32 @@ export const mapNodeFromApi = (node) => {
   };
 
   const label = clampLabel(rawData.label ?? node.label ?? id);
+  const equipoId =
+    extractEquipoId(node.equipo) ??
+    extractEquipoId(node.equipoId) ??
+    extractEquipoId(rawData.equipo) ??
+    extractEquipoId(rawData.equipoId);
+
+  const data = {
+    ...rawData,
+    label,
+    labelPosition: toPointOrNull(rawData.labelPosition),
+    multicastPosition: toPointOrNull(rawData.multicastPosition),
+  };
+
+  if (equipoId) {
+    data.equipoId = equipoId;
+  }
 
   return {
     id,
     type: node.type || "custom",
-    data: {
-      ...rawData,
-      label,
-      labelPosition: toPointOrNull(rawData.labelPosition),
-      multicastPosition: toPointOrNull(rawData.multicastPosition),
-    },
+    data,
     position: {
       x: toNumberOr(getPos(node.position?.x, 0), 0),
       y: toNumberOr(getPos(node.position?.y, 1), 0),
     },
+    ...(equipoId ? { equipo: equipoId } : {}),
   };
 };
 
@@ -534,10 +555,21 @@ export const toApiNode = (node) => {
   }
 
   const equipoId =
-    extractEquipoId(node.data?.equipoId) ??
-    extractEquipoId(node.data?.equipo) ??
+    extractEquipoId(node.equipo) ??
     extractEquipoId(node.equipoId) ??
-    extractEquipoId(node.equipo);
+    extractEquipoId(node.data?.equipo) ??
+    extractEquipoId(node.data?.equipoId);
+
+  if (equipoId) {
+    data.equipoId = equipoId;
+  } else if (data.equipoId) {
+    const normalized = extractEquipoId(data.equipoId);
+    if (normalized) {
+      data.equipoId = normalized;
+    } else {
+      delete data.equipoId;
+    }
+  }
 
   return {
     id: node.id,
