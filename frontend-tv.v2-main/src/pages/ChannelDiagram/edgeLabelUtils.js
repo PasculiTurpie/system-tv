@@ -22,13 +22,22 @@ export const computeEndpointLabelDefaults = ({
   targetX,
   targetY,
   targetPosition,
+  offset,
 }) => {
   const sourceOffset = resolveEndpointOffset(sourcePosition, "source");
   const targetOffset = resolveEndpointOffset(targetPosition, "target");
+  const shiftX = Number(offset?.ox ?? offset?.x ?? 0);
+  const shiftY = Number(offset?.oy ?? offset?.y ?? 0);
 
   return {
-    source: { x: sourceX + sourceOffset.x, y: sourceY + sourceOffset.y },
-    target: { x: targetX + targetOffset.x, y: targetY + targetOffset.y },
+    source: {
+      x: sourceX + shiftX + sourceOffset.x,
+      y: sourceY + shiftY + sourceOffset.y,
+    },
+    target: {
+      x: targetX + shiftX + targetOffset.x,
+      y: targetY + shiftY + targetOffset.y,
+    },
   };
 };
 

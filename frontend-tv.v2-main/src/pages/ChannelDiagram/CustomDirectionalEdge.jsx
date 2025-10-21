@@ -55,6 +55,8 @@ export default function CustomDirectionalEdge(props) {
     ]
   );
 
+  const primaryLabel = data?.label ?? (label ?? "");
+
   const centralLabelPosition = useMemo(() => {
     const stored = data?.labelPosition || data?.labelPos;
     if (stored && Number.isFinite(stored.x) && Number.isFinite(stored.y)) {
@@ -91,8 +93,9 @@ export default function CustomDirectionalEdge(props) {
         targetX,
         targetY,
         targetPosition,
+        offset: shift,
       }),
-    [sourcePosition, sourceX, sourceY, targetPosition, targetX, targetY]
+    [shift, sourcePosition, sourceX, sourceY, targetPosition, targetX, targetY]
   );
 
   const handleCentralLabelCommit = useCallback(
@@ -165,7 +168,7 @@ export default function CustomDirectionalEdge(props) {
       <BaseEdge id={id} path={edgePath} style={style} markerEnd={markerEnd} />
 
       <EdgeLabelDraggable
-        text={label || data?.label || ""}
+        text={primaryLabel}
         position={data?.labelPosition}
         defaultPosition={centralLabelPosition}
         readOnly={isReadOnly}

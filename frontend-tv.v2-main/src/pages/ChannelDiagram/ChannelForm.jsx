@@ -1422,7 +1422,7 @@ const ChannelForm = () => {
               {draftEdges.length > 0 && (
                 <ul className="chf__list">
                   {draftEdges.map((e) => {
-                    const label = e?.data?.label || e.label;
+                    const label = e?.data?.label || "";
                     const labelStart =
                       e?.data?.labelStart || e?.data?.endpointLabels?.source || "";
                     const labelEnd =

@@ -5,22 +5,6 @@ import EdgeLabelDraggable from "./EdgeLabelDraggable";
 import EditableEdgeLabel from "./EditableEdgeLabel";
 import { computeEndpointLabelDefaults } from "./edgeLabelUtils";
 
-const SOURCE_FALLBACK_OFFSET = Object.freeze({ x: -20, y: -24 });
-const TARGET_FALLBACK_OFFSET = Object.freeze({ x: 20, y: -24 });
-const ORIENTED_OFFSETS = Object.freeze({
-  left: { x: -28, y: -8 },
-  right: { x: 28, y: -8 },
-  top: { x: 0, y: -28 },
-  bottom: { x: 0, y: 20 },
-});
-
-const resolveEndpointOffset = (position, kind) => {
-  const normalized = typeof position === "string" ? position.toLowerCase() : "";
-  const oriented = ORIENTED_OFFSETS[normalized];
-  if (oriented) return oriented;
-  return kind === "target" ? TARGET_FALLBACK_OFFSET : SOURCE_FALLBACK_OFFSET;
-};
-
 export default function CustomWaypointEdge(props) {
   const {
     id,
@@ -58,6 +42,8 @@ export default function CustomWaypointEdge(props) {
     });
     return [d, lx, ly];
   }, [sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition]);
+
+  const primaryLabel = data?.label ?? (label ?? "");
 
   const centralLabelPosition = useMemo(() => {
     const stored = data?.labelPosition || data?.labelPos;
@@ -139,7 +125,7 @@ export default function CustomWaypointEdge(props) {
     <>
       <BaseEdge id={id} path={edgePath} style={style} markerEnd={markerEnd} />
       <EdgeLabelDraggable
-        text={label || data?.label || ""}
+        text={primaryLabel}
         position={data?.labelPosition}
         defaultPosition={centralLabelPosition}
         readOnly={isReadOnly}
