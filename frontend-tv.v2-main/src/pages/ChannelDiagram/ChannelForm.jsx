@@ -62,7 +62,6 @@ const defaultFormikValues = {
   edgeLabel: "",
   edgeLabelStart: "",
   edgeLabelEnd: "",
-  edgeMulticast: "",
 };
 
 const EDGE_DIR_OPTIONS = [
@@ -1289,7 +1288,7 @@ const ChannelForm = () => {
               </div>
 
               {/* Fila con etiquetas */}
-              <div className="chf__grid chf__grid--2 chf__grid--align-end">
+              <div className="chf__grid chf__grid--align-end">
                 <label className="chf__label">
                   Etiqueta (centro)
                   <Field
@@ -1297,11 +1296,6 @@ const ChannelForm = () => {
                     placeholder="p.ej. TV7 Gi1/0/2 - Vlan420"
                     name="edgeLabel"
                   />
-                </label>
-
-                <label className="chf__label">
-                  Multicast (origen)
-                  <Field className="chf__input" placeholder="239.2.3.222" name="edgeMulticast" />
                 </label>
               </div>
 
@@ -1387,7 +1381,6 @@ const ChannelForm = () => {
                         label: trimmedLabel || id,
                         ...(labelStart ? { labelStart } : {}),
                         ...(labelEnd ? { labelEnd } : {}),
-                        multicast: values.edgeMulticast?.trim() || "",
                         ...(Object.keys(endpointLabels).length
                           ? { endpointLabels }
                           : {}),
@@ -1409,7 +1402,6 @@ const ChannelForm = () => {
                     setFieldValue("edgeLabel", "");
                     setFieldValue("edgeLabelStart", "");
                     setFieldValue("edgeLabelEnd", "");
-                    setFieldValue("edgeMulticast", "");
                     setEdgeSourceSel(null);
                     setEdgeTargetSel(null);
                     setEdgeDirection(EDGE_DIR_OPTIONS[0]);
@@ -1441,9 +1433,6 @@ const ChannelForm = () => {
                           ) : null}
                           {labelEnd ? (
                             <span className="chf__badge chf__badge--muted">fin: {labelEnd}</span>
-                          ) : null}
-                          {e?.data?.multicast ? (
-                            <span className="chf__badge chf__badge--muted">mc: {e.data.multicast}</span>
                           ) : null}
                           <span
                             className="chf__muted"
