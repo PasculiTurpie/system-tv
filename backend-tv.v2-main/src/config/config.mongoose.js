@@ -161,13 +161,13 @@ async function attemptConnectionChain(uris) {
 
   for (const uri of uris) {
     const maskedUri = sanitizeConnectionString(uri);
-
+    console.log(`🔌 Connecting to MongoDB using ${maskedUri}`);
     try {
       await mongoose.connect(uri, {
         serverSelectionTimeoutMS: CONNECTION_TIMEOUT_MS,
         family: FAMILY,
       });
-
+      console.log("✅ Connected to MongoDB");
       return mongoose.connection;
     } catch (error) {
       lastError = error;
