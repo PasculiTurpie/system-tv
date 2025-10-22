@@ -1292,7 +1292,7 @@ const ChannelForm = () => {
                 <label className="chf__label">
                   Etiqueta (centro)
                   <Field
-                    className="chf__input"
+                    className="chf__input label-main"
                     placeholder="p.ej. TV7 Gi1/0/2 - Vlan420"
                     name="edgeLabel"
                   />

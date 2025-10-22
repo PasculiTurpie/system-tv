@@ -241,6 +241,9 @@
   color       : #375d9d;
   border-color: #cbd5e1;
 }
+.label-main{
+  width: 367.38px;
+}
 
 /* Responsive */
 @media (max-width: 920px) {
