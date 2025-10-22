@@ -8,6 +8,7 @@ import {
   applyEdgeChanges,
   applyNodeChanges,
   ReactFlowProvider,
+  SmoothStepEdge,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useParams } from "react-router-dom";
@@ -319,7 +320,11 @@ const ChannelDiagram = () => {
   );
 
   const edgeTypes = useMemo(
-    () => ({ directional: CustomDirectionalEdge, waypoint: CustomWaypointEdge }),
+    () => ({
+      directional: CustomDirectionalEdge,
+      waypoint: CustomWaypointEdge,
+      smoothstep: SmoothStepEdge,
+    }),
     []
   );
 
