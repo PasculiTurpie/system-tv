@@ -398,6 +398,12 @@ class Api {
             .then((r) => r.data);
     }
 
+    patchChannelNodeHandles(channelId, nodeId, payload) {
+        return this._axios
+            .patch(`/channels/${channelId}/node/${nodeId}/handles`, payload)
+            .then((r) => r.data);
+    }
+
     patchChannelEdge(channelId, edgeId, payload) {
         return this._axios
             .patch(`/channels/${channelId}/edge/${edgeId}`, payload)

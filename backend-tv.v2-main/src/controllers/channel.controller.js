@@ -13,6 +13,7 @@ const {
   sanitizeEndpointPositions,
   sanitizeDiagramPayload,
 } = require("../services/diagramSanitizer");
+const { sanitizeHandles } = require("../services/handleSanitizer");
 
 const sanitizeHandleId = (value) => {
   if (value === undefined) return undefined;
@@ -40,6 +41,7 @@ const sanitizeSerializable = (value) => {
   }
   return value;
 };
+
 
 const buildChannelFilter = (query = {}) => {
   const filter = {};
@@ -70,7 +72,7 @@ module.exports.getChannel = async (req, res) => {
     const filter = buildChannelFilter(req.query);
     const channels = await Channel.find(filter)
       .select(
-        "signal nodes.id nodes.type nodes.position nodes.data nodes.equipo edges.id edges.source edges.target edges.type edges.style edges.data edges.label createdAt updatedAt"
+        "signal nodes.id nodes.type nodes.position nodes.data nodes.handles nodes.equipo edges.id edges.source edges.target edges.type edges.style edges.data edges.label createdAt updatedAt"
       )
       .sort({ updatedAt: -1, _id: 1 })
       .lean({ getters: true, virtuals: true });
@@ -139,7 +141,7 @@ module.exports.getChannelId = async (req, res) => {
   try {
     const channel = await Channel.findById(req.params.id)
       .select(
-        "signal nodes.id nodes.type nodes.position nodes.data nodes.equipo edges.id edges.source edges.target edges.type edges.style edges.data edges.label createdAt updatedAt"
+        "signal nodes.id nodes.type nodes.position nodes.data nodes.handles nodes.equipo edges.id edges.source edges.target edges.type edges.style edges.data edges.label createdAt updatedAt"
       )
       .lean({ getters: true, virtuals: true })
       .exec();
@@ -296,6 +298,59 @@ exports.patchNode = async (req, res) => {
     return res.json({ node: normalizeNode(refreshed.nodes[0]) });
   } catch (error) {
     console.error("patchNode error", error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+exports.patchNodeHandles = async (req, res) => {
+  const { id, nodeId } = req.params;
+  const payload = Array.isArray(req.body?.handles) ? req.body.handles : req.body;
+
+  try {
+    const snapshot = await Channel.findOne(
+      { _id: id, "nodes.id": nodeId },
+      { "nodes.$": 1 }
+    )
+      .lean({ getters: true, virtuals: true })
+      .exec();
+
+    if (!snapshot || !Array.isArray(snapshot.nodes) || snapshot.nodes.length === 0) {
+      return res.status(404).json({ error: "Nodo no encontrado" });
+    }
+
+    const existingNode = snapshot.nodes[0];
+    const fallbackHandles = existingNode.handles || existingNode.data?.handles || [];
+    const sanitized = sanitizeHandles(payload, fallbackHandles);
+
+    await Channel.updateOne(
+      { _id: id, "nodes.id": nodeId },
+      {
+        $set: {
+          "nodes.$.handles": sanitized,
+          "nodes.$.data.handles": sanitized,
+        },
+      },
+      { runValidators: true }
+    ).exec();
+
+    const refreshed = await Channel.findOne(
+      { _id: id, "nodes.id": nodeId },
+      { _id: 1, nodes: { $elemMatch: { id: nodeId } } }
+    )
+      .lean({ getters: true, virtuals: true })
+      .exec();
+
+    if (!refreshed || !Array.isArray(refreshed.nodes) || refreshed.nodes.length === 0) {
+      return res.status(404).json({ error: "Nodo no encontrado" });
+    }
+
+    const normalizedNode = normalizeNode(refreshed.nodes[0]);
+    return res.json({
+      node: normalizedNode,
+      handles: normalizedNode?.handles || [],
+    });
+  } catch (error) {
+    console.error("patchNodeHandles error", error);
     return res.status(500).json({ error: error.message });
   }
 };

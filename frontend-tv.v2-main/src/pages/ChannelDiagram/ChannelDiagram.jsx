@@ -8,6 +8,7 @@ import {
   applyEdgeChanges,
   applyNodeChanges,
   ReactFlowProvider,
+  SmoothStepEdge,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useParams } from "react-router-dom";
@@ -32,6 +33,7 @@ import {
   MAX_LABEL_LENGTH,
   prepareDiagramState,
   isRouterNode,
+  normalizeHandlesArray,
 } from "./diagramUtils";
 import {
   autoLabelEdge,
@@ -318,7 +320,11 @@ const ChannelDiagram = () => {
   );
 
   const edgeTypes = useMemo(
-    () => ({ directional: CustomDirectionalEdge, waypoint: CustomWaypointEdge }),
+    () => ({
+      directional: CustomDirectionalEdge,
+      waypoint: CustomWaypointEdge,
+      smoothstep: SmoothStepEdge,
+    }),
     []
   );
 
@@ -586,17 +592,32 @@ const ChannelDiagram = () => {
     return createPatchScheduler((nodeKey, payload) => api.patchChannelNode(channelId, nodeKey, payload));
   }, [channelId, isAuth, isSampleDiagram]);
 
+  const nodeHandlesPatchScheduler = useMemo(() => {
+    if (!channelId || !isAuth || isSampleDiagram) return null;
+    return createPatchScheduler((nodeKey, payload) =>
+      api.patchChannelNodeHandles(channelId, nodeKey, payload)
+    );
+  }, [channelId, isAuth, isSampleDiagram]);
+
   const edgePatchScheduler = useMemo(() => {
     if (!channelId || !isAuth || isSampleDiagram) return null;
     return createPatchScheduler((edgeKey, payload) => api.patchChannelEdge(channelId, edgeKey, payload));
   }, [channelId, isAuth, isSampleDiagram]);
 
   useEffect(() => () => { nodePatchScheduler?.cancelAll(); }, [nodePatchScheduler]);
+  useEffect(() => () => { nodeHandlesPatchScheduler?.cancelAll(); }, [nodeHandlesPatchScheduler]);
   useEffect(() => () => { edgePatchScheduler?.cancelAll(); }, [edgePatchScheduler]);
 
   const scheduleNodePatch = useCallback(
     (nodeId, patch, options) => { if (nodePatchScheduler) nodePatchScheduler.schedule(nodeId, patch, options); },
     [nodePatchScheduler]
+  );
+
+  const scheduleNodeHandlesPatch = useCallback(
+    (nodeId, patch, options) => {
+      if (nodeHandlesPatchScheduler) nodeHandlesPatchScheduler.schedule(nodeId, patch, options);
+    },
+    [nodeHandlesPatchScheduler]
   );
 
   const scheduleEdgePatch = useCallback(
@@ -658,6 +679,54 @@ const ChannelDiagram = () => {
       );
     },
     [clampPosition, updateNodes]
+  );
+
+  const handleNodeHandlesChange = useCallback(
+    (nodeId, nextHandles, options = {}) => {
+      if (!nodeId) return;
+      const sanitized = normalizeHandlesArray(nextHandles).map((handle) => ({ ...handle }));
+      const previousNode = nodesRef.current.find((node) => node.id === nodeId);
+      const previousHandles = previousNode?.handles
+        ? previousNode.handles.map((handle) => ({ ...handle }))
+        : [];
+
+      updateNodes((current) =>
+        current.map((node) =>
+          node.id === nodeId
+            ? {
+                ...node,
+                handles: sanitized,
+                data: { ...(node.data || {}), handles: sanitized },
+              }
+            : node
+        )
+      );
+
+      if (isAuth) {
+        scheduleNodeHandlesPatch(nodeId, { handles: sanitized }, {
+          onSuccess: options.onSuccess,
+          onError: (error) => {
+            updateNodes((current) =>
+              current.map((node) =>
+                node.id === nodeId
+                  ? {
+                      ...node,
+                      handles: previousHandles,
+                      data: { ...(node.data || {}), handles: previousHandles },
+                    }
+                  : node
+              )
+            );
+            options.onError?.(error);
+          },
+        });
+      } else {
+        options.onSuccess?.();
+      }
+
+      requestSave();
+    },
+    [isAuth, scheduleNodeHandlesPatch, updateNodes, requestSave]
   );
 
   const handleNodeDataPatch = useCallback(
@@ -1224,6 +1293,7 @@ const ChannelDiagram = () => {
       onNodeLabelChange: handleNodeLabelChange,
       onNodeLabelPositionChange: handleNodeLabelPositionChange,
       onNodeMulticastPositionChange: handleNodeMulticastPositionChange,
+      onNodeHandlesChange: handleNodeHandlesChange,
       onEdgeLabelChange: handleEdgeLabelChange,
       onEdgeLabelPositionChange: handleEdgeLabelPositionChange,
       onEdgeEndpointLabelChange: handleEdgeEndpointLabelChange,
@@ -1246,6 +1316,7 @@ const ChannelDiagram = () => {
       handleNodeLabelChange,
       handleNodeLabelPositionChange,
       handleNodeMulticastPositionChange,
+      handleNodeHandlesChange,
       persistLabelPositions,
       isReadOnly,
     ]

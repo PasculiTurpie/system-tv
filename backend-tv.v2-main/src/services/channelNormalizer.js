@@ -1,3 +1,5 @@
+const { normalizeHandles } = require("./handleSanitizer");
+
 const cloneIfNeeded = (value) => {
   if (!value) return value;
   if (typeof value.toObject === "function") {
@@ -91,6 +93,19 @@ const normalizeNode = (node) => {
     data: { ...(cloned.data || {}) },
     position: normalizePosition(cloned.position),
   };
+
+  const handles = normalizeHandles(cloned.handles || cloned.data?.handles || []);
+  if (handles.length) {
+    normalized.handles = handles;
+    if (normalized.data) {
+      normalized.data.handles = handles;
+    }
+  } else {
+    delete normalized.handles;
+    if (normalized.data) {
+      delete normalized.data.handles;
+    }
+  }
 
   if (normalized.data && typeof normalized.data === "object") {
     normalized.data.label = sanitizeLabel(

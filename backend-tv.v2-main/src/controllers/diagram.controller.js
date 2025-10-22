@@ -1,4 +1,5 @@
 const Channel = require("../models/channel.model");
+const { sanitizeHandles } = require("../services/handleSanitizer");
 
 const projectNodes = { nodes: 1 };
 const projectEdges = { edges: 1 };
@@ -17,9 +18,13 @@ const sanitizeNodeUpdate = (node, payload = {}) => {
     result.data = { ...(node.data || {}), ...(payload.data || {}) };
   }
   if (payload.handles !== undefined) {
-    result.handles = payload.handles || {};
+    const sanitizedHandles = sanitizeHandles(
+      payload.handles,
+      node.handles || node.data?.handles || []
+    );
+    result.handles = sanitizedHandles;
     if (result.data) {
-      result.data.handles = payload.handles || {};
+      result.data.handles = sanitizedHandles;
     }
   }
   return result;
