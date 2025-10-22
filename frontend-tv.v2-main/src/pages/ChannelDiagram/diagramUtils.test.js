@@ -9,6 +9,7 @@ import {
   sortEdgesById,
   createPatchScheduler,
   toApiNode,
+  toApiEdge,
 } from "./diagramUtils.js";
 
 describe("diagramUtils", () => {
@@ -91,6 +92,29 @@ describe("diagramUtils", () => {
     const edgeSecond = mapEdgeFromApi(edgePayload);
     assert.deepStrictEqual(edgeFirst, edgeSecond);
     assert.equal(edgeFirst.data.endpointLabels.source, "foo");
+  });
+
+  it("normalizes edge types to registered keys", () => {
+    const weirdEdge = {
+      id: "edge-weird",
+      source: "node-1",
+      target: "node-2",
+      type: "SmoothStep Animated",
+      data: {},
+    };
+
+    const mapped = mapEdgeFromApi(weirdEdge);
+    assert.equal(mapped.type, "smoothstep");
+
+    const saved = toApiEdge({
+      id: "edge-weird",
+      source: "node-1",
+      target: "node-2",
+      type: "Directional-Animated",
+      data: {},
+    });
+
+    assert.equal(saved.type, "directional");
   });
 
   it("toApiNode preserves equipo identifiers", () => {
