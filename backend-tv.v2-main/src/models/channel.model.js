@@ -6,6 +6,20 @@ const positionDefinition = {
   y: { type: Number },
 };
 
+const HANDLE_SIDES = ["top", "right", "bottom", "left"];
+const HANDLE_TYPES = ["source", "target"];
+
+const HandleSchema = new mongoose.Schema(
+  {
+    id: { type: String, required: true, trim: true },
+    type: { type: String, enum: HANDLE_TYPES, required: true },
+    side: { type: String, enum: HANDLE_SIDES, required: true },
+    topPct: { type: Number, min: 0, max: 100, default: 50 },
+    leftPct: { type: Number, min: 0, max: 100, default: 50 },
+  },
+  { _id: false }
+);
+
 const NodeDataSchema = new mongoose.Schema(
   {
     label: { type: String, required: true },
@@ -13,7 +27,7 @@ const NodeDataSchema = new mongoose.Schema(
     labelPosition: { ...positionDefinition },
     multicast: { type: String },
     multicastPosition: { ...positionDefinition },
-    handles: { type: mongoose.Schema.Types.Mixed, default: {} },
+    handles: { type: [HandleSchema], default: undefined },
   },
   { _id: false, strict: false, minimize: false }
 );
@@ -31,7 +45,7 @@ const NodeSchema = new mongoose.Schema({
     y: { type: Number, required: true },
   },
   data: { type: NodeDataSchema, required: true },
-  handles: { type: mongoose.Schema.Types.Mixed, default: {} },
+  handles: { type: [HandleSchema], default: [] },
 });
 
 const EdgeDataSchema = new mongoose.Schema(

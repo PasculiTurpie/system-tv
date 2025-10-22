@@ -376,6 +376,100 @@ const toPointOrNull = (point) => {
   return { x, y };
 };
 
+const HANDLE_SIDES = new Set(["top", "right", "bottom", "left"]);
+const HANDLE_TYPES = new Set(["source", "target"]);
+
+const HANDLE_DEFAULTS = Object.freeze({
+  top: { topPct: 0, leftPct: 50 },
+  right: { topPct: 50, leftPct: 100 },
+  bottom: { topPct: 100, leftPct: 50 },
+  left: { topPct: 50, leftPct: 0 },
+});
+
+const clampHandlePercentage = (value, fallback) => {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return fallback;
+  if (num < 0) return 0;
+  if (num > 100) return 100;
+  return Number(num.toFixed(3));
+};
+
+const inferTypeFromHandleId = (handleId) => {
+  if (!handleId) return null;
+  const normalized = normalizeHandle(handleId);
+  if (normalized.startsWith("in-")) return "target";
+  if (normalized.startsWith("out-")) return "source";
+  return null;
+};
+
+const inferSideFromHandleId = (handleId) => {
+  if (!handleId) return null;
+  const normalized = normalizeHandle(handleId);
+  if (normalized.includes("-left")) return "left";
+  if (normalized.includes("-right")) return "right";
+  if (normalized.includes("-top")) return "top";
+  if (normalized.includes("-bottom")) return "bottom";
+  return null;
+};
+
+export const normalizeHandlesArray = (handles) => {
+  const seen = new Set();
+  const result = [];
+
+  const pushHandle = (entry, typeHint, sideHint) => {
+    if (!entry || typeof entry !== "object") return;
+    const rawId = entry.id ?? entry.handleId ?? entry;
+    if (rawId === undefined || rawId === null) return;
+    const id = String(rawId).trim();
+    if (!id) return;
+
+    const candidateType = typeof entry.type === "string" ? entry.type.toLowerCase() : typeHint;
+    const inferredType = inferTypeFromHandleId(id);
+    const type = HANDLE_TYPES.has(candidateType) ? candidateType : inferredType;
+    if (!type) return;
+
+    const candidateSide = typeof entry.side === "string" ? entry.side.toLowerCase() : sideHint;
+    const inferredSide = inferSideFromHandleId(id);
+    const side = HANDLE_SIDES.has(candidateSide) ? candidateSide : inferredSide;
+    if (!side) return;
+
+    const defaults = HANDLE_DEFAULTS[side] || { topPct: 50, leftPct: 50 };
+    const topPct = clampHandlePercentage(entry.topPct, defaults.topPct);
+    const leftPct = clampHandlePercentage(entry.leftPct, defaults.leftPct);
+
+    const normalizedKey = `${normalizeHandle(id)}|${type}|${side}`;
+    if (seen.has(normalizedKey)) return;
+    seen.add(normalizedKey);
+
+    result.push({ id, type, side, topPct, leftPct });
+  };
+
+  if (Array.isArray(handles)) {
+    handles.forEach((entry) => pushHandle(entry));
+    return result;
+  }
+
+  if (handles && typeof handles === "object") {
+    HANDLE_TYPES.forEach((type) => {
+      const entries = handles?.[type];
+      HANDLE_SIDES.forEach((side) => {
+        const list = Array.isArray(entries?.[side]) ? entries[side] : [];
+        list.forEach((value) => {
+          if (typeof value === "string" || typeof value === "object") {
+            pushHandle(
+              typeof value === "string" ? { id: value } : value,
+              type,
+              side
+            );
+          }
+        });
+      });
+    });
+  }
+
+  return result;
+};
+
 export const mapNodeFromApi = (node) => {
   if (!node) return null;
   const id = String(node.id ?? node._id ?? node.key ?? "");
@@ -406,10 +500,18 @@ export const mapNodeFromApi = (node) => {
     data.equipoId = equipoId;
   }
 
+  const handles = normalizeHandlesArray(node.handles || rawData.handles);
+  if (handles.length) {
+    data.handles = handles;
+  } else if (data.handles) {
+    delete data.handles;
+  }
+
   return {
     id,
     type: node.type || "custom",
     data,
+    handles,
     position: {
       x: toNumberOr(getPos(node.position?.x, 0), 0),
       y: toNumberOr(getPos(node.position?.y, 1), 0),
@@ -571,11 +673,19 @@ export const toApiNode = (node) => {
     }
   }
 
+  const handles = normalizeHandlesArray(node.handles || node.data?.handles);
+  if (handles.length) {
+    data.handles = handles;
+  } else if (data.handles) {
+    delete data.handles;
+  }
+
   return {
     id: node.id,
     type: node.type || "custom",
     label,
     data,
+    handles,
     ...(equipoId ? { equipo: equipoId } : {}),
     position: {
       x: Number.isFinite(+node.position?.x) ? +node.position.x : 0,
