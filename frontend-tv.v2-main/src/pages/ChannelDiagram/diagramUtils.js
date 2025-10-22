@@ -397,19 +397,30 @@ const clampHandlePercentage = (value, fallback) => {
 const inferTypeFromHandleId = (handleId) => {
   if (!handleId) return null;
   const normalized = normalizeHandle(handleId);
+  if (!normalized) return null;
   if (normalized.startsWith("in-")) return "target";
   if (normalized.startsWith("out-")) return "source";
+  if (normalized.endsWith("-target")) return "target";
+  if (normalized.endsWith("-source")) return "source";
+  if (normalized.startsWith("tgt-")) return "target";
+  if (normalized.startsWith("src-")) return "source";
+  const suffixMatch = /-(target|source)-\d+$/.exec(normalized);
+  if (suffixMatch) {
+    return suffixMatch[1] === "target" ? "target" : "source";
+  }
+  const prefixMatch = /^(top|bottom|left|right)-(target|source)(?:-|$)/.exec(normalized);
+  if (prefixMatch) {
+    return prefixMatch[2] === "target" ? "target" : "source";
+  }
   return null;
 };
 
 const inferSideFromHandleId = (handleId) => {
   if (!handleId) return null;
   const normalized = normalizeHandle(handleId);
-  if (normalized.includes("-left")) return "left";
-  if (normalized.includes("-right")) return "right";
-  if (normalized.includes("-top")) return "top";
-  if (normalized.includes("-bottom")) return "bottom";
-  return null;
+  if (!normalized) return null;
+  const sideMatch = /(top|bottom|left|right)/.exec(normalized);
+  return sideMatch ? sideMatch[1] : null;
 };
 
 export const normalizeHandlesArray = (handles) => {
