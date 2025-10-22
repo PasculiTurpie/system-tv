@@ -520,6 +520,26 @@ export const mapNodeFromApi = (node) => {
   };
 };
 
+const normalizeEdgeType = (type) => {
+  if (!type && type !== 0) {
+    return "smoothstep";
+  }
+
+  const raw = String(type).trim().toLowerCase();
+  if (!raw) return "smoothstep";
+
+  const compact = raw.replace(/[^a-z]/g, "");
+
+  if (compact.startsWith("directional")) return "directional";
+  if (compact === "direction") return "directional";
+  if (compact.startsWith("waypoint")) return "waypoint";
+  if (compact === "way" || compact === "waypoints" || compact === "waypointedge") return "waypoint";
+  if (compact.startsWith("smoothstep")) return "smoothstep";
+  if (compact === "smooth" || compact === "default") return "smoothstep";
+
+  return "smoothstep";
+};
+
 const normalizeLabelPosition = (edge) => {
   const dataPosition = edge?.data?.labelPosition || edge?.data?.labelPos || null;
   if (dataPosition && typeof dataPosition === "object") {
@@ -632,7 +652,7 @@ export const mapEdgeFromApi = (edge) => {
     target: String(edge.target),
     ...(sourceHandle ? { sourceHandle } : {}),
     ...(targetHandle ? { targetHandle } : {}),
-    type: edge.type || "directional",
+    type: normalizeEdgeType(edge.type),
     label,
     data,
     style,
@@ -738,7 +758,7 @@ export const toApiEdge = (edge) => {
     source: edge.source,
     target: edge.target,
     label,
-    type: edge.type || "directional",
+    type: normalizeEdgeType(edge.type),
     style: edge.style || { stroke: color, strokeWidth: 2 },
     markerEnd: withMarkerColor(edge.markerEnd, color),
     markerStart: edge.markerStart ? withMarkerColor(edge.markerStart, color) : undefined,
