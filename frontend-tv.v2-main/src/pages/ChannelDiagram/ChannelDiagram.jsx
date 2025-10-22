@@ -158,6 +158,49 @@ const mergePreferredSides = (...inputs) => {
   return result;
 };
 
+const getNodeTypeName = (node) => {
+  const explicit = node?.type || node?.data?.type;
+  return typeof explicit === "string" ? explicit.toLowerCase() : "custom";
+};
+
+const FALLBACK_NODE_HANDLES = Object.freeze({
+  default: {
+    source: [{ id: "top-source", side: "top" }],
+    target: [{ id: "top-target", side: "top" }],
+  },
+  satelite: {
+    source: [{ id: "out-right", side: "right" }],
+    target: [],
+  },
+  ird: {
+    source: [],
+    target: [{ id: "in-left", side: "left" }],
+  },
+  switch: {
+    source: [
+      { id: "src-top", side: "top" },
+      { id: "src-bottom", side: "bottom" },
+    ],
+    target: [
+      { id: "tgt-top", side: "top" },
+      { id: "tgt-bottom", side: "bottom" },
+    ],
+  },
+});
+
+const guessHandleSide = (handleId, explicitSide) => {
+  if (typeof explicitSide === "string" && explicitSide) {
+    return explicitSide.toLowerCase();
+  }
+  const normalized = normalizeHandle(handleId);
+  if (!normalized) return null;
+  if (normalized.includes("left")) return "left";
+  if (normalized.includes("right")) return "right";
+  if (normalized.includes("top")) return "top";
+  if (normalized.includes("bottom")) return "bottom";
+  return null;
+};
+
 const getCustomNodeHandleOptions = (node) => {
   if (!node) return [];
   const slots = node?.data?.slots || {};
@@ -181,6 +224,27 @@ const getNodeHandleOptions = (node, kind) => {
   if (!node) return [];
   const normalizedKind = kind === "target" ? "target" : "source";
   if (isRouterNode(node)) return ROUTER_HANDLE_OPTIONS[normalizedKind] || [];
+  const normalizedHandles = normalizeHandlesArray(node.handles || node.data?.handles);
+  const fromHandles = normalizedHandles
+    .filter((handle) => handle.type === normalizedKind && handle.id)
+    .map((handle) => ({
+      id: handle.id,
+      kind: normalizedKind,
+      side: guessHandleSide(handle.id, handle.side),
+    }))
+    .filter((handle) => handle.side || handle.id);
+  if (fromHandles.length) return fromHandles;
+
+  const nodeType = getNodeTypeName(node);
+  const fallback = FALLBACK_NODE_HANDLES[nodeType];
+  if (fallback && Array.isArray(fallback[normalizedKind]) && fallback[normalizedKind].length) {
+    return fallback[normalizedKind].map((handle) => ({
+      id: handle.id,
+      kind: normalizedKind,
+      side: guessHandleSide(handle.id, handle.side),
+    }));
+  }
+
   return getCustomNodeHandleOptions(node).filter((h) => h.kind === normalizedKind);
 };
 
@@ -203,9 +267,8 @@ const computePreferredSide = (fromNode, toNode) => {
   return dy >= 0 ? "bottom" : "top";
 };
 
-const allocateHandleId = (node, kind, preferredSides, usedSet, fallbackNormalized) => {
-  const options = getNodeHandleOptions(node, kind);
-  if (!options.length) return fallbackNormalized || null;
+const allocateHandleId = (options, preferredSides, usedSet, fallbackNormalized) => {
+  if (!Array.isArray(options) || options.length === 0) return null;
 
   const ordered = options.slice();
   const preferences = mergePreferredSides(preferredSides);
@@ -218,18 +281,35 @@ const allocateHandleId = (node, kind, preferredSides, usedSet, fallbackNormalize
     });
   }
 
-  if (fallbackNormalized) {
-    const fallbackOption = ordered.find(
-      (o) => normalizeHandle(o.id) === fallbackNormalized && !usedSet.has(fallbackNormalized)
-    );
-    if (fallbackOption) return normalizeHandle(fallbackOption.id);
+  const findByNormalized = (candidate) =>
+    ordered.find((option) => normalizeHandle(option.id) === candidate) || null;
+
+  if (fallbackNormalized && !usedSet.has(fallbackNormalized)) {
+    const preferred = findByNormalized(fallbackNormalized);
+    if (preferred) {
+      return { id: preferred.id, normalized: fallbackNormalized };
+    }
   }
 
-  const available = ordered.find((o) => !usedSet.has(normalizeHandle(o.id)));
-  if (available) return normalizeHandle(available.id);
+  const available = ordered.find((option) => {
+    const normalized = normalizeHandle(option.id);
+    return normalized && !usedSet.has(normalized);
+  });
+  if (available) {
+    const normalized = normalizeHandle(available.id);
+    return { id: available.id, normalized };
+  }
 
-  if (fallbackNormalized) return fallbackNormalized;
-  return normalizeHandle(ordered[0].id);
+  if (fallbackNormalized) {
+    const fallbackOption = findByNormalized(fallbackNormalized);
+    if (fallbackOption) {
+      return { id: fallbackOption.id, normalized: fallbackNormalized };
+    }
+    return { id: fallbackNormalized, normalized: fallbackNormalized };
+  }
+
+  const firstOption = ordered[0];
+  return { id: firstOption.id, normalized: normalizeHandle(firstOption.id) };
 };
 
 const assignHandle = (node, kind, providedHandle, usedSet, preferredSides) => {
@@ -238,22 +318,33 @@ const assignHandle = (node, kind, providedHandle, usedSet, preferredSides) => {
   if (!node) {
     if (normalizedProvided) {
       usedSet.add(normalizedProvided);
-      return normalizedProvided;
+      return providedHandle || normalizedProvided;
     }
     return providedHandle || null;
   }
 
-  if (normalizedProvided && !usedSet.has(normalizedProvided)) {
-    usedSet.add(normalizedProvided);
-    return normalizedProvided;
+  const normalizedKind = kind === "target" ? "target" : "source";
+  const options = getNodeHandleOptions(node, normalizedKind);
+
+  if (normalizedProvided) {
+    const matching = options.find((option) => normalizeHandle(option.id) === normalizedProvided);
+    if (matching && !usedSet.has(normalizedProvided)) {
+      usedSet.add(normalizedProvided);
+      return matching.id;
+    }
   }
 
-  const allocated = allocateHandleId(node, kind, preferredSides, usedSet, normalizedProvided);
-  if (allocated) {
-    usedSet.add(allocated);
-    return allocated;
+  const allocation = allocateHandleId(options, preferredSides, usedSet, normalizedProvided);
+  if (allocation?.id) {
+    if (allocation.normalized) usedSet.add(allocation.normalized);
+    return allocation.id;
   }
-  return normalizedProvided || providedHandle || null;
+
+  if (normalizedProvided) {
+    usedSet.add(normalizedProvided);
+    return providedHandle || normalizedProvided;
+  }
+  return providedHandle || null;
 };
 
 const ensureEdgesUseDistinctHandles = (nodesList, edgesList) => {
