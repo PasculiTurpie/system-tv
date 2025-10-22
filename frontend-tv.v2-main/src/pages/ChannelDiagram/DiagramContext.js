@@ -5,6 +5,7 @@ export const DiagramContext = createContext({
   onNodeLabelChange: () => {},
   onNodeLabelPositionChange: () => {},
   onNodeMulticastPositionChange: () => {},
+  onNodeHandlesChange: () => {},
   onEdgeLabelChange: () => {},
   onEdgeLabelPositionChange: () => {},
   onEdgeEndpointLabelChange: () => {},

@@ -67,6 +67,54 @@ const cloneHandles = (handles = {}) => {
   return result;
 };
 
+const handlesArrayToConfig = (handles = []) => {
+  const config = { source: {}, target: {} };
+  TYPES.forEach((type) => {
+    config[type] = {};
+    SIDES.forEach((side) => {
+      config[type][side] = [];
+    });
+  });
+
+  if (!Array.isArray(handles)) {
+    return config;
+  }
+
+  const seen = new Set();
+  handles.forEach((handle) => {
+    if (!handle || typeof handle !== "object") return;
+    const rawId = typeof handle.id === "string" ? handle.id : handle?.handleId;
+    if (!rawId) return;
+    const trimmedId = String(rawId).trim();
+    if (!trimmedId) return;
+    const normalizedId = normalizeHandle(trimmedId);
+    const candidateType = typeof handle.type === "string" ? handle.type.toLowerCase() : null;
+    const resolvedType = candidateType === "target"
+      ? "target"
+      : candidateType === "source"
+      ? "source"
+      : normalizedId.startsWith("in-")
+      ? "target"
+      : normalizedId.startsWith("out-")
+      ? "source"
+      : null;
+    if (!resolvedType || !config[resolvedType]) return;
+
+    const candidateSide = typeof handle.side === "string" ? handle.side.toLowerCase() : null;
+    const resolvedSide = SIDES.includes(candidateSide)
+      ? candidateSide
+      : inferSideFromHandle(normalizedId);
+    if (!resolvedSide || !config[resolvedType][resolvedSide]) return;
+
+    const dedupeKey = `${normalizedId}|${resolvedType}|${resolvedSide}`;
+    if (seen.has(dedupeKey)) return;
+    seen.add(dedupeKey);
+    config[resolvedType][resolvedSide].push(trimmedId);
+  });
+
+  return config;
+};
+
 const mergeHandleConfig = (type, nodeHandles) => {
   const preset = HANDLE_PRESETS[type] || HANDLE_PRESETS.default;
   const merged = cloneHandles(preset);
@@ -110,8 +158,11 @@ const getNodeLabel = (node) => {
 
 const resolveHandles = (node) => {
   const type = getNodeType(node);
-  const handles = node?.handles || node?.data?.handles;
-  return mergeHandleConfig(type, handles);
+  const handles = node?.handles ?? node?.data?.handles;
+  const normalized = Array.isArray(handles)
+    ? handlesArrayToConfig(handles)
+    : handles;
+  return mergeHandleConfig(type, normalized);
 };
 
 const inferSideFromHandle = (handleId) => {
