@@ -254,13 +254,43 @@ const sanitizeEdgePayload = (edge) => {
   return payload;
 };
 
+const canonicalKey = (value) => {
+  if (value === undefined || value === null) return "";
+  const trimmed = String(value).trim();
+  return trimmed ? trimmed.toLowerCase() : "";
+};
+
 const sanitizeDiagramPayload = ({ nodes, edges } = {}) => {
   const sanitizedNodes = Array.isArray(nodes)
     ? nodes.map((node) => sanitizeNodePayload(node)).filter(Boolean)
     : [];
+
+  const canonicalNodeIds = new Map();
+  sanitizedNodes.forEach((node) => {
+    const key = canonicalKey(node.id);
+    if (key && !canonicalNodeIds.has(key)) {
+      canonicalNodeIds.set(key, node.id);
+    }
+  });
+
   const sanitizedEdges = Array.isArray(edges)
-    ? edges.map((edge) => sanitizeEdgePayload(edge)).filter(Boolean)
+    ? edges
+        .map((edge) => sanitizeEdgePayload(edge))
+        .map((edge) => {
+          if (!edge) return null;
+          const sourceKey = canonicalKey(edge.source);
+          const targetKey = canonicalKey(edge.target);
+          const canonicalSource = canonicalNodeIds.get(sourceKey);
+          const canonicalTarget = canonicalNodeIds.get(targetKey);
+          if (!canonicalSource || !canonicalTarget) return null;
+          if (canonicalSource === edge.source && canonicalTarget === edge.target) {
+            return edge;
+          }
+          return { ...edge, source: canonicalSource, target: canonicalTarget };
+        })
+        .filter(Boolean)
     : [];
+
   return { nodes: sanitizedNodes, edges: sanitizedEdges };
 };
 

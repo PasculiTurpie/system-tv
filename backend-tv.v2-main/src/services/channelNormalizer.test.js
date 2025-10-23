@@ -83,6 +83,29 @@ describe("channelNormalizer", () => {
     );
   });
 
+  test("normalizeChannel enforces canonical node ids on edges", () => {
+    const channel = {
+      nodes: [
+        { id: " Node-A ", position: { x: 0, y: 0 }, data: { label: "A" } },
+        { id: "NODE-B", position: { x: 10, y: 10 }, data: { label: "B" } },
+      ],
+      edges: [
+        { id: "edge-1", source: "node-a", target: " node-b " },
+        { id: "edge-2", source: "NODE-B", target: "Node-A" },
+      ],
+    };
+
+    const normalized = normalizeChannel(channel);
+
+    assert.deepStrictEqual(
+      normalized.edges.map((edge) => ({ id: edge.id, source: edge.source, target: edge.target })),
+      [
+        { id: "edge-1", source: "Node-A", target: "NODE-B" },
+        { id: "edge-2", source: "NODE-B", target: "Node-A" },
+      ]
+    );
+  });
+
   test("normalizeChannels skips invalid entries", () => {
     const payload = [
       { id: "chan-1", nodes: [], edges: [] },

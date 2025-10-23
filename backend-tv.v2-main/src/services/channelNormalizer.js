@@ -80,6 +80,12 @@ const normalizeHandleId = (handle) => {
   return value;
 };
 
+const buildCanonicalKey = (value) => {
+  if (value === undefined || value === null) return "";
+  const trimmed = String(value).trim();
+  return trimmed ? trimmed.toLowerCase() : "";
+};
+
 const normalizeNode = (node) => {
   if (!node) return null;
   const cloned = cloneIfNeeded(node) || {};
@@ -250,12 +256,32 @@ const normalizeChannel = (channel) => {
     .filter(Boolean)
     .sort(compareById);
 
-  const nodeIds = new Set(normalizedNodes.map((node) => node.id));
+  const canonicalNodeIds = new Map();
+  normalizedNodes.forEach((node) => {
+    const key = buildCanonicalKey(node.id);
+    if (key && !canonicalNodeIds.has(key)) {
+      canonicalNodeIds.set(key, node.id);
+    }
+  });
 
   const edges = Array.isArray(cloned.edges) ? cloned.edges : [];
   const normalizedEdges = edges
     .map((edge) => normalizeEdge(edge))
-    .filter((edge) => edge && nodeIds.has(edge.source) && nodeIds.has(edge.target))
+    .map((edge) => {
+      if (!edge) return null;
+      const sourceKey = buildCanonicalKey(edge.source);
+      const targetKey = buildCanonicalKey(edge.target);
+      const canonicalSource = canonicalNodeIds.get(sourceKey);
+      const canonicalTarget = canonicalNodeIds.get(targetKey);
+      if (!canonicalSource || !canonicalTarget) {
+        return null;
+      }
+      if (canonicalSource === edge.source && canonicalTarget === edge.target) {
+        return edge;
+      }
+      return { ...edge, source: canonicalSource, target: canonicalTarget };
+    })
+    .filter(Boolean)
     .sort(compareById);
 
   result.nodes = normalizedNodes;
