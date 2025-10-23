@@ -501,11 +501,21 @@ export const mapNodeFromApi = (node) => {
     extractEquipoId(rawData.equipo) ??
     extractEquipoId(rawData.equipoId);
 
+  const normalizeType = (value) => {
+    if (value === undefined || value === null) return null;
+    const trimmed = String(value).trim();
+    return trimmed ? trimmed.toLowerCase() : null;
+  };
+
+  const resolvedType =
+    normalizeType(node.type) || normalizeType(rawData.type) || "custom";
+
   const data = {
     ...rawData,
     label,
     labelPosition: toPointOrNull(rawData.labelPosition),
     multicastPosition: toPointOrNull(rawData.multicastPosition),
+    ...(resolvedType ? { type: resolvedType } : {}),
   };
 
   if (equipoId) {
@@ -521,7 +531,7 @@ export const mapNodeFromApi = (node) => {
 
   return {
     id,
-    type: node.type || "custom",
+    type: resolvedType,
     data,
     handles,
     position: {

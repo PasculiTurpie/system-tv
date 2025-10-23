@@ -7,6 +7,7 @@ import Select from "react-select";
 import Swal from "sweetalert2";
 import "./ChannelForm.css";
 import { prepareDiagramState } from "./diagramUtils";
+import { HANDLE_IDS } from "./handleConstants.js";
 import { clearLocalStorage } from "../../utils/localStorageUtils";
 import normalizeHandle from "../../utils/normalizeHandle";
 
@@ -163,8 +164,8 @@ function pickHandlesByGeometry(srcNode, tgtNode, direction /* 'ida' | 'vuelta' *
     tipoToKey(srcNode?.data?.equipo?.tipoNombre?.tipoNombre);
   if (srcTipo === "satelite") {
     return {
-      sourceHandle: ensureHandle("out-right"),
-      targetHandle: ensureHandle("in-left"),
+      sourceHandle: ensureHandle(HANDLE_IDS.OUT_RIGHT_PRIMARY),
+      targetHandle: ensureHandle(HANDLE_IDS.IN_LEFT_PRIMARY),
     };
   }
 
@@ -180,34 +181,34 @@ function pickHandlesByGeometry(srcNode, tgtNode, direction /* 'ida' | 'vuelta' *
     if (direction === "ida") {
       return srcIsUpper
         ? {
-            sourceHandle: ensureHandle("out-bottom-1"),
-            targetHandle: ensureHandle("in-top-1"),
+            sourceHandle: ensureHandle(HANDLE_IDS.OUT_BOTTOM_PRIMARY),
+            targetHandle: ensureHandle(HANDLE_IDS.IN_TOP_PRIMARY),
           }
         : {
-            sourceHandle: ensureHandle("out-top-1"),
-            targetHandle: ensureHandle("in-bottom-1"),
+            sourceHandle: ensureHandle(HANDLE_IDS.OUT_TOP_PRIMARY),
+            targetHandle: ensureHandle(HANDLE_IDS.IN_BOTTOM_PRIMARY),
           };
     } else {
       return srcIsUpper
         ? {
-            sourceHandle: ensureHandle("out-bottom-2"),
-            targetHandle: ensureHandle("in-top-2"),
+            sourceHandle: ensureHandle(HANDLE_IDS.OUT_BOTTOM_SECONDARY),
+            targetHandle: ensureHandle(HANDLE_IDS.IN_TOP_SECONDARY),
           }
         : {
-            sourceHandle: ensureHandle("out-top-2"),
-            targetHandle: ensureHandle("in-bottom-2"),
+            sourceHandle: ensureHandle(HANDLE_IDS.OUT_TOP_SECONDARY),
+            targetHandle: ensureHandle(HANDLE_IDS.IN_BOTTOM_SECONDARY),
           };
     }
   }
 
   return direction === "ida"
     ? {
-        sourceHandle: ensureHandle("out-right"),
-        targetHandle: ensureHandle("in-left"),
+        sourceHandle: ensureHandle(HANDLE_IDS.OUT_RIGHT_PRIMARY),
+        targetHandle: ensureHandle(HANDLE_IDS.IN_LEFT_PRIMARY),
       }
     : {
-        sourceHandle: ensureHandle("out-left"),
-        targetHandle: ensureHandle("in-right"),
+        sourceHandle: ensureHandle(HANDLE_IDS.OUT_LEFT_PRIMARY),
+        targetHandle: ensureHandle(HANDLE_IDS.IN_RIGHT_PRIMARY),
       };
 }
 

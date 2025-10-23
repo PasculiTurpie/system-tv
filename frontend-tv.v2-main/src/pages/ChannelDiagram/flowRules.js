@@ -1,4 +1,8 @@
 import normalizeHandle from "../../utils/normalizeHandle.js";
+import {
+  EMPTY_HANDLE_CONFIG,
+  HANDLE_CONFIG_BY_TYPE,
+} from "./handleConstants.js";
 
 const EDGE_COLORS = Object.freeze({
   ida: "#ef4444",
@@ -8,44 +12,9 @@ const EDGE_COLORS = Object.freeze({
 const DEFAULT_MARKER = Object.freeze({ type: "arrowclosed", width: 16, height: 16 });
 
 const HANDLE_PRESETS = Object.freeze({
-  satelite: {
-    source: { right: ["out-right-1"] },
-    target: {},
-  },
-  ird: {
-    source: {},
-    target: { left: ["in-left-1"] },
-  },
-  switch: {
-    source: { top: ["out-top-1"], bottom: ["out-bottom-1"] },
-    target: { top: ["in-top-1"], bottom: ["in-bottom-1"] },
-  },
-  router: {
-    source: {
-      right: ["out-right-1", "out-right-2"],
-      bottom: ["out-bottom-1", "out-bottom-2", "out-bottom-3"],
-      left: [],
-      top: [],
-    },
-    target: {
-      left: ["in-left-1", "in-left-2"],
-      bottom: ["in-bottom-1", "in-bottom-2", "in-bottom-3"],
-      right: [],
-      top: [],
-    },
-  },
-  custom: {
-    source: { top: [], right: [], bottom: [], left: [] },
-    target: { top: [], right: [], bottom: [], left: [] },
-  },
-  image: {
-    source: { top: [], right: [], bottom: [], left: [] },
-    target: { top: [], right: [], bottom: [], left: [] },
-  },
-  default: {
-    source: { top: ["out-top-1"] },
-    target: { top: ["in-top-1"] },
-  },
+  ...HANDLE_CONFIG_BY_TYPE,
+  custom: EMPTY_HANDLE_CONFIG,
+  image: EMPTY_HANDLE_CONFIG,
 });
 
 const SIDES = ["top", "right", "bottom", "left"];

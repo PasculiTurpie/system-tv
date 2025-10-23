@@ -42,6 +42,7 @@ import {
   getEdgeStyle,
   normalizeEdgeHandles,
 } from "./flowRules";
+import { HANDLE_CONFIG_BY_TYPE, ROUTER_HANDLE_OPTIONS } from "./handleConstants.js";
 import { createPersistLabelPositions } from "./persistLabelPositions";
 import { getSampleDiagramById } from "./samples";
 import normalizeHandle from "../../utils/normalizeHandle";
@@ -119,23 +120,6 @@ const DEFAULT_CUSTOM_NODE_SLOTS = Object.freeze({
   right: [30, 70],
 });
 
-const ROUTER_HANDLE_OPTIONS = Object.freeze({
-  source: [
-    { id: "out-right-1", side: "right" },
-    { id: "out-right-2", side: "right" },
-    { id: "out-bottom-1", side: "bottom" },
-    { id: "out-bottom-2", side: "bottom" },
-    { id: "out-bottom-3", side: "bottom" },
-  ],
-  target: [
-    { id: "in-left-1", side: "left" },
-    { id: "in-left-2", side: "left" },
-    { id: "in-bottom-1", side: "bottom" },
-    { id: "in-bottom-2", side: "bottom" },
-    { id: "in-bottom-3", side: "bottom" },
-  ],
-});
-
 const SIDES = ["top", "bottom", "left", "right"];
 
 const DIRECTION_HANDLE_PREFERENCES = Object.freeze({
@@ -170,30 +154,25 @@ const getNodeTypeName = (node) => {
   return typeof explicit === "string" ? explicit.toLowerCase() : "custom";
 };
 
-const FALLBACK_NODE_HANDLES = Object.freeze({
-  default: {
-    source: [{ id: "out-top-1", side: "top" }],
-    target: [{ id: "in-top-1", side: "top" }],
-  },
-  satelite: {
-    source: [{ id: "out-right-1", side: "right" }],
-    target: [],
-  },
-  ird: {
-    source: [],
-    target: [{ id: "in-left-1", side: "left" }],
-  },
-  switch: {
-    source: [
-      { id: "out-top-1", side: "top" },
-      { id: "out-bottom-1", side: "bottom" },
-    ],
-    target: [
-      { id: "in-top-1", side: "top" },
-      { id: "in-bottom-1", side: "bottom" },
-    ],
-  },
-});
+const buildFallbackHandles = (sideMap) => {
+  if (!sideMap || typeof sideMap !== "object") return [];
+  return Object.entries(sideMap).flatMap(([side, handles]) => {
+    if (!Array.isArray(handles) || handles.length === 0) return [];
+    return handles.map((id) => ({ id, side }));
+  });
+};
+
+const FALLBACK_NODE_HANDLES = Object.freeze(
+  Object.fromEntries(
+    Object.entries(HANDLE_CONFIG_BY_TYPE).map(([type, config]) => [
+      type,
+      Object.freeze({
+        source: Object.freeze(buildFallbackHandles(config?.source)),
+        target: Object.freeze(buildFallbackHandles(config?.target)),
+      }),
+    ])
+  )
+);
 
 const guessHandleSide = (handleId, explicitSide) => {
   if (typeof explicitSide === "string" && explicitSide) {

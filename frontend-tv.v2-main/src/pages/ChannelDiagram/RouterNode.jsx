@@ -12,6 +12,7 @@ import { shallow } from "zustand/shallow";
 import { DiagramContext } from "./DiagramContext";
 import NodeLabelDraggable from "./NodeLabelDraggable";
 import NodeMulticastDraggable from "./NodeMulticastDraggable";
+import { ROUTER_HANDLE_PRESETS } from "./handleConstants.js";
 
 const styles = {
   box: {
@@ -38,19 +39,6 @@ const styles = {
   },
   dot: { background: "transparent" },
 };
-
-const ROUTER_HANDLE_PRESETS = Object.freeze([
-  { id: "in-left-1", type: "target", side: "left", topPct: 25, leftPct: 0 },
-  { id: "in-left-2", type: "target", side: "left", topPct: 75, leftPct: 0 },
-  { id: "out-right-1", type: "source", side: "right", topPct: 25, leftPct: 100 },
-  { id: "out-right-2", type: "source", side: "right", topPct: 75, leftPct: 100 },
-  { id: "in-bottom-1", type: "target", side: "bottom", topPct: 100, leftPct: 20 },
-  { id: "in-bottom-2", type: "target", side: "bottom", topPct: 100, leftPct: 50 },
-  { id: "in-bottom-3", type: "target", side: "bottom", topPct: 100, leftPct: 80 },
-  { id: "out-bottom-1", type: "source", side: "bottom", topPct: 100, leftPct: 25 },
-  { id: "out-bottom-2", type: "source", side: "bottom", topPct: 100, leftPct: 55 },
-  { id: "out-bottom-3", type: "source", side: "bottom", topPct: 100, leftPct: 85 },
-]);
 
 const ROUTER_PRESET_MAP = new Map(
   ROUTER_HANDLE_PRESETS.map((handle) => [handle.id, handle])
