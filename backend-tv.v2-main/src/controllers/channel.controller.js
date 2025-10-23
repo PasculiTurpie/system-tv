@@ -72,7 +72,7 @@ module.exports.getChannel = async (req, res) => {
     const filter = buildChannelFilter(req.query);
     const channels = await Channel.find(filter)
       .select(
-        "signal nodes.id nodes.type nodes.position nodes.data nodes.handles nodes.equipo edges.id edges.source edges.target edges.type edges.style edges.data edges.label createdAt updatedAt"
+        "signal nodes.id nodes.type nodes.position nodes.data nodes.handles nodes.equipo edges.id edges.source edges.target edges.sourceHandle edges.targetHandle edges.type edges.style edges.data edges.label createdAt updatedAt"
       )
       .sort({ updatedAt: -1, _id: 1 })
       .lean({ getters: true, virtuals: true });
@@ -141,7 +141,7 @@ module.exports.getChannelId = async (req, res) => {
   try {
     const channel = await Channel.findById(req.params.id)
       .select(
-        "signal nodes.id nodes.type nodes.position nodes.data nodes.handles nodes.equipo edges.id edges.source edges.target edges.type edges.style edges.data edges.label createdAt updatedAt"
+        "signal nodes.id nodes.type nodes.position nodes.data nodes.handles nodes.equipo edges.id edges.source edges.target edges.sourceHandle edges.targetHandle edges.type edges.style edges.data edges.label createdAt updatedAt"
       )
       .lean({ getters: true, virtuals: true })
       .exec();
