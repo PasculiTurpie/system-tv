@@ -198,7 +198,6 @@ export default function ChannelDiagram({
       nodesDraggable: isAuthenticated,
       nodesConnectable: isAuthenticated,
       elementsSelectable: isAuthenticated,
-      edgesUpdatable: isAuthenticated,
       selectionOnDrag: isAuthenticated,
       panOnDrag: !isAuthenticated ? [1] : true, // en lectura, arrastrar siempre panea
       panOnScroll: true,
@@ -207,6 +206,19 @@ export default function ChannelDiagram({
     }),
     [isAuthenticated]
   );
+
+  const edgeInteractivity = useMemo(
+    () => ({ updatable: isAuthenticated }),
+    [isAuthenticated]
+  );
+
+  useEffect(() => {
+    setEdges((prev) =>
+      prev.map((edge) =>
+        edge?.updatable === isAuthenticated ? edge : { ...edge, updatable: isAuthenticated }
+      )
+    );
+  }, [isAuthenticated, setEdges]);
 
   /* ===================== Persistencia y helpers ===================== */
 
@@ -619,12 +631,12 @@ export default function ChannelDiagram({
             nodesDraggable={interactivity.nodesDraggable}
             nodesConnectable={interactivity.nodesConnectable}
             elementsSelectable={interactivity.elementsSelectable}
-            edgesUpdatable={interactivity.edgesUpdatable}
             selectionOnDrag={interactivity.selectionOnDrag}
             panOnDrag={interactivity.panOnDrag}
             panOnScroll={interactivity.panOnScroll}
             zoomOnScroll={interactivity.zoomOnScroll}
             zoomOnPinch={interactivity.zoomOnPinch}
+            defaultEdgeOptions={edgeInteractivity}
           >
             <Background />
             <MiniMap pannable zoomable />
