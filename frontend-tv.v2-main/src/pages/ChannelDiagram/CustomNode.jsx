@@ -1,4 +1,4 @@
-// src/components/CustomNode.jsx
+// src/pages/ChannelDiagram/CustomNode.jsx
 import React, { useCallback, useContext, useMemo } from "react";
 import PropTypes from "prop-types";
 import { Handle, Position, useStore } from "@xyflow/react";
@@ -163,6 +163,22 @@ function CustomNode({ id, data }) {
       }),
     [dotBase, pctLeft, pctTop, isReadOnly]
   );
+
+  // ✅ expone todos los ids que realmente renderiza este CustomNode
+  if (data) {
+    const ids = [];
+    const pushSide = (side, count) => {
+      for (let i = 1; i <= count; i += 1) {
+        ids.push(`in-${side}-${i}`);
+        ids.push(`out-${side}-${i}`);
+      }
+    };
+    pushSide("top", (slots.top || []).length);
+    pushSide("bottom", (slots.bottom || []).length);
+    pushSide("left", (slots.left || []).length);
+    pushSide("right", (slots.right || []).length);
+    data.handleIds = ids;
+  }
 
   return (
     <>

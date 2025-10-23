@@ -10,6 +10,7 @@ import { prepareDiagramState } from "./diagramUtils";
 import { HANDLE_IDS } from "./handleConstants.js";
 import { clearLocalStorage } from "../../utils/localStorageUtils";
 import normalizeHandle from "../../utils/normalizeHandle";
+import { coerceHandleForType } from "./handleRegistry"; // <<< MOD: importar coerce
 
 // Fallback numérico para MarkerType.ArrowClosed (React Flow = 1)
 const ARROW_CLOSED = { type: 1 };
@@ -176,40 +177,47 @@ function pickHandlesByGeometry(srcNode, tgtNode, direction /* 'ida' | 'vuelta' *
 
   const sameX = Math.abs(sx - tx) <= SAME_X_EPS;
 
+  // >>> MOD: helper para encajar por tipo (router/satelite/ird/switch/default)
+  const ensureByType = (rawSourceHandle, rawTargetHandle) => {
+    const tipoFrom = (node) =>
+      node?.data?.equipoTipo ||
+      tipoToKey(node?.data?.equipo?.tipoNombre?.tipoNombre) ||
+      node?.type ||
+      "default";
+
+    const srcTipoLocal = String(tipoFrom(srcNode)).toLowerCase();
+    const tgtTipoLocal = String(tipoFrom(tgtNode)).toLowerCase();
+
+    const srcFixed =
+      coerceHandleForType(srcTipoLocal, ensureHandle(rawSourceHandle)) ||
+      ensureHandle(rawSourceHandle);
+    const tgtFixed =
+      coerceHandleForType(tgtTipoLocal, ensureHandle(rawTargetHandle)) ||
+      ensureHandle(rawTargetHandle);
+
+    return {
+      sourceHandle: srcFixed,
+      targetHandle: tgtFixed,
+    };
+  };
+  // <<< MOD
+
   if (sameX && sy !== ty) {
     const srcIsUpper = sy < ty;
     if (direction === "ida") {
       return srcIsUpper
-        ? {
-            sourceHandle: ensureHandle(HANDLE_IDS.OUT_BOTTOM_PRIMARY),
-            targetHandle: ensureHandle(HANDLE_IDS.IN_TOP_PRIMARY),
-          }
-        : {
-            sourceHandle: ensureHandle(HANDLE_IDS.OUT_TOP_PRIMARY),
-            targetHandle: ensureHandle(HANDLE_IDS.IN_BOTTOM_PRIMARY),
-          };
+        ? ensureByType(HANDLE_IDS.OUT_BOTTOM_PRIMARY, HANDLE_IDS.IN_TOP_PRIMARY)
+        : ensureByType(HANDLE_IDS.OUT_TOP_PRIMARY, HANDLE_IDS.IN_BOTTOM_PRIMARY);
     } else {
       return srcIsUpper
-        ? {
-            sourceHandle: ensureHandle(HANDLE_IDS.OUT_BOTTOM_SECONDARY),
-            targetHandle: ensureHandle(HANDLE_IDS.IN_TOP_SECONDARY),
-          }
-        : {
-            sourceHandle: ensureHandle(HANDLE_IDS.OUT_TOP_SECONDARY),
-            targetHandle: ensureHandle(HANDLE_IDS.IN_BOTTOM_SECONDARY),
-          };
+        ? ensureByType(HANDLE_IDS.OUT_BOTTOM_SECONDARY, HANDLE_IDS.IN_TOP_SECONDARY)
+        : ensureByType(HANDLE_IDS.OUT_TOP_SECONDARY, HANDLE_IDS.IN_BOTTOM_SECONDARY);
     }
   }
 
   return direction === "ida"
-    ? {
-        sourceHandle: ensureHandle(HANDLE_IDS.OUT_RIGHT_PRIMARY),
-        targetHandle: ensureHandle(HANDLE_IDS.IN_LEFT_PRIMARY),
-      }
-    : {
-        sourceHandle: ensureHandle(HANDLE_IDS.OUT_LEFT_PRIMARY),
-        targetHandle: ensureHandle(HANDLE_IDS.IN_RIGHT_PRIMARY),
-      };
+    ? ensureByType(HANDLE_IDS.OUT_RIGHT_PRIMARY, HANDLE_IDS.IN_LEFT_PRIMARY)
+    : ensureByType(HANDLE_IDS.OUT_LEFT_PRIMARY, HANDLE_IDS.IN_RIGHT_PRIMARY);
 }
 
 const ChannelForm = () => {
@@ -593,7 +601,7 @@ const ChannelForm = () => {
               ? String(eq.satelliteRef.satelliteType.typePolarization).trim()
               : null;
 
-        const option = {
+          const option = {
             label: key === "satelite" && pol ? `${baseName} ${pol}` : baseName,
             value: eq?._id,
             meta: { tipo: key },
@@ -628,15 +636,15 @@ const ChannelForm = () => {
           })));
           setEquiposLoaded(true);
         }
-            } catch (e) {
-                console.warn("Error cargando equipos:", e?.message);
-            }
-        })();
+      } catch (e) {
+        console.warn("Error cargando equipos:", e?.message);
+      }
+    })();
 
-        return () => {
-            mounted = false;
-        };
-    }, []);
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!equiposLoaded || !allEquipoOptions.length) {

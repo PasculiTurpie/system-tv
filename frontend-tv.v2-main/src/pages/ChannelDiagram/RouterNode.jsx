@@ -114,7 +114,6 @@ const ensureRouterHandles = (handles) => {
       }
     });
   }
-
   const ordered = ROUTER_HANDLE_PRESETS.map((preset) => normalized.get(preset.id) || { ...preset });
   return [...ordered, ...extras];
 };
@@ -133,7 +132,6 @@ export default function RouterNode({ id, data }) {
     () => ensureRouterHandles(data?.handles),
     [data?.handles]
   );
-
   const [handles, setHandles] = useState(normalizedHandles);
 
   useEffect(() => {
@@ -197,11 +195,7 @@ export default function RouterNode({ id, data }) {
       ...styles.box,
       cursor: isReadOnly ? "default" : "grab",
     };
-
-    if (!backgroundSource) {
-      return base;
-    }
-
+    if (!backgroundSource) return base;
     return {
       ...base,
       backgroundImage: `linear-gradient(rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.82)), url(${backgroundSource})`,
@@ -333,8 +327,8 @@ export default function RouterNode({ id, data }) {
       ) {
         try {
           dragState.captureTarget.releasePointerCapture(dragState.pointerId);
-        } catch (releaseError) {
-          // Ignore pointer capture release errors; the browser may already release it.
+        } catch {
+          /* ignore */
         }
       }
 
@@ -384,8 +378,8 @@ export default function RouterNode({ id, data }) {
       if (event.pointerId !== undefined && event.currentTarget?.setPointerCapture) {
         try {
           event.currentTarget.setPointerCapture(event.pointerId);
-        } catch (captureError) {
-          // Ignore pointer capture errors on browsers that do not support it.
+        } catch {
+          /* ignore */
         }
       }
 
@@ -405,6 +399,11 @@ export default function RouterNode({ id, data }) {
     }
     draggingRef.current = null;
   }, []);
+
+  // ✅ expone los ids reales que renderiza este nodo
+  if (data) {
+    data.handleIds = handles.map((h) => h.id);
+  }
 
   return (
     <>
@@ -456,7 +455,7 @@ export default function RouterNode({ id, data }) {
                 position={position}
                 style={style}
               />
-              {canEdit && (
+              {!isReadOnly && (
                 <div
                   role="presentation"
                   className="router-node__handle-grip"

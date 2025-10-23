@@ -1,16 +1,18 @@
 import { memo } from "react";
 import { Handle, Position } from "@xyflow/react";
 import FlowNodeShell from "./FlowNodeShell";
-import { resolveHandleId } from "./handleUtils";
+import { HANDLE_IDS } from "../handleConstants.js";
 
 const handleStyleTop = { left: "50%" };
 const handleStyleBottom = { left: "50%" };
 
 const SwitchNode = ({ data }) => {
-  const srcTop = resolveHandleId(data, "source", "top", "out-top-1");
-  const srcBottom = resolveHandleId(data, "source", "bottom", "out-bottom-1");
-  const tgtTop = resolveHandleId(data, "target", "top", "in-top-1");
-  const tgtBottom = resolveHandleId(data, "target", "bottom", "in-bottom-1");
+  const srcTop = HANDLE_IDS.OUT_TOP_PRIMARY;
+  const srcBottom = HANDLE_IDS.OUT_BOTTOM_PRIMARY;
+  const tgtTop = HANDLE_IDS.IN_TOP_PRIMARY;
+  const tgtBottom = HANDLE_IDS.IN_BOTTOM_PRIMARY;
+
+  if (data) data.handleIds = [srcTop, srcBottom, tgtTop, tgtBottom];
 
   return (
     <FlowNodeShell data={data}>

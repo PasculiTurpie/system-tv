@@ -1,16 +1,11 @@
 import { memo } from "react";
 import { Handle, Position } from "@xyflow/react";
 import FlowNodeShell from "./FlowNodeShell";
-import { resolveHandleId } from "./handleUtils";
 import { HANDLE_IDS } from "../handleConstants.js";
 
 const SateliteNode = ({ data }) => {
-  const sourceHandle = resolveHandleId(
-    data,
-    "source",
-    "right",
-    HANDLE_IDS.OUT_RIGHT_PRIMARY
-  );
+  const sourceHandle = HANDLE_IDS.OUT_RIGHT_PRIMARY; // canónico
+  if (data) data.handleIds = [sourceHandle];
 
   return (
     <FlowNodeShell data={data}>
