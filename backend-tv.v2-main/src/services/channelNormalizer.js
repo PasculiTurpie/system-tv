@@ -1,4 +1,4 @@
-const { normalizeHandles } = require("./handleSanitizer");
+const { normalizeHandles, normalizeHandleId } = require("./handleSanitizer");
 
 const cloneIfNeeded = (value) => {
   if (!value) return value;
@@ -63,21 +63,6 @@ const sanitizeLabel = (label) => {
   const str = String(label);
   const trimmed = str.trim();
   return trimmed.length > 200 ? trimmed.slice(0, 200) : trimmed;
-};
-
-const normalizeHandleId = (handle) => {
-  if (handle === undefined || handle === null) return undefined;
-  const value = String(handle).trim();
-  if (!value) return undefined;
-
-  const lower = value.toLowerCase();
-  const rxIndexed = /^(in|out)-(top|bottom|left|right)-\d+$/;
-  const rxSideOnly = /^(in|out)-(top|bottom|left|right)$/;
-
-  if (rxIndexed.test(lower)) return lower;
-  if (rxSideOnly.test(lower)) return `${lower}-1`;
-
-  return value;
 };
 
 const buildCanonicalKey = (value) => {
