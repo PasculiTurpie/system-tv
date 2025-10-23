@@ -1,10 +1,56 @@
-import React, { useCallback, useContext, useEffect, useMemo } from "react";
-import { BaseEdge } from "@xyflow/react";
-import { DiagramContext } from "./DiagramContext";
-import EdgeLabelDraggable from "./EdgeLabelDraggable";
-import EditableEdgeLabel from "./EditableEdgeLabel";
-import { computeParallelPath } from "./diagramUtils";
-import { computeEndpointLabelDefaults } from "./edgeLabelUtils";
+import React, { useMemo } from "react";
+import {
+  BaseEdge,
+  EdgeLabelRenderer,
+  MarkerType,
+  getBezierPath,
+} from "@xyflow/react";
+
+const DIRECTION_STYLE = {
+  ida: {
+    stroke: "#dc2626",
+    markerStart: null,
+    markerEnd: { type: MarkerType.ArrowClosed, color: "#dc2626" },
+  },
+  vuelta: {
+    stroke: "#16a34a",
+    markerStart: { type: MarkerType.ArrowClosed, color: "#16a34a" },
+    markerEnd: null,
+  },
+  bi: {
+    stroke: "#2563eb",
+    markerStart: { type: MarkerType.ArrowClosed, color: "#2563eb" },
+    markerEnd: { type: MarkerType.ArrowClosed, color: "#2563eb" },
+  },
+};
+
+function renderLabel(id, text, x, y) {
+  if (!text) {
+    return null;
+  }
+  return (
+    <EdgeLabelRenderer key={id}>
+      <div
+        style={{
+          position: "absolute",
+          transform: `translate(-50%, -50%) translate(${x}px, ${y}px)`
+            + " scale(var(--rf-edge-label-zoom, 1))",
+          padding: "2px 6px",
+          borderRadius: 6,
+          background: "rgba(15, 23, 42, 0.84)",
+          color: "#fff",
+          fontSize: 11,
+          lineHeight: 1.2,
+          whiteSpace: "nowrap",
+          pointerEvents: "all",
+        }}
+        className="directional-edge__label"
+      >
+        {text}
+      </div>
+    </EdgeLabelRenderer>
+  );
+}
 
 export default function CustomDirectionalEdge(props) {
   const {
@@ -15,264 +61,66 @@ export default function CustomDirectionalEdge(props) {
     targetY,
     sourcePosition,
     targetPosition,
-    style,
+    style = {},
     markerStart,
     markerEnd,
-    interactionWidth,
-    className,
     data = {},
     label,
   } = props;
 
-  const {
-    isReadOnly,
-    onEdgeLabelChange,
-    onEdgeLabelPositionChange,
-    onEdgeEndpointLabelChange,
-    onEdgeEndpointLabelPositionChange,
-    onEdgeEndpointLabelPersist,
-    onEdgeMulticastPositionChange,
-    persistLabelPositions,
-  } = useContext(DiagramContext);
-  const isReverse = !!data?.__reversed;
+  const direction = data?.direction || "ida";
+  const config = DIRECTION_STYLE[direction] || DIRECTION_STYLE.ida;
 
-  const [edgePath, defaultLabelX, defaultLabelY, shift] = useMemo(
+  const [edgePath, centerX, centerY] = useMemo(
     () =>
-      computeParallelPath({
+      getBezierPath({
         sourceX,
         sourceY,
         targetX,
         targetY,
         sourcePosition,
         targetPosition,
-        isReverse,
       }),
-    [
-      sourceX,
-      sourceY,
-      targetX,
-      targetY,
-      sourcePosition,
-      targetPosition,
-      isReverse,
-    ]
+    [sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition]
   );
 
-  const primaryLabel = data?.label ?? (label ?? "");
+  const startLabelPosition = useMemo(
+    () => ({
+      x: (sourceX + centerX) / 2,
+      y: (sourceY + centerY) / 2,
+    }),
+    [centerX, centerY, sourceX, sourceY]
+  );
 
-  const centralLabelPosition = useMemo(() => {
-    const stored = data?.labelPosition || data?.labelPos;
-    if (stored && Number.isFinite(stored.x) && Number.isFinite(stored.y)) {
-      return stored;
-    }
-    return { x: defaultLabelX, y: defaultLabelY };
-  }, [data?.labelPosition, data?.labelPos, defaultLabelX, defaultLabelY]);
+  const endLabelPosition = useMemo(
+    () => ({
+      x: (targetX + centerX) / 2,
+      y: (targetY + centerY) / 2,
+    }),
+    [centerX, centerY, targetX, targetY]
+  );
 
-  const hasStoredCentralPosition = useMemo(() => {
-    const stored = data?.labelPosition || data?.labelPos;
-    return !!(
-      stored &&
-      Number.isFinite(stored.x) &&
-      Number.isFinite(stored.y)
-    );
-  }, [data?.labelPosition, data?.labelPos]);
-
-  const rawEndpointLabels = data?.endpointLabels || {};
-  const labelStart = data?.labelStart ?? rawEndpointLabels.source;
-  const labelEnd = data?.labelEnd ?? rawEndpointLabels.target;
-  const endpointLabels = {
-    ...(labelStart ? { source: labelStart } : {}),
-    ...(labelEnd ? { target: labelEnd } : {}),
+  const mergedStyle = {
+    strokeWidth: 2,
+    stroke: config.stroke,
+    ...style,
   };
-  const endpointLabelPositions = data?.endpointLabelPositions || {};
 
-  const multicast = data?.multicast;
-  const multicastDefaultPosition = useMemo(() => {
-    if (!multicast) return null;
-    const BASE_OFFSET = 14;
-    return {
-      x: sourceX + (shift?.ox || 0) + BASE_OFFSET,
-      y: sourceY + (shift?.oy || 0) - BASE_OFFSET,
-    };
-  }, [multicast, shift?.ox, shift?.oy, sourceX, sourceY]);
-
-  const endpointDefaults = useMemo(
-    () =>
-      computeEndpointLabelDefaults({
-        sourceX,
-        sourceY,
-        sourcePosition,
-        targetX,
-        targetY,
-        targetPosition,
-        offset: shift,
-      }),
-    [shift, sourcePosition, sourceX, sourceY, targetPosition, targetX, targetY]
-  );
-
-  const handleCentralLabelCommit = useCallback(
-    (nextLabel) => onEdgeLabelChange?.(id, nextLabel),
-    [id, onEdgeLabelChange]
-  );
-
-  const handleCentralPositionChange = useCallback(
-    (position) => onEdgeLabelPositionChange?.(id, position),
-    [id, onEdgeLabelPositionChange]
-  );
-
-  useEffect(() => {
-    if (hasStoredCentralPosition) return;
-    if (!onEdgeLabelPositionChange) return;
-    if (!centralLabelPosition) return;
-    onEdgeLabelPositionChange(id, centralLabelPosition);
-  }, [centralLabelPosition, hasStoredCentralPosition, id, onEdgeLabelPositionChange]);
-
-  const handleCentralPersist = useCallback(
-    (nextPosition, meta) => {
-      if (!meta?.moved || isReadOnly || !persistLabelPositions) {
-        return;
-      }
-      persistLabelPositions({
-        edges: {
-          [id]: { labelPosition: nextPosition },
-        },
-      }).catch((error) => {
-        console.error("Persist edge label position failed", error);
-        if (meta?.initial) {
-          onEdgeLabelPositionChange?.(id, meta.initial);
-        }
-      });
-    },
-    [id, isReadOnly, onEdgeLabelPositionChange, persistLabelPositions]
-  );
-
-  const handleEndpointLabelCommit = useCallback(
-    (endpoint, nextLabel) => onEdgeEndpointLabelChange?.(id, endpoint, nextLabel),
-    [id, onEdgeEndpointLabelChange]
-  );
-
-  const handleEndpointPositionChange = useCallback(
-    (endpoint, position) =>
-      onEdgeEndpointLabelPositionChange?.(id, endpoint, position),
-    [id, onEdgeEndpointLabelPositionChange]
-  );
-
-  const handleEndpointPersist = useCallback(
-    (endpoint, position, meta) =>
-      onEdgeEndpointLabelPersist?.(id, endpoint, position, meta),
-    [id, onEdgeEndpointLabelPersist]
-  );
-
-  const handleMulticastPersist = useCallback(
-    (nextPosition, meta) => {
-      if (!meta?.moved || isReadOnly || !persistLabelPositions) {
-        return;
-      }
-      persistLabelPositions({
-        edges: {
-          [id]: { multicastPosition: nextPosition },
-        },
-      }).catch((error) => {
-        console.error("Persist edge multicast position failed", error);
-        if (meta?.initial) {
-          onEdgeMulticastPositionChange?.(id, meta.initial);
-        }
-      });
-    },
-    [id, isReadOnly, onEdgeMulticastPositionChange, persistLabelPositions]
-  );
+  const appliedMarkerStart = markerStart || config.markerStart || undefined;
+  const appliedMarkerEnd = markerEnd || config.markerEnd || undefined;
 
   return (
     <>
       <BaseEdge
         id={id}
         path={edgePath}
-        style={style}
-        className={className}
-        markerStart={markerStart}
-        markerEnd={markerEnd}
-        interactionWidth={interactionWidth}
+        markerStart={appliedMarkerStart}
+        markerEnd={appliedMarkerEnd}
+        style={mergedStyle}
       />
-
-      <EdgeLabelDraggable
-        text={primaryLabel}
-        position={data?.labelPosition}
-        defaultPosition={centralLabelPosition}
-        readOnly={isReadOnly}
-        className="label-main"
-        allowEditing={!isReadOnly}
-        allowDragging={!isReadOnly}
-        ariaLabel="Etiqueta del enlace"
-        placeholder="Etiqueta del enlace"
-        onTextCommit={handleCentralLabelCommit}
-        onPositionChange={handleCentralPositionChange}
-        onPersist={handleCentralPersist}
-      />
-
-      {(endpointLabels.source || !isReadOnly) && (
-        <EditableEdgeLabel
-          text={endpointLabels.source || ""}
-          position={endpointLabelPositions.source}
-          defaultPosition={endpointDefaults.source}
-          readOnly={isReadOnly}
-          ariaLabel="Etiqueta del extremo de origen"
-          placeholder="Etiqueta origen"
-          onCommit={(value) => handleEndpointLabelCommit("source", value)}
-          onPositionChange={(position) =>
-            handleEndpointPositionChange("source", position)
-          }
-          onPersist={(position, meta) =>
-            handleEndpointPersist("source", position, meta)
-          }
-        />
-      )}
-
-      {(endpointLabels.target || !isReadOnly) && (
-        <EditableEdgeLabel
-          text={endpointLabels.target || ""}
-          position={endpointLabelPositions.target}
-          defaultPosition={endpointDefaults.target}
-          readOnly={isReadOnly}
-          ariaLabel="Etiqueta del extremo de destino"
-          placeholder="Etiqueta destino"
-          onCommit={(value) => handleEndpointLabelCommit("target", value)}
-          onPositionChange={(position) =>
-            handleEndpointPositionChange("target", position)
-          }
-          onPersist={(position, meta) =>
-            handleEndpointPersist("target", position, meta)
-          }
-        />
-      )}
-
-      {multicast && multicastDefaultPosition && (
-        <EdgeLabelDraggable
-          text={multicast}
-          position={data?.multicastPosition}
-          defaultPosition={multicastDefaultPosition}
-          readOnly={isReadOnly}
-          allowEditing={false}
-          allowDragging={!isReadOnly}
-          ariaLabel="Badge multicast"
-          onPositionChange={(position) =>
-            onEdgeMulticastPositionChange?.(id, position)
-          }
-          onPersist={handleMulticastPersist}
-          style={{
-            background: "#1f2937",
-            color: "#fff",
-            border: "1px solid #111827",
-            borderRadius: 6,
-            padding: "2px 6px",
-            fontSize: 11,
-            boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
-            whiteSpace: "nowrap",
-            opacity: 0.9,
-            textTransform: "uppercase",
-            letterSpacing: 0.4,
-          }}
-        />
-      )}
+      {renderLabel(`${id}-start`, data?.labelStart, startLabelPosition.x, startLabelPosition.y)}
+      {renderLabel(`${id}-center`, label, centerX, centerY)}
+      {renderLabel(`${id}-end`, data?.labelEnd, endLabelPosition.x, endLabelPosition.y)}
     </>
   );
 }

@@ -15,6 +15,76 @@ import {
   inferNodeHandleType,
   toHandleTypeKey,
 } from "./handleStandard.js";
+import { makeHandle, isValidHandle } from "./handles";
+
+export function toPayload(nodes = [], edges = [], viewport = null) {
+  const DEFAULT_SOURCE_HANDLE = makeHandle("out", "right", 1);
+  const DEFAULT_TARGET_HANDLE = makeHandle("in", "left", 1);
+
+  const normalizedNodes = (Array.isArray(nodes) ? nodes : []).map((node) => ({
+    id: node.id,
+    type: node.type || "default",
+    equipo:
+      node.equipo ??
+      node.data?.equipoId ??
+      (node.data && node.data.equipo ? node.data.equipo : undefined),
+    data: { ...node.data },
+    position: {
+      x: Number.isFinite(Number(node?.position?.x))
+        ? Number(node.position.x)
+        : 0,
+      y: Number.isFinite(Number(node?.position?.y))
+        ? Number(node.position.y)
+        : 0,
+    },
+  }));
+
+  const normalizedEdges = (Array.isArray(edges) ? edges : []).map((edge) => {
+    const sourceHandle = isValidHandle(edge?.sourceHandle)
+      ? edge.sourceHandle
+      : DEFAULT_SOURCE_HANDLE;
+    const targetHandle = isValidHandle(edge?.targetHandle)
+      ? edge.targetHandle
+      : DEFAULT_TARGET_HANDLE;
+    const direction =
+      edge?.data?.direction === "vuelta" || edge?.data?.direction === "bi"
+        ? edge.data.direction
+        : "ida";
+
+    return {
+      id: edge.id,
+      source: edge.source,
+      target: edge.target,
+      sourceHandle,
+      targetHandle,
+      type: "customDirectional",
+      label: edge.label || "",
+      data: {
+        labelStart: edge?.data?.labelStart || "",
+        labelEnd: edge?.data?.labelEnd || "",
+        direction,
+      },
+      style: edge.style || {},
+    };
+  });
+
+  const normalizedViewport =
+    viewport && typeof viewport === "object"
+      ? {
+          x: Number.isFinite(Number(viewport.x)) ? Number(viewport.x) : 0,
+          y: Number.isFinite(Number(viewport.y)) ? Number(viewport.y) : 0,
+          zoom: Number.isFinite(Number(viewport.zoom))
+            ? Number(viewport.zoom)
+            : 1,
+        }
+      : null;
+
+  return {
+    nodes: normalizedNodes,
+    edges: normalizedEdges,
+    viewport: normalizedViewport,
+  };
+}
 
 // Fallback numérico para MarkerType.ArrowClosed (React Flow = 1)
 const ARROW_CLOSED = { type: 1 };
@@ -452,7 +522,7 @@ const ChannelForm = () => {
       try {
         const [signalsRes, channelsRes] = await Promise.all([
           api.getSignal(), // /signal
-          api.getChannelDiagram(), // /channels
+          api.listChannelDiagrams(), // /channels
         ]);
 
         const signals = Array.isArray(signalsRes?.data) ? signalsRes.data : [];
@@ -937,56 +1007,28 @@ const ChannelForm = () => {
               return;
             }
 
-            const normalizedNodes = draftNodes.map((n) => ({
-              id: n.id,
-              type: n.type || "custom",
-              equipo: n.data?.equipoId,
-              label: n.data?.label,
-              data: {
-                label: n.data?.label || n.id,
-                equipoId: n.data?.equipoId,
-                equipoNombre: n.data?.equipoNombre,
-                equipoTipo: n.data?.equipoTipo,
-              },
-              position: {
-                x: Number.isFinite(+n.position?.x) ? +n.position.x : 0,
-                y: Number.isFinite(+n.position?.y) ? +n.position.y : 0,
-              },
-            }));
-
-            const normalizedEdges = draftEdges.map((e) => ({
-              id: e.id,
-              source: e.source,
-              target: e.target,
-              sourceHandle: e.sourceHandle,
-              targetHandle: e.targetHandle,
-              label: e.label,
-              type: e.type || "directional",
-              style: e.style,
-              markerEnd: e.markerEnd,
-              markerStart: e.markerStart,
-              data: { ...(e.data || {}) },
-            }));
+            const diagramPayload = toPayload(draftNodes, draftEdges, null);
 
             const payload = {
               signal: selectedValue,
               channel: selectedValue,
               signalId: selectedValue,
               channelId: isEditMode ? channelIdParam : selectedValue,
-              nodes: normalizedNodes,
-              edges: normalizedEdges,
+              nodes: diagramPayload.nodes,
+              edges: diagramPayload.edges,
+              diagram: diagramPayload,
             };
 
             if (isEditMode) {
-              await api.updateChannelDiagram(channelIdParam, payload);
+              await api.saveChannelDiagram(channelIdParam, diagramPayload);
 
               Swal.fire({
                 icon: "success",
                 title: "Flujo actualizado",
                 html: `
                   <p><strong>Señal:</strong> ${selectedId}</p>
-                  <p><strong>Nodos:</strong> ${draftNodes.length}</p>
-                  <p><strong>Enlaces:</strong> ${draftEdges.length}</p>
+                  <p><strong>Nodos:</strong> ${diagramPayload.nodes.length}</p>
+                  <p><strong>Enlaces:</strong> ${diagramPayload.edges.length}</p>
                 `,
               });
 
@@ -994,8 +1036,12 @@ const ChannelForm = () => {
                 prev
                   ? {
                       ...prev,
-                      nodes: normalizedNodes,
-                      edges: normalizedEdges,
+                      nodes: diagramPayload.nodes,
+                      edges: diagramPayload.edges,
+                      diagram: {
+                        ...(prev.diagram || {}),
+                        ...diagramPayload,
+                      },
                       signal: selectedSignalOption?.raw || prev.signal,
                     }
                   : prev
@@ -1012,8 +1058,8 @@ const ChannelForm = () => {
               title: "Flujo creado",
               html: `
                 <p><strong>Señal:</strong> ${selectedId}</p>
-                <p><strong>Nodos:</strong> ${draftNodes.length}</p>
-                <p><strong>Enlaces:</strong> ${draftEdges.length}</p>
+                <p><strong>Nodos:</strong> ${diagramPayload.nodes.length}</p>
+                <p><strong>Enlaces:</strong> ${diagramPayload.edges.length}</p>
               `,
             });
 

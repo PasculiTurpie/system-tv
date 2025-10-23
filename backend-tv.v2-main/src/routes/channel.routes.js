@@ -1,5 +1,6 @@
 const express = require("express");
 const ChannelController = require("../controllers/channel.controller");
+const ChannelDiagramController = require("../controllers/channelController");
 
 const router = express.Router();
 
@@ -15,6 +16,10 @@ router
   .delete(ChannelController.deleteChannel);
 
 router.put("/channels/:id/flow", ChannelController.updateChannelFlow);
+router
+  .route("/channels/:id/diagram")
+  .get(ChannelDiagramController.getChannel)
+  .put(ChannelDiagramController.updateDiagram);
 router.patch("/channels/:id/node/:nodeId", ChannelController.patchNode);
 router.patch(
   "/channels/:id/node/:nodeId/handles",
