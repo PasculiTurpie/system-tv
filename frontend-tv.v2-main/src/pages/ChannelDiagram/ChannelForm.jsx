@@ -8,6 +8,7 @@ import Swal from "sweetalert2";
 import "./ChannelForm.css";
 import { prepareDiagramState } from "./diagramUtils";
 import { clearLocalStorage } from "../../utils/localStorageUtils";
+import normalizeHandle from "../../utils/normalizeHandle";
 
 // Fallback numérico para MarkerType.ArrowClosed (React Flow = 1)
 const ARROW_CLOSED = { type: 1 };
@@ -154,12 +155,17 @@ const insertEquipoIntoGroupedOptions = (grouped, option /* {label,value,meta:{ti
  * Elige handles por geometría y dirección ('ida' | 'vuelta').
  * Regla adicional: si el SOURCE es un SATÉLITE, fuerza out-right -> in-left.
  */
+const ensureHandle = (id) => normalizeHandle(id) || id;
+
 function pickHandlesByGeometry(srcNode, tgtNode, direction /* 'ida' | 'vuelta' */) {
   const srcTipo =
     srcNode?.data?.equipoTipo ||
     tipoToKey(srcNode?.data?.equipo?.tipoNombre?.tipoNombre);
   if (srcTipo === "satelite") {
-    return { sourceHandle: "out-right", targetHandle: "in-left" };
+    return {
+      sourceHandle: ensureHandle("out-right"),
+      targetHandle: ensureHandle("in-left"),
+    };
   }
 
   const sx = Number(srcNode?.position?.x ?? 0);
@@ -173,18 +179,36 @@ function pickHandlesByGeometry(srcNode, tgtNode, direction /* 'ida' | 'vuelta' *
     const srcIsUpper = sy < ty;
     if (direction === "ida") {
       return srcIsUpper
-        ? { sourceHandle: "out-bottom-1", targetHandle: "in-top-1" }
-        : { sourceHandle: "out-top-1", targetHandle: "in-bottom-1" };
+        ? {
+            sourceHandle: ensureHandle("out-bottom-1"),
+            targetHandle: ensureHandle("in-top-1"),
+          }
+        : {
+            sourceHandle: ensureHandle("out-top-1"),
+            targetHandle: ensureHandle("in-bottom-1"),
+          };
     } else {
       return srcIsUpper
-        ? { sourceHandle: "out-bottom-2", targetHandle: "in-top-2" }
-        : { sourceHandle: "out-top-2", targetHandle: "in-bottom-2" };
+        ? {
+            sourceHandle: ensureHandle("out-bottom-2"),
+            targetHandle: ensureHandle("in-top-2"),
+          }
+        : {
+            sourceHandle: ensureHandle("out-top-2"),
+            targetHandle: ensureHandle("in-bottom-2"),
+          };
     }
   }
 
   return direction === "ida"
-    ? { sourceHandle: "out-right", targetHandle: "in-left" }
-    : { sourceHandle: "out-left", targetHandle: "in-right" };
+    ? {
+        sourceHandle: ensureHandle("out-right"),
+        targetHandle: ensureHandle("in-left"),
+      }
+    : {
+        sourceHandle: ensureHandle("out-left"),
+        targetHandle: ensureHandle("in-right"),
+      };
 }
 
 const ChannelForm = () => {

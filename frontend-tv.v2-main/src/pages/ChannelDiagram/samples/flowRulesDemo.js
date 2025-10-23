@@ -23,7 +23,7 @@ const createSatelite = () =>
     "Satélite GEO",
     {
       handles: {
-        source: { right: ["out-right"] },
+        source: { right: ["out-right-1"] },
         target: {},
       },
     }
@@ -39,7 +39,7 @@ const createIrd = () =>
     {
       handles: {
         source: {},
-        target: { left: ["in-left"] },
+        target: { left: ["in-left-1"] },
       },
     }
   );
@@ -120,8 +120,8 @@ const satToIrdEdge = {
   source: sateliteNode.id,
   target: irdNode.id,
   type: "smoothstep",
-  sourceHandle: "out-right",
-  targetHandle: "in-left",
+  sourceHandle: "out-right-1",
+  targetHandle: "in-left-1",
   animated: satToIrdStyle.animated,
   style: satToIrdStyle.style,
   markerStart: satToIrdStyle.markerStart,
