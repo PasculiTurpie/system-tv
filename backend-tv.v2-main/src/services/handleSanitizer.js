@@ -8,10 +8,65 @@ const HANDLE_DEFAULTS = Object.freeze({
   left: { topPct: 50, leftPct: 0 },
 });
 
+const HANDLE_SIDE_SET = new Set(HANDLE_SIDES);
+
 const normalizeString = (value) => {
   if (value === undefined || value === null) return null;
   const str = String(value).trim();
   return str.length ? str : null;
+};
+
+const buildCanonicalHandleId = (direction, side, index) => {
+  if (!direction || !side || !HANDLE_SIDE_SET.has(side)) return null;
+  const numericIndex = Number.parseInt(index, 10);
+  const safeIndex = Number.isFinite(numericIndex) && numericIndex > 0 ? numericIndex : 1;
+  return `${direction}-${side}-${safeIndex}`;
+};
+
+const normalizeHandleId = (handleId) => {
+  if (handleId === undefined || handleId === null) return undefined;
+
+  const value = String(handleId).trim();
+  if (!value) return undefined;
+
+  const lower = value.toLowerCase();
+
+  const directMatch = /^(in|out)-(top|bottom|left|right)(?:-(\d+))?$/.exec(lower);
+  if (directMatch) {
+    return buildCanonicalHandleId(directMatch[1], directMatch[2], directMatch[3]);
+  }
+
+  const srcPrefixMatch = /^(src|source)-(top|bottom|left|right)(?:-(\d+))?$/.exec(lower);
+  if (srcPrefixMatch) {
+    return buildCanonicalHandleId("out", srcPrefixMatch[2], srcPrefixMatch[3]);
+  }
+
+  const tgtPrefixMatch = /^(tgt|target)-(top|bottom|left|right)(?:-(\d+))?$/.exec(lower);
+  if (tgtPrefixMatch) {
+    return buildCanonicalHandleId("in", tgtPrefixMatch[2], tgtPrefixMatch[3]);
+  }
+
+  const srcSuffixMatch = /^(top|bottom|left|right)-(src|source)(?:-(\d+))?$/.exec(lower);
+  if (srcSuffixMatch) {
+    return buildCanonicalHandleId("out", srcSuffixMatch[1], srcSuffixMatch[3]);
+  }
+
+  const tgtSuffixMatch = /^(top|bottom|left|right)-(tgt|target)(?:-(\d+))?$/.exec(lower);
+  if (tgtSuffixMatch) {
+    return buildCanonicalHandleId("in", tgtSuffixMatch[1], tgtSuffixMatch[3]);
+  }
+
+  const indexedFallback = /^(in|out)-(top|bottom|left|right)-(\d+)$/.exec(value);
+  if (indexedFallback) {
+    return buildCanonicalHandleId(indexedFallback[1], indexedFallback[2], indexedFallback[3]);
+  }
+
+  const sideOnlyFallback = /^(in|out)-(top|bottom|left|right)$/.exec(value);
+  if (sideOnlyFallback) {
+    return buildCanonicalHandleId(sideOnlyFallback[1], sideOnlyFallback[2], 1);
+  }
+
+  return value;
 };
 
 const inferTypeFromHandleId = (handleId) => {
@@ -124,6 +179,7 @@ module.exports = {
   HANDLE_SIDES,
   HANDLE_TYPES,
   HANDLE_DEFAULTS,
+  normalizeHandleId,
   inferTypeFromHandleId,
   inferSideFromHandleId,
   clampPercentage,

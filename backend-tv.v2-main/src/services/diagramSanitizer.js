@@ -1,3 +1,5 @@
+const { normalizeHandleId } = require("./handleSanitizer");
+
 const MAX_LABEL_LENGTH = 200;
 
 const clampLabel = (value) => {
@@ -144,6 +146,21 @@ const sanitizeEdgePayload = (edge) => {
     data,
   };
   if (style) payload.style = style;
+
+  const sanitizedSourceHandle = normalizeHandleId(edge.sourceHandle);
+  const sanitizedTargetHandle = normalizeHandleId(edge.targetHandle);
+
+  if (sanitizedSourceHandle) {
+    payload.sourceHandle = sanitizedSourceHandle;
+  } else if (Object.prototype.hasOwnProperty.call(payload, "sourceHandle")) {
+    delete payload.sourceHandle;
+  }
+
+  if (sanitizedTargetHandle) {
+    payload.targetHandle = sanitizedTargetHandle;
+  } else if (Object.prototype.hasOwnProperty.call(payload, "targetHandle")) {
+    delete payload.targetHandle;
+  }
 
   const label = clampLabel(data.label ?? edge.label ?? id);
   data.label = label;

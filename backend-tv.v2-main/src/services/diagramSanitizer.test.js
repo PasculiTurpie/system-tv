@@ -29,6 +29,8 @@ describe("diagramSanitizer", () => {
       id: " edge-1 ",
       source: " A ",
       target: " B ",
+      sourceHandle: "Out-Right",
+      targetHandle: "target-left",
       label: "  Edge  ",
       data: {
         label: "  Edge  ",
@@ -44,6 +46,8 @@ describe("diagramSanitizer", () => {
     const sanitized = sanitizeEdgePayload(input);
     assert.equal(sanitized.id, "edge-1");
     assert.equal(sanitized.label, "Edge");
+    assert.equal(sanitized.sourceHandle, "out-right-1");
+    assert.equal(sanitized.targetHandle, "in-left-1");
     assert.deepEqual(sanitized.data.endpointLabels, { source: "SRC" });
     assert.deepEqual(sanitized.data.endpointLabelPositions, { source: { x: 12, y: 24 } });
     assert.ok(!("multicast" in sanitized.data));

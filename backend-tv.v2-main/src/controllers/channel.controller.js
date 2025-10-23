@@ -13,12 +13,16 @@ const {
   sanitizeEndpointPositions,
   sanitizeDiagramPayload,
 } = require("../services/diagramSanitizer");
-const { sanitizeHandles } = require("../services/handleSanitizer");
+const { sanitizeHandles, normalizeHandleId } = require("../services/handleSanitizer");
 
 const sanitizeHandleId = (value) => {
   if (value === undefined) return undefined;
   if (value === null) return null;
-  const str = String(value).trim();
+  const normalized = normalizeHandleId(value);
+  if (normalized === undefined || normalized === null) {
+    return null;
+  }
+  const str = String(normalized).trim();
   return str.length ? str : null;
 };
 
