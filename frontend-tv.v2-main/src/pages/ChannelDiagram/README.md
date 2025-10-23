@@ -24,7 +24,7 @@
 - Use the on-screen zoom controls or the `+` / `-` keys to zoom.
 
 ## Router node handles
-- Router nodes expose left, right, and bottom handles (`in-left-*`, `out-right-*`, `in-bottom-*`, `out-bottom-*`) to support directional edges and existing waypoint wiring.
+- Router nodes expose left, right, and bottom handles (`in-left-*`, `out-right-*`, `in-bottom-*`, `out-bottom-*`) to support directional edges and existing waypoint wiring. The canonical identifiers live in `handleConstants.js` so UI components and rules stay in sync.
 
 ## Implementation notes
 - Label positions are stored in React Flow coordinates (`project(clientPoint)`) via the shared `useDraggableLabel` hook. This keeps persisted values independent from the current zoom level or scroll offset.

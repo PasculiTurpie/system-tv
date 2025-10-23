@@ -1,5 +1,6 @@
 // Mapea "in-left" -> "in-left-1", "out-right" -> "out-right-1", etc.
 // Si ya viene con índice (-1, -2, …), lo deja igual.
+// Consulta `pages/ChannelDiagram/handleConstants.js` para la lista de IDs canónicos.
 const SIDES = new Set(["top", "bottom", "left", "right"]);
 
 const buildCanonicalId = (direction, side, index) => {
