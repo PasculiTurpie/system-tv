@@ -1,7 +1,6 @@
-// src/utils/normalizeHandle.js
-// Canoniza ids de handle al formato: in|out-(top|bottom|left|right)-<index>
-// Acepta alias históricos (camelCase, underscores, src/tgt, sufijos, etc.)
-
+// Mapea "in-left" -> "in-left-1", "out-right" -> "out-right-1", etc.
+// Si ya viene con índice (-1, -2, …), lo deja igual.
+// Consulta `pages/ChannelDiagram/handleConstants.js` para la lista de IDs canónicos.
 const SIDES = new Set(["top", "bottom", "left", "right"]);
 
 const buildCanonicalId = (direction, side, index) => {
@@ -14,42 +13,43 @@ const buildCanonicalId = (direction, side, index) => {
 const normalizeHandle = (handle) => {
   if (handle === undefined || handle === null) return undefined;
 
-  let value = String(handle).trim();
+  const value = String(handle).trim();
   if (!value) return undefined;
 
-  // normaliza separadores/estilos
-  value = value
-    .replace(/_/g, "-")
-    .replace(/\s+/g, "-")
-    .replace(/([a-z])([A-Z])/g, "$1-$2")
-    .toLowerCase();
+  const lower = value.toLowerCase();
 
-  // canónico
-  let m = /^(in|out)-(top|bottom|left|right)(?:-(\d+))?$/.exec(value);
-  if (m) return buildCanonicalId(m[1], m[2], m[3]);
+  // ✨ Descartar literales inválidos comunes
+  if (lower === "null" || lower === "undefined" || lower === "none" || lower === "na") {
+    return undefined;
+  }
 
-  // prefijos alternos
-  m = /^(src|source)-(top|bottom|left|right)(?:-(\d+))?$/.exec(value);
-  if (m) return buildCanonicalId("out", m[2], m[3]);
+  const directMatch = /^(in|out)-(top|bottom|left|right)(?:-(\d+))?$/.exec(lower);
+  if (directMatch) {
+    return buildCanonicalId(directMatch[1], directMatch[2], directMatch[3]);
+  }
 
-  m = /^(tgt|target)-(top|bottom|left|right)(?:-(\d+))?$/.exec(value);
-  if (m) return buildCanonicalId("in", m[2], m[3]);
+  const srcPrefixMatch = /^(src|source)-(top|bottom|left|right)(?:-(\d+))?$/.exec(lower);
+  if (srcPrefixMatch) {
+    return buildCanonicalId("out", srcPrefixMatch[2], srcPrefixMatch[3]);
+  }
 
-  // sufijos alternos
-  m = /^(top|bottom|left|right)-(src|source)(?:-(\d+))?$/.exec(value);
-  if (m) return buildCanonicalId("out", m[1], m[3]);
+  const tgtPrefixMatch = /^(tgt|target)-(top|bottom|left|right)(?:-(\d+))?$/.exec(lower);
+  if (tgtPrefixMatch) {
+    return buildCanonicalId("in", tgtPrefixMatch[2], tgtPrefixMatch[3]);
+  }
 
-  m = /^(top|bottom|left|right)-(tgt|target)(?:-(\d+))?$/.exec(value);
-  if (m) return buildCanonicalId("in", m[1], m[3]);
+  const srcSuffixMatch = /^(top|bottom|left|right)-(src|source)(?:-(\d+))?$/.exec(lower);
+  if (srcSuffixMatch) {
+    return buildCanonicalId("out", srcSuffixMatch[1], srcSuffixMatch[3]);
+  }
 
-  // alias varios (p.ej. "right-out-1", "left-in2", "output-right3")
-  m = /^(right|left|top|bottom)-(out|in)(?:-(\d+))?$/.exec(value);
-  if (m) return buildCanonicalId(m[2] === "in" ? "in" : "out", m[1], m[3]);
+  const tgtSuffixMatch = /^(top|bottom|left|right)-(tgt|target)(?:-(\d+))?$/.exec(lower);
+  if (tgtSuffixMatch) {
+    return buildCanonicalId("in", tgtSuffixMatch[1], tgtSuffixMatch[3]);
+  }
 
-  m = /^(in|out)(?:put)?-(right|left|top|bottom)(\d+)$/.exec(value);
-  if (m) return buildCanonicalId(m[1], m[2], m[3]);
-
-  // deja pasar manejadores custom no canónicos (responsabilidad del caller)
+  // Mantiene el identificador original para manejadores personalizados
+  // (ya filtramos "null"/"undefined"/"none"/"na" arriba).
   return value;
 };
 

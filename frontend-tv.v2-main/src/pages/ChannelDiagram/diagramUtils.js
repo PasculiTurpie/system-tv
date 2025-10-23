@@ -218,29 +218,33 @@ export const getNodeHandleUsage = (node, edges) => {
   edges.forEach((edge) => {
     if (edge.source === node.id) {
       const handleId = normalizeHandle(edge.sourceHandle || "out");
-      const entry = ensureEntry(handleId, "out");
-      entry.connections.push({
-        edgeId: edge.id,
-        direction: edge.data?.direction || "out",
-        counterpart: edge.target,
-        counterpartHandle: normalizeHandle(edge.targetHandle || ""),
-        label: edge.data?.label || edge.label || "",
-        multicast: edge.data?.multicast || null,
-        pending: !!edge.data?.pending,
-      });
+      if (handleId) {
+        const entry = ensureEntry(handleId, "out");
+        entry.connections.push({
+          edgeId: edge.id,
+          direction: edge.data?.direction || "out",
+          counterpart: edge.target,
+          counterpartHandle: normalizeHandle(edge.targetHandle || ""),
+          label: edge.data?.label || edge.label || "",
+          multicast: edge.data?.multicast || null,
+          pending: !!edge.data?.pending,
+        });
+      }
     }
     if (edge.target === node.id) {
       const handleId = normalizeHandle(edge.targetHandle || "in");
-      const entry = ensureEntry(handleId, "in");
-      entry.connections.push({
-        edgeId: edge.id,
-        direction: edge.data?.direction || "in",
-        counterpart: edge.source,
-        counterpartHandle: normalizeHandle(edge.sourceHandle || ""),
-        label: edge.data?.label || edge.label || "",
-        multicast: edge.data?.multicast || null,
-        pending: !!edge.data?.pending,
-      });
+      if (handleId) {
+        const entry = ensureEntry(handleId, "in");
+        entry.connections.push({
+          edgeId: edge.id,
+          direction: edge.data?.direction || "in",
+          counterpart: edge.source,
+          counterpartHandle: normalizeHandle(edge.sourceHandle || ""),
+          label: edge.data?.label || edge.label || "",
+          multicast: edge.data?.multicast || null,
+          pending: !!edge.data?.pending,
+        });
+      }
     }
   });
 
@@ -449,6 +453,8 @@ export const normalizeHandlesArray = (handles) => {
     const leftPct = clampHandlePercentage(entry.leftPct, defaults.leftPct);
 
     const canonicalId = normalizeHandle(id);
+    if (!canonicalId) return;
+
     const dedupeKey = `${canonicalId}|${type}|${side}`;
     if (seen.has(dedupeKey)) return;
     seen.add(dedupeKey);
@@ -645,8 +651,9 @@ export const mapEdgeFromApi = (edge) => {
     endpointLabels = { ...endpointLabels, target: labelEnd };
   }
 
-  const sourceHandle = normalizeHandle(edge.sourceHandle);
-  const targetHandle = normalizeHandle(edge.targetHandle);
+  // ✨ handles saneados (si venía "null"/"undefined"/"none", quedan como undefined y no se incluyen)
+  const sourceHandle = normalizeHandle(edge.sourceHandle) || undefined;
+  const targetHandle = normalizeHandle(edge.targetHandle) || undefined;
 
   const data = {
     ...rawData,
@@ -1025,4 +1032,3 @@ export const resolveLabelPosition = (position, defaultPosition, clampPositionFn)
   }
   return clampPositionFn ? clampPositionFn(basePosition) : basePosition;
 };
-
