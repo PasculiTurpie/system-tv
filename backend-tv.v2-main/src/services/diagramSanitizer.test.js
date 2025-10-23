@@ -68,4 +68,25 @@ describe("diagramSanitizer", () => {
     assert.equal(result.edges[0].source, "a");
     assert.equal(result.edges[0].target, "B");
   });
+
+  test("sanitizeDiagramPayload keeps case-distinct node identifiers", () => {
+    const result = sanitizeDiagramPayload({
+      nodes: [
+        { id: "NodeA" },
+        { id: "nodea" },
+      ],
+      edges: [
+        { id: "edge-1", source: "NodeA", target: "nodea" },
+        { id: "edge-2", source: "nodea", target: "NodeA" },
+      ],
+    });
+
+    assert.deepEqual(
+      result.edges.map((edge) => ({ source: edge.source, target: edge.target })),
+      [
+        { source: "NodeA", target: "nodea" },
+        { source: "nodea", target: "NodeA" },
+      ]
+    );
+  });
 });

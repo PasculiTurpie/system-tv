@@ -265,28 +265,49 @@ const sanitizeDiagramPayload = ({ nodes, edges } = {}) => {
     ? nodes.map((node) => sanitizeNodePayload(node)).filter(Boolean)
     : [];
 
+  const nodeIdSet = new Set(sanitizedNodes.map((node) => node.id));
   const canonicalNodeIds = new Map();
   sanitizedNodes.forEach((node) => {
     const key = canonicalKey(node.id);
-    if (key && !canonicalNodeIds.has(key)) {
-      canonicalNodeIds.set(key, node.id);
+    if (!key) return;
+    if (!canonicalNodeIds.has(key)) {
+      canonicalNodeIds.set(key, new Set());
     }
+    canonicalNodeIds.get(key).add(node.id);
   });
+
+  const resolveNodeId = (value) => {
+    if (value === undefined || value === null) return null;
+    const trimmed = String(value).trim();
+    if (!trimmed) return null;
+    if (nodeIdSet.has(trimmed)) return trimmed;
+    const key = canonicalKey(trimmed);
+    if (!key) return null;
+    const candidates = canonicalNodeIds.get(key);
+    if (!candidates || candidates.size === 0) return null;
+    if (candidates.size === 1) {
+      return [...candidates][0];
+    }
+    const lower = trimmed.toLowerCase();
+    const matching = [...candidates].filter((id) => id.toLowerCase() === lower);
+    if (matching.length === 1) {
+      return matching[0];
+    }
+    return null;
+  };
 
   const sanitizedEdges = Array.isArray(edges)
     ? edges
         .map((edge) => sanitizeEdgePayload(edge))
         .map((edge) => {
           if (!edge) return null;
-          const sourceKey = canonicalKey(edge.source);
-          const targetKey = canonicalKey(edge.target);
-          const canonicalSource = canonicalNodeIds.get(sourceKey);
-          const canonicalTarget = canonicalNodeIds.get(targetKey);
-          if (!canonicalSource || !canonicalTarget) return null;
-          if (canonicalSource === edge.source && canonicalTarget === edge.target) {
+          const resolvedSource = resolveNodeId(edge.source);
+          const resolvedTarget = resolveNodeId(edge.target);
+          if (!resolvedSource || !resolvedTarget) return null;
+          if (resolvedSource === edge.source && resolvedTarget === edge.target) {
             return edge;
           }
-          return { ...edge, source: canonicalSource, target: canonicalTarget };
+          return { ...edge, source: resolvedSource, target: resolvedTarget };
         })
         .filter(Boolean)
     : [];

@@ -106,6 +106,29 @@ describe("channelNormalizer", () => {
     );
   });
 
+  test("normalizeChannel keeps distinct case-sensitive node ids", () => {
+    const channel = {
+      nodes: [
+        { id: "NodeA", position: { x: 0, y: 0 }, data: { label: "NodeA" } },
+        { id: "nodea", position: { x: 10, y: 10 }, data: { label: "nodea" } },
+      ],
+      edges: [
+        { id: "edge-1", source: "NodeA", target: "nodea" },
+        { id: "edge-2", source: "nodea", target: "NodeA" },
+      ],
+    };
+
+    const normalized = normalizeChannel(channel);
+
+    assert.deepStrictEqual(
+      normalized.edges.map((edge) => ({ source: edge.source, target: edge.target })),
+      [
+        { source: "NodeA", target: "nodea" },
+        { source: "nodea", target: "NodeA" },
+      ]
+    );
+  });
+
   test("normalizeChannels skips invalid entries", () => {
     const payload = [
       { id: "chan-1", nodes: [], edges: [] },
