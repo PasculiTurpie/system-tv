@@ -806,19 +806,40 @@ export const prepareDiagramState = (diagram) => {
     .filter(Boolean);
 
   const sortedNodes = sortNodesById(mappedNodes);
+  const nodeIdSet = new Set(sortedNodes.map((node) => node.id));
   const canonicalNodeIds = new Map();
   sortedNodes.forEach((node) => {
-    const key = typeof node.id === "string" ? node.id.trim().toLowerCase() : "";
-    if (key && !canonicalNodeIds.has(key)) {
-      canonicalNodeIds.set(key, node.id);
+    const key = typeof node.id === "string" ? node.id.trim().toLowerCase() : String(node.id ?? "").trim().toLowerCase();
+    if (!key) return;
+    if (!canonicalNodeIds.has(key)) {
+      canonicalNodeIds.set(key, new Set());
     }
+    canonicalNodeIds.get(key).add(node.id);
   });
 
+  const normalizeNodeId = (value) => {
+    if (value === undefined || value === null) return null;
+    const trimmed = String(value).trim();
+    return trimmed || null;
+  };
+
   const resolveCanonicalNodeId = (value) => {
-    if (typeof value !== "string") return null;
-    const key = value.trim().toLowerCase();
+    const trimmed = normalizeNodeId(value);
+    if (!trimmed) return null;
+    if (nodeIdSet.has(trimmed)) return trimmed;
+    const key = trimmed.toLowerCase();
     if (!key) return null;
-    return canonicalNodeIds.get(key) || null;
+    const candidates = canonicalNodeIds.get(key);
+    if (!candidates || candidates.size === 0) return null;
+    if (candidates.size === 1) {
+      return [...candidates][0];
+    }
+    const lower = trimmed.toLowerCase();
+    const matching = [...candidates].filter((id) => id.toLowerCase() === lower);
+    if (matching.length === 1) {
+      return matching[0];
+    }
+    return null;
   };
 
   const sanitizedEdges = [];
@@ -827,10 +848,18 @@ export const prepareDiagramState = (diagram) => {
     const target = resolveCanonicalNodeId(edge.target);
     if (!source || !target) return;
 
-    if (source === edge.source && target === edge.target) {
-      sanitizedEdges.push(edge);
-    } else {
+    const originalSource = normalizeNodeId(edge.source);
+    const originalTarget = normalizeNodeId(edge.target);
+    const needsChange =
+      source !== (originalSource ?? edge.source) ||
+      target !== (originalTarget ?? edge.target) ||
+      (typeof edge.source === "string" && edge.source.trim() !== edge.source) ||
+      (typeof edge.target === "string" && edge.target.trim() !== edge.target);
+
+    if (needsChange) {
       sanitizedEdges.push({ ...edge, source, target });
+    } else {
+      sanitizedEdges.push(edge);
     }
   });
 

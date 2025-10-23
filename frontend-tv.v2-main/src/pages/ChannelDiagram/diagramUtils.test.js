@@ -67,6 +67,29 @@ describe("diagramUtils", () => {
     );
   });
 
+  it("prepareDiagramState preserves distinct case-sensitive node ids", () => {
+    const diagram = {
+      nodes: [
+        { id: "NodeA", data: { label: "NodeA" } },
+        { id: "nodea", data: { label: "nodea" } },
+      ],
+      edges: [
+        { id: "edge-1", source: "NodeA", target: "nodea" },
+        { id: "edge-2", source: "nodea", target: "NodeA" },
+      ],
+    };
+
+    const prepared = prepareDiagramState(diagram);
+
+    assert.deepStrictEqual(
+      prepared.edges.map(({ source, target }) => ({ source, target })),
+      [
+        { source: "NodeA", target: "nodea" },
+        { source: "nodea", target: "NodeA" },
+      ]
+    );
+  });
+
   it("mapNodeFromApi and mapEdgeFromApi are idempotent", () => {
     const nodePayload = {
       id: "node-1",

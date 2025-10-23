@@ -145,7 +145,7 @@ function CustomNode({ id, data }) {
               type="target"
               position={pos}
               style={style}
-              isConnectableStart={!isReadOnly}
+              isConnectableStart={false}
               isConnectableEnd={!isReadOnly}
               aria-label={`Entrada ${side} ${idx}`}
             />
@@ -155,7 +155,7 @@ function CustomNode({ id, data }) {
               position={pos}
               style={style}
               isConnectableStart={!isReadOnly}
-              isConnectableEnd={!isReadOnly}
+              isConnectableEnd={false}
               aria-label={`Salida ${side} ${idx}`}
             />
           </React.Fragment>

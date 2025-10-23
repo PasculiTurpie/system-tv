@@ -49,18 +49,44 @@ describe("diagramSanitizer", () => {
     assert.ok(!("multicast" in sanitized.data));
   });
 
-  test("sanitizeDiagramPayload filters invalid nodes and edges", () => {
+  test("sanitizeDiagramPayload filters invalid entries and canonicalizes edges", () => {
     const result = sanitizeDiagramPayload({
-      nodes: [{ id: "a" }, { id: "" }, null],
+      nodes: [{ id: "a" }, { id: " B ", data: {} }, { id: "" }, null],
       edges: [
-        { id: "edge-1", source: "a", target: "b" },
+        { id: "edge-1", source: "a", target: " b " },
         { id: "", source: "a", target: "b" },
+        { id: "edge-2", source: "ghost", target: "b" },
       ],
     });
 
-    assert.equal(result.nodes.length, 1);
-    assert.equal(result.nodes[0].id, "a");
+    assert.deepEqual(
+      result.nodes.map((node) => node.id),
+      ["a", "B"]
+    );
     assert.equal(result.edges.length, 1);
     assert.equal(result.edges[0].id, "edge-1");
+    assert.equal(result.edges[0].source, "a");
+    assert.equal(result.edges[0].target, "B");
+  });
+
+  test("sanitizeDiagramPayload keeps case-distinct node identifiers", () => {
+    const result = sanitizeDiagramPayload({
+      nodes: [
+        { id: "NodeA" },
+        { id: "nodea" },
+      ],
+      edges: [
+        { id: "edge-1", source: "NodeA", target: "nodea" },
+        { id: "edge-2", source: "nodea", target: "NodeA" },
+      ],
+    });
+
+    assert.deepEqual(
+      result.edges.map((edge) => ({ source: edge.source, target: edge.target })),
+      [
+        { source: "NodeA", target: "nodea" },
+        { source: "nodea", target: "NodeA" },
+      ]
+    );
   });
 });

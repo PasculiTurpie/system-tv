@@ -80,6 +80,12 @@ const normalizeHandleId = (handle) => {
   return value;
 };
 
+const buildCanonicalKey = (value) => {
+  if (value === undefined || value === null) return "";
+  const trimmed = String(value).trim();
+  return trimmed ? trimmed.toLowerCase() : "";
+};
+
 const normalizeNode = (node) => {
   if (!node) return null;
   const cloned = cloneIfNeeded(node) || {};
@@ -235,6 +241,45 @@ const normalizeEdge = (edge) => {
   return normalized;
 };
 
+const resolveNodeIdFactory = (normalizedNodes) => {
+  const nodeIdSet = new Set(normalizedNodes.map((node) => node.id));
+  const canonicalMap = new Map();
+
+  normalizedNodes.forEach((node) => {
+    const key = buildCanonicalKey(node.id);
+    if (!key) return;
+    if (!canonicalMap.has(key)) {
+      canonicalMap.set(key, new Set());
+    }
+    canonicalMap.get(key).add(node.id);
+  });
+
+  return (value) => {
+    if (value === undefined || value === null) return null;
+    const trimmed = String(value).trim();
+    if (!trimmed) return null;
+    if (nodeIdSet.has(trimmed)) {
+      return trimmed;
+    }
+
+    const key = buildCanonicalKey(trimmed);
+    if (!key) return null;
+    const candidates = canonicalMap.get(key);
+    if (!candidates || candidates.size === 0) return null;
+    if (candidates.size === 1) {
+      return [...candidates][0];
+    }
+
+    const lower = trimmed.toLowerCase();
+    const matching = [...candidates].filter((id) => id.toLowerCase() === lower);
+    if (matching.length === 1) {
+      return matching[0];
+    }
+
+    return null;
+  };
+};
+
 const normalizeChannel = (channel) => {
   if (!channel) return null;
   const cloned = cloneIfNeeded(channel) || {};
@@ -250,12 +295,24 @@ const normalizeChannel = (channel) => {
     .filter(Boolean)
     .sort(compareById);
 
-  const nodeIds = new Set(normalizedNodes.map((node) => node.id));
+  const resolveNodeId = resolveNodeIdFactory(normalizedNodes);
 
   const edges = Array.isArray(cloned.edges) ? cloned.edges : [];
   const normalizedEdges = edges
     .map((edge) => normalizeEdge(edge))
-    .filter((edge) => edge && nodeIds.has(edge.source) && nodeIds.has(edge.target))
+    .map((edge) => {
+      if (!edge) return null;
+      const resolvedSource = resolveNodeId(edge.source);
+      const resolvedTarget = resolveNodeId(edge.target);
+      if (!resolvedSource || !resolvedTarget) {
+        return null;
+      }
+      if (resolvedSource === edge.source && resolvedTarget === edge.target) {
+        return edge;
+      }
+      return { ...edge, source: resolvedSource, target: resolvedTarget };
+    })
+    .filter(Boolean)
     .sort(compareById);
 
   result.nodes = normalizedNodes;
