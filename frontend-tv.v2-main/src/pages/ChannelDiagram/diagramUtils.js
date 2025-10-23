@@ -448,11 +448,12 @@ export const normalizeHandlesArray = (handles) => {
     const topPct = clampHandlePercentage(entry.topPct, defaults.topPct);
     const leftPct = clampHandlePercentage(entry.leftPct, defaults.leftPct);
 
-    const normalizedKey = `${normalizeHandle(id)}|${type}|${side}`;
-    if (seen.has(normalizedKey)) return;
-    seen.add(normalizedKey);
+    const canonicalId = normalizeHandle(id);
+    const dedupeKey = `${canonicalId}|${type}|${side}`;
+    if (seen.has(dedupeKey)) return;
+    seen.add(dedupeKey);
 
-    result.push({ id, type, side, topPct, leftPct });
+    result.push({ id: canonicalId, type, side, topPct, leftPct });
   };
 
   if (Array.isArray(handles)) {

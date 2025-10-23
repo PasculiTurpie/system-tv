@@ -7,10 +7,10 @@ const handleStyleTop = { left: "50%" };
 const handleStyleBottom = { left: "50%" };
 
 const SwitchNode = ({ data }) => {
-  const srcTop = resolveHandleId(data, "source", "top", "src-top");
-  const srcBottom = resolveHandleId(data, "source", "bottom", "src-bottom");
-  const tgtTop = resolveHandleId(data, "target", "top", "tgt-top");
-  const tgtBottom = resolveHandleId(data, "target", "bottom", "tgt-bottom");
+  const srcTop = resolveHandleId(data, "source", "top", "out-top-1");
+  const srcBottom = resolveHandleId(data, "source", "bottom", "out-bottom-1");
+  const tgtTop = resolveHandleId(data, "target", "top", "in-top-1");
+  const tgtBottom = resolveHandleId(data, "target", "bottom", "in-bottom-1");
 
   return (
     <FlowNodeShell data={data}>
