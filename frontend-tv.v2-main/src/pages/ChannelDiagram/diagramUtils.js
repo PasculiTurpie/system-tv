@@ -1,6 +1,6 @@
 import { getSmoothStepPath } from "@xyflow/react";
-import normalizeHandle from "../../utils/normalizeHandle.js";
 import { autoLabelEdge, enforceSateliteToIrd, normalizeEdgeHandles } from "./flowRules.js";
+import { ensureHandleId } from "./handleStandard.js";
 
 export const ARROW_CLOSED = { type: "arrowclosed" };
 
@@ -20,7 +20,7 @@ export const isRouterNode = (node) =>
 
 export const parseRouterHandleId = (handleId) => {
   if (!handleId || typeof handleId !== "string") return null;
-  const normalized = normalizeHandle(handleId);
+  const normalized = ensureHandleId(handleId);
   const match = /^(in|out)-(left|right|bottom)-(\d+)$/i.exec(normalized);
   if (!match) return null;
   return {
@@ -217,14 +217,14 @@ export const getNodeHandleUsage = (node, edges) => {
 
   edges.forEach((edge) => {
     if (edge.source === node.id) {
-      const handleId = normalizeHandle(edge.sourceHandle || "out");
+      const handleId = ensureHandleId(edge.sourceHandle || "out");
       if (handleId) {
         const entry = ensureEntry(handleId, "out");
         entry.connections.push({
           edgeId: edge.id,
           direction: edge.data?.direction || "out",
           counterpart: edge.target,
-          counterpartHandle: normalizeHandle(edge.targetHandle || ""),
+          counterpartHandle: ensureHandleId(edge.targetHandle || ""),
           label: edge.data?.label || edge.label || "",
           multicast: edge.data?.multicast || null,
           pending: !!edge.data?.pending,
@@ -232,14 +232,14 @@ export const getNodeHandleUsage = (node, edges) => {
       }
     }
     if (edge.target === node.id) {
-      const handleId = normalizeHandle(edge.targetHandle || "in");
+      const handleId = ensureHandleId(edge.targetHandle || "in");
       if (handleId) {
         const entry = ensureEntry(handleId, "in");
         entry.connections.push({
           edgeId: edge.id,
           direction: edge.data?.direction || "in",
           counterpart: edge.source,
-          counterpartHandle: normalizeHandle(edge.sourceHandle || ""),
+          counterpartHandle: ensureHandleId(edge.sourceHandle || ""),
           label: edge.data?.label || edge.label || "",
           multicast: edge.data?.multicast || null,
           pending: !!edge.data?.pending,
@@ -400,7 +400,7 @@ const clampHandlePercentage = (value, fallback) => {
 
 const inferTypeFromHandleId = (handleId) => {
   if (!handleId) return null;
-  const normalized = normalizeHandle(handleId);
+  const normalized = ensureHandleId(handleId);
   if (!normalized) return null;
   if (normalized.startsWith("in-")) return "target";
   if (normalized.startsWith("out-")) return "source";
@@ -421,7 +421,7 @@ const inferTypeFromHandleId = (handleId) => {
 
 const inferSideFromHandleId = (handleId) => {
   if (!handleId) return null;
-  const normalized = normalizeHandle(handleId);
+  const normalized = ensureHandleId(handleId);
   if (!normalized) return null;
   const sideMatch = /(top|bottom|left|right)/.exec(normalized);
   return sideMatch ? sideMatch[1] : null;
@@ -452,7 +452,7 @@ export const normalizeHandlesArray = (handles) => {
     const topPct = clampHandlePercentage(entry.topPct, defaults.topPct);
     const leftPct = clampHandlePercentage(entry.leftPct, defaults.leftPct);
 
-    const canonicalId = normalizeHandle(id);
+    const canonicalId = ensureHandleId(id);
     if (!canonicalId) return;
 
     const dedupeKey = `${canonicalId}|${type}|${side}`;
@@ -652,8 +652,8 @@ export const mapEdgeFromApi = (edge) => {
   }
 
   // ✨ handles saneados (si venía "null"/"undefined"/"none", quedan como undefined y no se incluyen)
-  const sourceHandle = normalizeHandle(edge.sourceHandle) || undefined;
-  const targetHandle = normalizeHandle(edge.targetHandle) || undefined;
+  const sourceHandle = ensureHandleId(edge.sourceHandle) || undefined;
+  const targetHandle = ensureHandleId(edge.targetHandle) || undefined;
 
   const data = {
     ...rawData,
@@ -755,8 +755,8 @@ export const toApiEdge = (edge) => {
     edge.data?.labelStart || endpointLabels.source || ""
   );
   const labelEnd = clampLabel(edge.data?.labelEnd || endpointLabels.target || "");
-  const sourceHandle = normalizeHandle(edge.sourceHandle);
-  const targetHandle = normalizeHandle(edge.targetHandle);
+  const sourceHandle = ensureHandleId(edge.sourceHandle);
+  const targetHandle = ensureHandleId(edge.targetHandle);
 
   const data = {
     ...(edge.data || {}),

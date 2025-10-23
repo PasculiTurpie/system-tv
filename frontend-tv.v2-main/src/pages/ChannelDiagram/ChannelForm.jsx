@@ -9,8 +9,12 @@ import "./ChannelForm.css";
 import { prepareDiagramState } from "./diagramUtils";
 import { HANDLE_IDS } from "./handleConstants.js";
 import { clearLocalStorage } from "../../utils/localStorageUtils";
-import normalizeHandle from "../../utils/normalizeHandle";
-import { coerceHandleForType } from "./handleRegistry"; // <<< MOD: importar coerce
+import {
+  ensureEdgeHandlesForNodes,
+  ensureHandleId,
+  inferNodeHandleType,
+  toHandleTypeKey,
+} from "./handleStandard.js";
 
 // Fallback numérico para MarkerType.ArrowClosed (React Flow = 1)
 const ARROW_CLOSED = { type: 1 };
@@ -85,17 +89,7 @@ const toNumberOr = (val, def = 0) => {
   const n = Number(val);
   return Number.isFinite(n) ? n : def;
 };
-const tipoToKey = (tipoNombre) => {
-  const raw =
-    (typeof tipoNombre === "object" && tipoNombre?.tipoNombre) ||
-    (typeof tipoNombre === "string" && tipoNombre) ||
-    "";
-  const key = String(raw).trim().toLowerCase();
-  if (["satélite", "satelite"].includes(key)) return "satelite";
-  if (["switch", "switches", "sw"].includes(key)) return "switch";
-  if (["router", "routers", "rt", "rtr"].includes(key)) return "router";
-  return key;
-};
+const tipoToKey = toHandleTypeKey;
 const toId = (v) => {
   if (!v) return null;
   if (typeof v === "string") return v;
@@ -157,16 +151,14 @@ const insertEquipoIntoGroupedOptions = (grouped, option /* {label,value,meta:{ti
  * Elige handles por geometría y dirección ('ida' | 'vuelta').
  * Regla adicional: si el SOURCE es un SATÉLITE, fuerza out-right -> in-left.
  */
-const ensureHandle = (id) => normalizeHandle(id) || id;
-
 function pickHandlesByGeometry(srcNode, tgtNode, direction /* 'ida' | 'vuelta' */) {
   const srcTipo =
-    srcNode?.data?.equipoTipo ||
+    inferNodeHandleType(srcNode) ||
     tipoToKey(srcNode?.data?.equipo?.tipoNombre?.tipoNombre);
   if (srcTipo === "satelite") {
     return {
-      sourceHandle: ensureHandle(HANDLE_IDS.OUT_RIGHT_PRIMARY),
-      targetHandle: ensureHandle(HANDLE_IDS.IN_LEFT_PRIMARY),
+      sourceHandle: ensureHandleId(HANDLE_IDS.OUT_RIGHT_PRIMARY),
+      targetHandle: ensureHandleId(HANDLE_IDS.IN_LEFT_PRIMARY),
     };
   }
 
@@ -179,25 +171,16 @@ function pickHandlesByGeometry(srcNode, tgtNode, direction /* 'ida' | 'vuelta' *
 
   // >>> MOD: helper para encajar por tipo (router/satelite/ird/switch/default)
   const ensureByType = (rawSourceHandle, rawTargetHandle) => {
-    const tipoFrom = (node) =>
-      node?.data?.equipoTipo ||
-      tipoToKey(node?.data?.equipo?.tipoNombre?.tipoNombre) ||
-      node?.type ||
-      "default";
+    const baseHandles = {
+      sourceHandle: ensureHandleId(rawSourceHandle),
+      targetHandle: ensureHandleId(rawTargetHandle),
+    };
 
-    const srcTipoLocal = String(tipoFrom(srcNode)).toLowerCase();
-    const tgtTipoLocal = String(tipoFrom(tgtNode)).toLowerCase();
-
-    const srcFixed =
-      coerceHandleForType(srcTipoLocal, ensureHandle(rawSourceHandle)) ||
-      ensureHandle(rawSourceHandle);
-    const tgtFixed =
-      coerceHandleForType(tgtTipoLocal, ensureHandle(rawTargetHandle)) ||
-      ensureHandle(rawTargetHandle);
+    const ensured = ensureEdgeHandlesForNodes(baseHandles, srcNode, tgtNode, baseHandles);
 
     return {
-      sourceHandle: srcFixed,
-      targetHandle: tgtFixed,
+      sourceHandle: ensured.sourceHandle || baseHandles.sourceHandle,
+      targetHandle: ensured.targetHandle || baseHandles.targetHandle,
     };
   };
   // <<< MOD
