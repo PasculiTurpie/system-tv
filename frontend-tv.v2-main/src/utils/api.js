@@ -319,8 +319,8 @@ class Api {
     getChannelDiagramById(id) {
         return this._axios.get(`/channels/${id}`).then((r) => r);
     }
-    getChannelDiagram() {
-        return this._axios.get(`/channels`).then((r) => r);
+    listChannelDiagrams(params = {}) {
+        return this._axios.get(`/channels`, { params }).then((r) => r);
     }
     getChannelDiagramBySignal(signalId) {
         if (!signalId) {
@@ -332,6 +332,29 @@ class Api {
     }
     updateChannelDiagram(id, payload) {
         return this._axios.put(`/channels/${id}`, payload).then((r) => r.data);
+    }
+    async getChannelDiagram(id) {
+        if (!id) {
+            return { nodes: [], edges: [], viewport: null };
+        }
+        const response = await this._axios.get(`/channels/${id}/diagram`);
+        const diagram = response?.data || {};
+        return {
+            nodes: Array.isArray(diagram.nodes) ? diagram.nodes : [],
+            edges: Array.isArray(diagram.edges) ? diagram.edges : [],
+            viewport:
+                diagram && typeof diagram.viewport === "object"
+                    ? diagram.viewport
+                    : null,
+        };
+    }
+    saveChannelDiagram(id, payload) {
+        if (!id) {
+            return Promise.reject(new Error("Channel id is required"));
+        }
+        return this._axios
+            .put(`/channels/${id}/diagram`, payload)
+            .then((r) => r.data);
     }
     deleteChannelDiagram(id) {
         return this._axios.delete(`/channels/${id}`).then((r) => r.data);

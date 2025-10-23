@@ -18,7 +18,7 @@ const Card = () => {
     const getAllSignal = async () => {
         setIsLoading(true);
         try {
-            const res = await api.getChannelDiagram();
+            const res = await api.listChannelDiagrams();
             const raw = Array.isArray(res?.data) ? res.data : [];
             const signals = raw.map((it) => it?.signal ?? null).filter(Boolean);
 
