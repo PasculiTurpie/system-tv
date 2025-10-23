@@ -172,8 +172,8 @@ const getNodeTypeName = (node) => {
 
 const FALLBACK_NODE_HANDLES = Object.freeze({
   default: {
-    source: [{ id: "top-source", side: "top" }],
-    target: [{ id: "top-target", side: "top" }],
+    source: [{ id: "out-top-1", side: "top" }],
+    target: [{ id: "in-top-1", side: "top" }],
   },
   satelite: {
     source: [{ id: "out-right-1", side: "right" }],
@@ -185,12 +185,12 @@ const FALLBACK_NODE_HANDLES = Object.freeze({
   },
   switch: {
     source: [
-      { id: "src-top", side: "top" },
-      { id: "src-bottom", side: "bottom" },
+      { id: "out-top-1", side: "top" },
+      { id: "out-bottom-1", side: "bottom" },
     ],
     target: [
-      { id: "tgt-top", side: "top" },
-      { id: "tgt-bottom", side: "bottom" },
+      { id: "in-top-1", side: "top" },
+      { id: "in-bottom-1", side: "bottom" },
     ],
   },
 });

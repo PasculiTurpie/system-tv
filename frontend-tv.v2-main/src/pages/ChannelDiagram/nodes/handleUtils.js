@@ -1,3 +1,5 @@
+import normalizeHandle from "../../../utils/normalizeHandle.js";
+
 const SIDES = ["top", "right", "bottom", "left"];
 
 const pickFromArray = (handles = [], targetType, targetSide) => {
@@ -9,10 +11,14 @@ const pickFromArray = (handles = [], targetType, targetSide) => {
     if (handleType !== targetType) continue;
     if (normalizedSide) {
       if (typeof handle.side === "string" && handle.side.toLowerCase() === normalizedSide) {
-        if (handle.id) return handle.id;
+        if (handle.id) {
+          const normalizedId = normalizeHandle(handle.id);
+          return normalizedId || handle.id;
+        }
       }
     } else if (handle.id) {
-      return handle.id;
+      const normalizedId = normalizeHandle(handle.id);
+      return normalizedId || handle.id;
     }
   }
   return null;
@@ -23,14 +29,20 @@ const pickFromObject = (entries = {}, targetSide) => {
     const list = entries[targetSide];
     if (Array.isArray(list)) {
       const match = list.find((value) => typeof value === "string");
-      if (match) return match;
+      if (match) {
+        const normalizedId = normalizeHandle(match);
+        return normalizedId || match;
+      }
     }
   }
   for (const side of SIDES) {
     const list = entries[side];
     if (!Array.isArray(list) || !list.length) continue;
     const match = list.find((value) => typeof value === "string");
-    if (match) return match;
+    if (match) {
+      const normalizedId = normalizeHandle(match);
+      return normalizedId || match;
+    }
   }
   return null;
 };
@@ -49,5 +61,6 @@ export const resolveHandleId = (data, type, side, fallback) => {
     if (match) return match;
   }
 
-  return fallback;
+  const normalizedFallback = normalizeHandle(fallback);
+  return normalizedFallback || fallback;
 };

@@ -17,8 +17,8 @@ const HANDLE_PRESETS = Object.freeze({
     target: { left: ["in-left-1"] },
   },
   switch: {
-    source: { top: ["src-top"], bottom: ["src-bottom"] },
-    target: { top: ["tgt-top"], bottom: ["tgt-bottom"] },
+    source: { top: ["out-top-1"], bottom: ["out-bottom-1"] },
+    target: { top: ["in-top-1"], bottom: ["in-bottom-1"] },
   },
   router: {
     source: {
@@ -43,8 +43,8 @@ const HANDLE_PRESETS = Object.freeze({
     target: { top: [], right: [], bottom: [], left: [] },
   },
   default: {
-    source: { top: ["top-source"] },
-    target: { top: ["top-target"] },
+    source: { top: ["out-top-1"] },
+    target: { top: ["in-top-1"] },
   },
 });
 

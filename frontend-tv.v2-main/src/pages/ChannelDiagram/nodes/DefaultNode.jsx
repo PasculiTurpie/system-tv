@@ -4,8 +4,8 @@ import FlowNodeShell from "./FlowNodeShell";
 import { resolveHandleId } from "./handleUtils";
 
 const DefaultNode = ({ data }) => {
-  const targetHandle = resolveHandleId(data, "target", "top", "top-target");
-  const sourceHandle = resolveHandleId(data, "source", "top", "top-source");
+  const targetHandle = resolveHandleId(data, "target", "top", "in-top-1");
+  const sourceHandle = resolveHandleId(data, "source", "top", "out-top-1");
 
   return (
     <FlowNodeShell data={data}>
