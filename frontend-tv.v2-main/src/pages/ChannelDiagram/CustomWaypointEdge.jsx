@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useMemo } from "react";
+import React, { useCallback, useContext, useEffect, useMemo } from "react";
 import { BaseEdge, getSmoothStepPath } from "@xyflow/react";
 import { DiagramContext } from "./DiagramContext";
 import EdgeLabelDraggable from "./EdgeLabelDraggable";
@@ -15,7 +15,10 @@ export default function CustomWaypointEdge(props) {
     sourcePosition,
     targetPosition,
     style,
+    markerStart,
     markerEnd,
+    interactionWidth,
+    className,
     data = {},
     label,
   } = props;
@@ -53,6 +56,15 @@ export default function CustomWaypointEdge(props) {
     return { x: defaultLabelX, y: defaultLabelY };
   }, [data?.labelPosition, data?.labelPos, defaultLabelX, defaultLabelY]);
 
+  const hasStoredCentralPosition = useMemo(() => {
+    const stored = data?.labelPosition || data?.labelPos;
+    return !!(
+      stored &&
+      Number.isFinite(stored.x) &&
+      Number.isFinite(stored.y)
+    );
+  }, [data?.labelPosition, data?.labelPos]);
+
   const rawEndpointLabels = data?.endpointLabels || {};
   const labelStart = data?.labelStart ?? rawEndpointLabels.source;
   const labelEnd = data?.labelEnd ?? rawEndpointLabels.target;
@@ -84,6 +96,13 @@ export default function CustomWaypointEdge(props) {
     (position) => onEdgeLabelPositionChange?.(id, position),
     [id, onEdgeLabelPositionChange]
   );
+
+  useEffect(() => {
+    if (hasStoredCentralPosition) return;
+    if (!onEdgeLabelPositionChange) return;
+    if (!centralLabelPosition) return;
+    onEdgeLabelPositionChange(id, centralLabelPosition);
+  }, [centralLabelPosition, hasStoredCentralPosition, id, onEdgeLabelPositionChange]);
 
   const handleCentralPersist = useCallback(
     (nextPosition, meta) => {
@@ -123,12 +142,21 @@ export default function CustomWaypointEdge(props) {
 
   return (
     <>
-      <BaseEdge id={id} path={edgePath} style={style} markerEnd={markerEnd} />
+      <BaseEdge
+        id={id}
+        path={edgePath}
+        style={style}
+        className={className}
+        markerStart={markerStart}
+        markerEnd={markerEnd}
+        interactionWidth={interactionWidth}
+      />
       <EdgeLabelDraggable
         text={primaryLabel}
         position={data?.labelPosition}
         defaultPosition={centralLabelPosition}
         readOnly={isReadOnly}
+        className="label-main"
         allowEditing={!isReadOnly}
         allowDragging={!isReadOnly}
         ariaLabel="Etiqueta del enlace"

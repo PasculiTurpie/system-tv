@@ -4,7 +4,7 @@ import FlowNodeShell from "./FlowNodeShell";
 import { resolveHandleId } from "./handleUtils";
 
 const SateliteNode = ({ data }) => {
-  const sourceHandle = resolveHandleId(data, "source", "right", "out-right");
+  const sourceHandle = resolveHandleId(data, "source", "right", "out-right-1");
 
   return (
     <FlowNodeShell data={data}>
