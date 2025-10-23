@@ -805,13 +805,35 @@ export const prepareDiagramState = (diagram) => {
     .filter(Boolean);
 
   const sortedNodes = sortNodesById(mappedNodes);
-  const validNodeIds = new Set(sortedNodes.map((node) => node.id));
+  const canonicalNodeIds = new Map();
+  sortedNodes.forEach((node) => {
+    const key = typeof node.id === "string" ? node.id.trim().toLowerCase() : "";
+    if (key && !canonicalNodeIds.has(key)) {
+      canonicalNodeIds.set(key, node.id);
+    }
+  });
 
-  const sortedEdges = sortEdgesById(mappedEdges).filter(
-    (edge) => validNodeIds.has(edge.source) && validNodeIds.has(edge.target)
-  );
+  const resolveCanonicalNodeId = (value) => {
+    if (typeof value !== "string") return null;
+    const key = value.trim().toLowerCase();
+    if (!key) return null;
+    return canonicalNodeIds.get(key) || null;
+  };
 
-  const normalizedEdges = sortedEdges.map((edge) => {
+  const sanitizedEdges = [];
+  sortEdgesById(mappedEdges).forEach((edge) => {
+    const source = resolveCanonicalNodeId(edge.source);
+    const target = resolveCanonicalNodeId(edge.target);
+    if (!source || !target) return;
+
+    if (source === edge.source && target === edge.target) {
+      sanitizedEdges.push(edge);
+    } else {
+      sanitizedEdges.push({ ...edge, source, target });
+    }
+  });
+
+  const normalizedEdges = sanitizedEdges.map((edge) => {
     const withHandles = normalizeEdgeHandles(edge, sortedNodes);
     const enforced = enforceSateliteToIrd(withHandles, sortedNodes);
     return autoLabelEdge(enforced, sortedNodes);

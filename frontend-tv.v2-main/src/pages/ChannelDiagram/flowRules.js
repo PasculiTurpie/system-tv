@@ -9,12 +9,12 @@ const DEFAULT_MARKER = Object.freeze({ type: "arrowclosed", width: 16, height: 1
 
 const HANDLE_PRESETS = Object.freeze({
   satelite: {
-    source: { right: ["out-right"] },
+    source: { right: ["out-right-1"] },
     target: {},
   },
   ird: {
     source: {},
-    target: { left: ["in-left"] },
+    target: { left: ["in-left-1"] },
   },
   switch: {
     source: { top: ["src-top"], bottom: ["src-bottom"] },
@@ -57,11 +57,16 @@ const cloneHandles = (handles = {}) => {
     const entries = handles?.[type];
     SIDES.forEach((side) => {
       const list = Array.isArray(entries?.[side]) ? entries[side] : [];
-      result[type][side] = list.filter((value, index) => {
-        if (typeof value !== "string") return false;
+      const seen = new Set();
+      const normalizedList = [];
+      list.forEach((value) => {
+        if (typeof value !== "string") return;
         const normalized = normalizeHandle(value);
-        return normalized && list.findIndex((candidate) => normalizeHandle(candidate) === normalized) === index;
+        if (!normalized || seen.has(normalized)) return;
+        seen.add(normalized);
+        normalizedList.push(normalized);
       });
+      result[type][side] = normalizedList;
     });
   });
   return result;
@@ -109,7 +114,7 @@ const handlesArrayToConfig = (handles = []) => {
     const dedupeKey = `${normalizedId}|${resolvedType}|${resolvedSide}`;
     if (seen.has(dedupeKey)) return;
     seen.add(dedupeKey);
-    config[resolvedType][resolvedSide].push(trimmedId);
+    config[resolvedType][resolvedSide].push(normalizedId);
   });
 
   return config;

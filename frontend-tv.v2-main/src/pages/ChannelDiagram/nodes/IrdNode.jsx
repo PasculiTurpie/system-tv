@@ -4,7 +4,7 @@ import FlowNodeShell from "./FlowNodeShell";
 import { resolveHandleId } from "./handleUtils";
 
 const IrdNode = ({ data }) => {
-  const targetHandle = resolveHandleId(data, "target", "left", "in-left");
+  const targetHandle = resolveHandleId(data, "target", "left", "in-left-1");
 
   return (
     <FlowNodeShell data={data}>

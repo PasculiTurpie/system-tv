@@ -53,6 +53,13 @@ const ZOOM_DURATION = 160;
 const BOUNDS_MARGIN = 480;
 const DEFAULT_BOUNDS = { minX: -4000, maxX: 4000, minY: -4000, maxY: 4000 };
 
+const createUniqueEdgeId = () => {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `edge-${crypto.randomUUID()}`;
+  }
+  return `edge-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+};
+
 const computeBoundsFromNodes = (nodesList) => {
   if (!Array.isArray(nodesList) || nodesList.length === 0) return DEFAULT_BOUNDS;
 
@@ -169,12 +176,12 @@ const FALLBACK_NODE_HANDLES = Object.freeze({
     target: [{ id: "top-target", side: "top" }],
   },
   satelite: {
-    source: [{ id: "out-right", side: "right" }],
+    source: [{ id: "out-right-1", side: "right" }],
     target: [],
   },
   ird: {
     source: [],
-    target: [{ id: "in-left", side: "left" }],
+    target: [{ id: "in-left-1", side: "left" }],
   },
   switch: {
     source: [
@@ -1204,7 +1211,7 @@ const ChannelDiagram = () => {
       const styleInfo = getEdgeStyle(direction);
 
       const baseEdge = {
-        id: `edge-${Date.now()}`,
+        id: createUniqueEdgeId(),
         source: connection.source,
         target: connection.target,
         sourceHandle: connection.sourceHandle,
