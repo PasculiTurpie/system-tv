@@ -1,5 +1,13 @@
 // src/pages/ChannelDiagram/ChannelDiagram.jsx
-import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+  useCallback,
+  useRef,
+  useContext,
+} from "react";
+import { useParams } from "react-router-dom";
 import {
   ReactFlow,
   Background,
@@ -21,6 +29,8 @@ import IrdNode from "./nodes/IrdNode";
 import SwitchNode from "./nodes/SwitchNode";
 import CustomDirectionalEdge from "./CustomDirectionalEdge";
 import CustomWaypointEdge from "./CustomWaypointEdge";
+
+import { UserContext } from "../../components/context/UserContext.jsx";
 
 import {
   prepareDiagramState,
@@ -158,9 +168,18 @@ function NodeInfoPanel({ node, equipoIndex, onClose }) {
 
 /* ===================== Componente principal ===================== */
 export default function ChannelDiagram({
-  channelId,
-  isAuthenticated = false, // <-- NUEVO: controla edición vs lectura
-}) {
+  channelId: channelIdProp,
+  isAuthenticated: isAuthenticatedProp,
+} = {}) {
+  const { id: routeChannelId } = useParams();
+  const { isAuth: contextIsAuth } = useContext(UserContext) || {};
+
+  const channelId = channelIdProp ?? routeChannelId ?? null;
+  const isAuthenticated =
+    typeof isAuthenticatedProp === "boolean"
+      ? isAuthenticatedProp
+      : !!contextIsAuth;
+
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [loading, setLoading] = useState(!!channelId);
