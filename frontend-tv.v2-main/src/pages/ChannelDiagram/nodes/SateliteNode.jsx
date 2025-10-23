@@ -2,9 +2,10 @@ import { memo } from "react";
 import { Handle, Position } from "@xyflow/react";
 import FlowNodeShell from "./FlowNodeShell";
 import { HANDLE_IDS } from "../handleConstants.js";
+import { ensureHandleId } from "../handleStandard.js";
 
 const SateliteNode = ({ data }) => {
-  const sourceHandle = HANDLE_IDS.OUT_RIGHT_PRIMARY; // canónico
+  const sourceHandle = ensureHandleId(HANDLE_IDS.OUT_RIGHT_PRIMARY); // canónico
   if (data) data.handleIds = [sourceHandle];
 
   return (

@@ -39,6 +39,7 @@ import {
   toApiEdge,
   createPatchScheduler,
 } from "./diagramUtils";
+import { ensureEdgeHandlesForNodes, ensureHandleId } from "./handleStandard.js";
 
 import { DiagramContext } from "./DiagramContext";
 
@@ -197,7 +198,6 @@ export default function ChannelDiagram({
       nodesDraggable: isAuthenticated,
       nodesConnectable: isAuthenticated,
       elementsSelectable: isAuthenticated,
-      edgesUpdatable: isAuthenticated,
       selectionOnDrag: isAuthenticated,
       panOnDrag: !isAuthenticated ? [1] : true, // en lectura, arrastrar siempre panea
       panOnScroll: true,
@@ -206,6 +206,19 @@ export default function ChannelDiagram({
     }),
     [isAuthenticated]
   );
+
+  const edgeInteractivity = useMemo(
+    () => ({ updatable: isAuthenticated }),
+    [isAuthenticated]
+  );
+
+  useEffect(() => {
+    setEdges((prev) =>
+      prev.map((edge) =>
+        edge?.updatable === isAuthenticated ? edge : { ...edge, updatable: isAuthenticated }
+      )
+    );
+  }, [isAuthenticated, setEdges]);
 
   /* ===================== Persistencia y helpers ===================== */
 
@@ -375,13 +388,46 @@ export default function ChannelDiagram({
   const onConnect = useCallback(
     (params) => {
       if (!isAuthenticated) return; // bloqueo en lectura
-      const newEdge = { ...params, type: "directional" };
+
+      const sourceNode = nodes.find((n) => String(n.id) === String(params.source));
+      const targetNode = nodes.find((n) => String(n.id) === String(params.target));
+
+      const baseHandles = {
+        sourceHandle: ensureHandleId(params.sourceHandle),
+        targetHandle: ensureHandleId(params.targetHandle),
+      };
+
+      const ensuredHandles = ensureEdgeHandlesForNodes(
+        { sourceHandle: baseHandles.sourceHandle, targetHandle: baseHandles.targetHandle },
+        sourceNode,
+        targetNode,
+        baseHandles
+      );
+
+      const sanitizedHandles = {};
+      const sourceHandle = ensuredHandles.sourceHandle || baseHandles.sourceHandle;
+      const targetHandle = ensuredHandles.targetHandle || baseHandles.targetHandle;
+      if (sourceHandle) sanitizedHandles.sourceHandle = sourceHandle;
+      if (targetHandle) sanitizedHandles.targetHandle = targetHandle;
+
+      const newEdge = {
+        ...params,
+        ...sanitizedHandles,
+        type: "directional",
+      };
+
       setEdges((eds) => addEdge(newEdge, eds));
       // Generamos un id en caso de que ReactFlow aún no lo haya asignado
       const edgeId = newEdge.id || crypto.randomUUID();
       scheduler.schedule(channelId, { edges: { [edgeId]: newEdge } });
     },
-    [setEdges, scheduler, channelId, isAuthenticated]
+    [
+      channelId,
+      isAuthenticated,
+      nodes,
+      scheduler,
+      setEdges,
+    ]
   );
 
   const handleNodeDragStop = useCallback(
@@ -585,12 +631,12 @@ export default function ChannelDiagram({
             nodesDraggable={interactivity.nodesDraggable}
             nodesConnectable={interactivity.nodesConnectable}
             elementsSelectable={interactivity.elementsSelectable}
-            edgesUpdatable={interactivity.edgesUpdatable}
             selectionOnDrag={interactivity.selectionOnDrag}
             panOnDrag={interactivity.panOnDrag}
             panOnScroll={interactivity.panOnScroll}
             zoomOnScroll={interactivity.zoomOnScroll}
             zoomOnPinch={interactivity.zoomOnPinch}
+            defaultEdgeOptions={edgeInteractivity}
           >
             <Background />
             <MiniMap pannable zoomable />
