@@ -18,7 +18,7 @@ const ChannelListDiagram = () => {
   const fetchChannels = async () => {
     const samples = getSampleChannelSummaries();
     try {
-      const res = await api.getChannelDiagram();
+      const res = await api.listChannelDiagrams();
       const data = Array.isArray(res?.data) ? res.data : [];
       const combined = [...data, ...samples];
       setChannels(combined);

@@ -20,6 +20,8 @@ const HandleSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const HANDLE_ID_REGEX = /^(in|out)-(left|right|top|bottom)-([1-9][0-9]*)$/;
+
 const NodeDataSchema = new mongoose.Schema(
   {
     label: { type: String, required: true },
@@ -88,6 +90,67 @@ const EdgeSchema = new mongoose.Schema({
   data: { type: EdgeDataSchema, default: {} },
 });
 
+const DiagramNodeSchema = new mongoose.Schema(
+  {
+    id: { type: String, required: true, trim: true },
+    type: { type: String, default: "default" },
+    position: {
+      x: { type: Number, default: 0 },
+      y: { type: Number, default: 0 },
+    },
+    data: { type: mongoose.Schema.Types.Mixed, default: {} },
+  },
+  { _id: false, minimize: false }
+);
+
+const DiagramEdgeSchema = new mongoose.Schema(
+  {
+    id: { type: String, required: true, trim: true },
+    source: { type: String, required: true, trim: true },
+    target: { type: String, required: true, trim: true },
+    sourceHandle: {
+      type: String,
+      required: true,
+      trim: true,
+      validate: {
+        validator: (value) => HANDLE_ID_REGEX.test(value),
+        message: "sourceHandle must match the handle format",
+      },
+    },
+    targetHandle: {
+      type: String,
+      required: true,
+      trim: true,
+      validate: {
+        validator: (value) => HANDLE_ID_REGEX.test(value),
+        message: "targetHandle must match the handle format",
+      },
+    },
+    type: { type: String, default: "customDirectional" },
+    label: { type: String, default: "" },
+    data: {
+      labelStart: { type: String, default: "" },
+      labelEnd: { type: String, default: "" },
+      direction: {
+        type: String,
+        enum: ["ida", "vuelta", "bi"],
+        default: "ida",
+      },
+    },
+    style: { type: mongoose.Schema.Types.Mixed, default: {} },
+  },
+  { _id: false, minimize: false }
+);
+
+const DiagramSchema = new mongoose.Schema(
+  {
+    nodes: { type: [DiagramNodeSchema], default: [] },
+    edges: { type: [DiagramEdgeSchema], default: [] },
+    viewport: { type: mongoose.Schema.Types.Mixed, default: null },
+  },
+  { _id: false, minimize: false }
+);
+
 const ChannelSchema = new mongoose.Schema(
   {
     signal: {
@@ -97,6 +160,7 @@ const ChannelSchema = new mongoose.Schema(
     },
     nodes: [NodeSchema],
     edges: [EdgeSchema],
+    diagram: { type: DiagramSchema, default: undefined },
   },
   { timestamps: true, versionKey: false }
 );
