@@ -19,10 +19,12 @@ import {
   getHandlesForNodeType,
   isValidHandle,
   makeHandle,
+  parseHandle,
 } from "./handles";
 
 const nodeTypes = {
   default: NodeWithHandles,
+  custom: NodeWithHandles,
   satelite: NodeWithHandles,
   ird: NodeWithHandles,
   switch: NodeWithHandles,
@@ -54,6 +56,75 @@ const DIRECTION_STYLES = {
 const DEFAULT_SOURCE_HANDLE = makeHandle("out", "right", 1);
 const DEFAULT_TARGET_HANDLE = makeHandle("in", "left", 1);
 
+const TYPE_ALIASES = new Map(
+  [
+    ["satellite", "satelite"],
+    ["satélite", "satelite"],
+    ["sat", "satelite"],
+    ["router", "router"],
+    ["routers", "router"],
+    ["switch", "switch"],
+    ["switches", "switch"],
+    ["ird", "ird"],
+    ["custom", "custom"],
+  ].map(([alias, value]) => [alias, value])
+);
+
+function normalizeNodeType(value) {
+  if (!value && value !== 0) return "";
+  const base = String(value).trim().toLowerCase();
+  if (!base) return "";
+  if (TYPE_ALIASES.has(base)) {
+    return TYPE_ALIASES.get(base) || base;
+  }
+  if (base.includes("router")) return "router";
+  if (base.includes("sat")) return "satelite";
+  if (base.includes("switch")) return "switch";
+  if (base.includes("ird")) return "ird";
+  return base;
+}
+
+function buildFallbackHandlesForType(nodeType) {
+  const config = getHandlesForNodeType(nodeType);
+  const buildEntries = (ids = [], type) => {
+    const grouped = new Map();
+    ids.forEach((id) => {
+      const parsed = parseHandle(id);
+      if (!parsed) return;
+      const side = parsed.side || "top";
+      const key = `${type}-${side}`;
+      if (!grouped.has(key)) {
+        grouped.set(key, []);
+      }
+      grouped.get(key).push({ id, parsed });
+    });
+
+    const result = [];
+    grouped.forEach((list, key) => {
+      const [, side] = key.split("-");
+      const sorted = list.sort((a, b) => a.parsed.index - b.parsed.index);
+      const total = sorted.length;
+      sorted.forEach(({ id }, index) => {
+        const positionPct = Math.round(((index + 1) / (total + 1)) * 100);
+        result.push({
+          id,
+          type,
+          side,
+          topPct: side === "left" || side === "right" ? positionPct : undefined,
+          leftPct: side === "top" || side === "bottom" ? positionPct : undefined,
+        });
+      });
+    });
+
+    return result;
+  };
+
+  return [
+    ...buildEntries(config.in, "target"),
+    ...buildEntries(config.out, "source"),
+  ];
+}
+
 function withFallbackHandle(handleId, fallback) {
   return isValidHandle(handleId) ? handleId : fallback;
 }
@@ -62,16 +133,43 @@ function sanitizeNode(node) {
   if (!node || typeof node !== "object") {
     return node;
   }
-  const { type } = node;
-  const handles = getHandlesForNodeType(type);
+
+  const inferredType =
+    normalizeNodeType(node.type) || normalizeNodeType(node?.data?.type);
+  const resolvedType = inferredType || "default";
+
   const safeNode = {
     ...node,
-    type: type || "default",
+    type: resolvedType,
     data: { ...node.data },
   };
 
-  // Ensure nodes expose handles in React Flow metadata
-  safeNode.data.handles = handles;
+  if (!safeNode.data?.type) {
+    safeNode.data = { ...safeNode.data, type: resolvedType };
+  }
+
+  const existingHandles = Array.isArray(node?.data?.handles)
+    ? node.data.handles
+    : Array.isArray(node?.handles)
+    ? node.handles
+    : null;
+
+  if (existingHandles && existingHandles.length) {
+    safeNode.data = {
+      ...safeNode.data,
+      handles: existingHandles.map((entry) =>
+        entry && typeof entry === "object" ? { ...entry } : entry
+      ),
+    };
+  } else {
+    const fallbackHandles = buildFallbackHandlesForType(resolvedType);
+    if (fallbackHandles.length) {
+      safeNode.data = {
+        ...safeNode.data,
+        handles: fallbackHandles,
+      };
+    }
+  }
 
   return safeNode;
 }
@@ -234,26 +332,28 @@ export default function ChannelDiagram({ channelId: channelIdProp } = {}) {
   );
 
   return (
-    <div className="channel-diagram__container" style={{ height: "100%", width: "100%" }}>
+    <div className="channel-diagram__container">
       {error ? (
         <div className="channel-diagram__error">{error}</div>
       ) : null}
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={handleConnect}
-        onInit={handleInit}
-        onMoveEnd={onMoveEnd}
-        fitView
-        proOptions={{ hideAttribution: true }}
-      >
-        <Background color="#e2e8f0" gap={16} />
-        <Controls position="top-left" />
-      </ReactFlow>
+      <div className="channel-diagram__flow-wrapper">
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={handleConnect}
+          onInit={handleInit}
+          onMoveEnd={onMoveEnd}
+          fitView
+          proOptions={{ hideAttribution: true }}
+        >
+          <Background color="#e2e8f0" gap={16} />
+          <Controls position="top-left" />
+        </ReactFlow>
+      </div>
       {loading ? (
         <div className="channel-diagram__loading">Cargando diagrama…</div>
       ) : null}
