@@ -30,38 +30,64 @@ const normalizeHandleId = (handleId) => {
   if (!value) return undefined;
 
   const lower = value.toLowerCase();
+  if (lower === "null" || lower === "undefined" || lower === "none" || lower === "na") {
+    return undefined;
+  }
 
-  const directMatch = /^(in|out)-(top|bottom|left|right)(?:-(\d+))?$/.exec(lower);
+  const canonical = lower.replace(/[_\s]+/g, "-");
+
+  const directMatch = /^(in|out)-(top|bottom|left|right)(?:-(\d+))?$/.exec(canonical);
   if (directMatch) {
     return buildCanonicalHandleId(directMatch[1], directMatch[2], directMatch[3]);
   }
 
-  const srcPrefixMatch = /^(src|source)-(top|bottom|left|right)(?:-(\d+))?$/.exec(lower);
+  const srcPrefixMatch = /^(src|source)-(top|bottom|left|right)(?:-(\d+))?$/.exec(canonical);
   if (srcPrefixMatch) {
     return buildCanonicalHandleId("out", srcPrefixMatch[2], srcPrefixMatch[3]);
   }
 
-  const tgtPrefixMatch = /^(tgt|target)-(top|bottom|left|right)(?:-(\d+))?$/.exec(lower);
+  const tgtPrefixMatch = /^(tgt|target)-(top|bottom|left|right)(?:-(\d+))?$/.exec(canonical);
   if (tgtPrefixMatch) {
     return buildCanonicalHandleId("in", tgtPrefixMatch[2], tgtPrefixMatch[3]);
   }
 
-  const srcSuffixMatch = /^(top|bottom|left|right)-(src|source)(?:-(\d+))?$/.exec(lower);
+  const srcSuffixMatch = /^(top|bottom|left|right)-(src|source)(?:-(\d+))?$/.exec(canonical);
   if (srcSuffixMatch) {
     return buildCanonicalHandleId("out", srcSuffixMatch[1], srcSuffixMatch[3]);
   }
 
-  const tgtSuffixMatch = /^(top|bottom|left|right)-(tgt|target)(?:-(\d+))?$/.exec(lower);
+  const tgtSuffixMatch = /^(top|bottom|left|right)-(tgt|target)(?:-(\d+))?$/.exec(canonical);
   if (tgtSuffixMatch) {
     return buildCanonicalHandleId("in", tgtSuffixMatch[1], tgtSuffixMatch[3]);
   }
 
-  const indexedFallback = /^(in|out)-(top|bottom|left|right)-(\d+)$/.exec(value);
+  const collapsed = canonical.replace(/-/g, "");
+
+  const directCollapsedMatch = /^(in|out)(top|bottom|left|right)(\d+)?$/.exec(collapsed);
+  if (directCollapsedMatch) {
+    return buildCanonicalHandleId(
+      directCollapsedMatch[1],
+      directCollapsedMatch[2],
+      directCollapsedMatch[3]
+    );
+  }
+
+  const srcCollapsedMatch = /^(src|source)(top|bottom|left|right)(\d+)?$/.exec(collapsed);
+  if (srcCollapsedMatch) {
+    return buildCanonicalHandleId("out", srcCollapsedMatch[2], srcCollapsedMatch[3]);
+  }
+
+  const tgtCollapsedMatch = /^(tgt|target)(top|bottom|left|right)(\d+)?$/.exec(collapsed);
+  if (tgtCollapsedMatch) {
+    return buildCanonicalHandleId("in", tgtCollapsedMatch[2], tgtCollapsedMatch[3]);
+  }
+
+  const indexedFallback = /^(in|out)-(top|bottom|left|right)-(\d+)$/.exec(canonical);
   if (indexedFallback) {
     return buildCanonicalHandleId(indexedFallback[1], indexedFallback[2], indexedFallback[3]);
   }
 
-  const sideOnlyFallback = /^(in|out)-(top|bottom|left|right)$/.exec(value);
+  const sideOnlyFallback = /^(in|out)-(top|bottom|left|right)$/.exec(canonical);
   if (sideOnlyFallback) {
     return buildCanonicalHandleId(sideOnlyFallback[1], sideOnlyFallback[2], 1);
   }
@@ -98,7 +124,8 @@ const clampPercentage = (value, fallback) => {
 };
 
 const sanitizeHandleEntry = (entry = {}, fallback = {}) => {
-  const id = normalizeString(entry.id ?? fallback.id);
+  const rawId = normalizeString(entry.id ?? fallback.id);
+  const id = normalizeHandleId(rawId);
   if (!id) return null;
 
   const candidateType =
@@ -150,7 +177,9 @@ const iterateHandles = (handles, visitor) => {
 const sanitizeHandles = (handles = [], fallback = []) => {
   const fallbackMap = new Map();
   (Array.isArray(fallback) ? fallback : []).forEach((item) => {
-    const normalizedId = normalizeString(item?.id);
+    const candidate =
+      typeof item === "string" ? item : item?.id ?? item?.handleId;
+    const normalizedId = normalizeHandleId(candidate);
     if (normalizedId) {
       fallbackMap.set(normalizedId, item);
     }
@@ -159,9 +188,10 @@ const sanitizeHandles = (handles = [], fallback = []) => {
   const seen = new Set();
   const result = [];
   iterateHandles(handles, (entry) => {
+    const fallbackKey = normalizeHandleId(entry?.id ?? entry?.handleId);
     const normalized = sanitizeHandleEntry(
       entry,
-      fallbackMap.get(normalizeString(entry?.id)) || {}
+      fallbackKey ? fallbackMap.get(fallbackKey) || {} : {}
     );
     if (!normalized) return;
     const dedupeKey = `${normalized.id}|${normalized.type}`;

@@ -21,7 +21,7 @@ export default function useUnusedSignals() {
     try {
       const [signalsRes, channelsRes] = await Promise.all([
         api.getSignals(),
-        api.getChannelDiagram(),
+        api.listChannelDiagrams(),
       ]);
 
       const signals = Array.isArray(signalsRes?.data) ? signalsRes.data : [];

@@ -116,6 +116,25 @@
     height: 85vh;
 }
 
+.channel-diagram__container {
+    position: relative;
+    width: 100%;
+    min-height: 600px;
+    height: calc(100vh - 120px);
+    display: flex;
+    flex-direction: column;
+}
+
+.channel-diagram__flow-wrapper {
+    flex: 1;
+    min-height: 0;
+}
+
+.channel-diagram__flow-wrapper .react-flow {
+    width: 100%;
+    height: 100%;
+}
+
 .channel-diagram__flow {
     width: 100%;
     height: 100%;

@@ -1,7 +1,10 @@
 // src/pages/ChannelDiagram/flowRules.js
-import normalizeHandle from "../../utils/normalizeHandle";
-import { HANDLE_IDS } from "./handleConstants";
-import { normalizeEdgeHandlesForTypes } from "./handleRegistry";
+import { HANDLE_IDS } from "./handleConstants.js";
+import {
+  ensureEdgeHandlesForNodes,
+  ensureHandleId,
+  inferNodeHandleType,
+} from "./handleStandard.js";
 
 /**
  * Normaliza sourceHandle/targetHandle de un edge en base al tipo real de los nodos.
@@ -10,20 +13,25 @@ export function normalizeEdgeHandles(edge, nodes = []) {
   const srcNode = nodes.find((n) => String(n.id) === String(edge.source));
   const tgtNode = nodes.find((n) => String(n.id) === String(edge.target));
 
-  const srcType =
-    srcNode?.data?.equipoTipo ||
-    (typeof srcNode?.type === "string" ? srcNode?.type.toLowerCase() : "default");
-  const tgtType =
-    tgtNode?.data?.equipoTipo ||
-    (typeof tgtNode?.type === "string" ? tgtNode?.type.toLowerCase() : "default");
+  const normalized = ensureEdgeHandlesForNodes(
+    {
+      ...edge,
+      sourceHandle: ensureHandleId(edge.sourceHandle),
+      targetHandle: ensureHandleId(edge.targetHandle),
+    },
+    srcNode,
+    tgtNode,
+    edge
+  );
 
-  const base = {
-    ...edge,
-    ...(edge.sourceHandle ? { sourceHandle: normalizeHandle(edge.sourceHandle) } : {}),
-    ...(edge.targetHandle ? { targetHandle: normalizeHandle(edge.targetHandle) } : {}),
-  };
+  const next = { ...edge };
+  if (normalized.sourceHandle) next.sourceHandle = normalized.sourceHandle;
+  else delete next.sourceHandle;
 
-  return normalizeEdgeHandlesForTypes(base, srcType, tgtType);
+  if (normalized.targetHandle) next.targetHandle = normalized.targetHandle;
+  else delete next.targetHandle;
+
+  return next;
 }
 
 /**
@@ -34,14 +42,14 @@ export function enforceSateliteToIrd(edge, nodes = []) {
   const tgtNode = nodes.find((n) => String(n.id) === String(edge.target));
   if (!srcNode || !tgtNode) return edge;
 
-  const srcTipo = (srcNode.data?.equipoTipo || srcNode.type || "").toLowerCase();
-  const tgtTipo = (tgtNode.data?.equipoTipo || tgtNode.type || "").toLowerCase();
+  const srcTipo = inferNodeHandleType(srcNode);
+  const tgtTipo = inferNodeHandleType(tgtNode);
 
   if (srcTipo === "satelite" && tgtTipo === "ird") {
     return {
       ...edge,
-      sourceHandle: HANDLE_IDS.OUT_RIGHT_PRIMARY,
-      targetHandle: HANDLE_IDS.IN_LEFT_PRIMARY,
+      sourceHandle: ensureHandleId(HANDLE_IDS.OUT_RIGHT_PRIMARY),
+      targetHandle: ensureHandleId(HANDLE_IDS.IN_LEFT_PRIMARY),
     };
   }
   return edge;

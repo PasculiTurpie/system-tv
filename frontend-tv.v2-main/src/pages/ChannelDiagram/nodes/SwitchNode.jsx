@@ -2,15 +2,16 @@ import { memo } from "react";
 import { Handle, Position } from "@xyflow/react";
 import FlowNodeShell from "./FlowNodeShell";
 import { HANDLE_IDS } from "../handleConstants.js";
+import { ensureHandleId } from "../handleStandard.js";
 
 const handleStyleTop = { left: "50%" };
 const handleStyleBottom = { left: "50%" };
 
 const SwitchNode = ({ data }) => {
-  const srcTop = HANDLE_IDS.OUT_TOP_PRIMARY;
-  const srcBottom = HANDLE_IDS.OUT_BOTTOM_PRIMARY;
-  const tgtTop = HANDLE_IDS.IN_TOP_PRIMARY;
-  const tgtBottom = HANDLE_IDS.IN_BOTTOM_PRIMARY;
+  const srcTop = ensureHandleId(HANDLE_IDS.OUT_TOP_PRIMARY);
+  const srcBottom = ensureHandleId(HANDLE_IDS.OUT_BOTTOM_PRIMARY);
+  const tgtTop = ensureHandleId(HANDLE_IDS.IN_TOP_PRIMARY);
+  const tgtBottom = ensureHandleId(HANDLE_IDS.IN_BOTTOM_PRIMARY);
 
   if (data) data.handleIds = [srcTop, srcBottom, tgtTop, tgtBottom];
 

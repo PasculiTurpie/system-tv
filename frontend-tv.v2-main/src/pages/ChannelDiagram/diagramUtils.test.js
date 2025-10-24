@@ -117,6 +117,20 @@ describe("diagramUtils", () => {
     assert.equal(edgeFirst.data.endpointLabels.source, "foo");
   });
 
+  it("mapEdgeFromApi canonicalizes handle identifiers", () => {
+    const edgePayload = {
+      id: "edge-handle",
+      source: "node-1",
+      target: "node-2",
+      sourceHandle: "Out_Right",
+      targetHandle: " none ",
+    };
+
+    const mapped = mapEdgeFromApi(edgePayload);
+    assert.equal(mapped.sourceHandle, "out-right-1");
+    assert.ok(!Object.prototype.hasOwnProperty.call(mapped, "targetHandle"));
+  });
+
   it("normalizes edge types to registered keys", () => {
     const weirdEdge = {
       id: "edge-weird",
