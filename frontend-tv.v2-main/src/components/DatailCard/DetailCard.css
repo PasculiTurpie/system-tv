@@ -95,6 +95,19 @@ strong{
     font-size: 20px;
     font-weight: bold;
 }
+.btn-disabled {
+  background-color: #ccc;
+  color: #666;
+  cursor: not-allowed;
+  border: 1px solid #aaa;
+  opacity: 0.8;
+  transition: all 0.2s ease;
+}
+
+.btn-disabled:hover {
+  background-color: #ccc;
+  color: #666;
+}
 
 @keyframes fadeIn {
     from {

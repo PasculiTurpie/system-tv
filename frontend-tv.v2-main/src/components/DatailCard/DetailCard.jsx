@@ -12,6 +12,8 @@ const DetailCard = () => {
 
   const [signalDetail, setSignalDetail] = useState(null);
   const [contacts, setContacts] = useState([]);
+  const [flowDetail, setFlowDetail] = useState(null);
+  const [nodeCount, setNodeCount] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -19,7 +21,7 @@ const DetailCard = () => {
   const openModal = () => setIsModalOpen(true);
   const closeModal = () => setIsModalOpen(false);
 
-  // Cargar detalle de señal por id de la URL
+  // Cargar detalle de señal
   useEffect(() => {
     let ignore = false;
     const fetchSignal = async () => {
@@ -33,9 +35,7 @@ const DetailCard = () => {
         }
       } catch (err) {
         console.error("No se pudo cargar el detalle de la señal", err);
-        if (!ignore) {
-          setError("No se pudo cargar el detalle de la señal.");
-        }
+        if (!ignore) setError("No se pudo cargar el detalle de la señal.");
       } finally {
         if (!ignore) setIsLoading(false);
       }
@@ -46,7 +46,35 @@ const DetailCard = () => {
     };
   }, [id]);
 
-  // Ir a diagrama asociado a la signal
+  // ✅ Verifica si existe un diagrama (nodos o edges)
+  const verifyFlow = async () => {
+    try {
+      const res = await api.getChannelDiagramBySignal(id);
+
+      const diagram = Array.isArray(res)
+        ? res[0]
+        : res?.diagram || res || {};
+
+      const nodes = diagram?.nodes || [];
+      const edges = diagram?.edges || [];
+
+      setFlowDetail({ nodes, edges });
+      setNodeCount(Array.isArray(nodes) ? nodes.length : 0);
+
+      console.log("🔹 Nodos encontrados:", nodes.length);
+    } catch (err) {
+      console.error("Error obteniendo el diagrama:", err);
+      setFlowDetail(null);
+      setNodeCount(0);
+    }
+  };
+
+  // Llama a verifyFlow al cargar el detalle
+  useEffect(() => {
+    if (id) verifyFlow();
+  }, [id]);
+
+  // Ir al diagrama
   const handleClickDiagram = async () => {
     if (!id) {
       Swal.fire({
@@ -61,10 +89,8 @@ const DetailCard = () => {
       const res = await api.getChannelDiagramBySignal(id);
       const payload = res;
 
-      // Normalizar posible respuesta (objeto o array)
       const asArray = Array.isArray(payload) ? payload : payload ? [payload] : [];
 
-      // Buscar un channel cuyo campo "signal" coincida con el id de la señal
       const foundChannel = asArray.find((item) => {
         const signal = item?.signal;
         if (!signal) return false;
@@ -81,7 +107,6 @@ const DetailCard = () => {
         return;
       }
 
-      // No hay diagrama asociado
       Swal.fire({
         title: "No existe flujo para este canal",
         text: "Aún no hay un diagrama asociado a esta señal.",
@@ -177,19 +202,31 @@ const DetailCard = () => {
             </span>
           </div>
 
+          {/* ✅ Botones */}
           <div className="card__detail-button">
             {Array.isArray(signalDetail.contact) && signalDetail.contact.length > 0 && (
               <button className="button btn-success" onClick={openModal}>
                 Contacto
               </button>
             )}
-            <button onClick={handleClickDiagram} className="button btn-primary">
+
+            <button
+              onClick={nodeCount > 0 ? handleClickDiagram : undefined}
+              className={`button ${nodeCount > 0 ? "btn-primary" : "btn-disabled"}`}
+              disabled={nodeCount === 0}
+              title={
+                nodeCount > 0
+                  ? `Abrir diagrama (${nodeCount} nodos)`
+                  : "Sin datos de diagrama disponibles"
+              }
+            >
               Diagrama
             </button>
           </div>
         </div>
       </div>
 
+      {/* Modal de Contacto */}
       <ModalContact isOpen={isModalOpen} onClose={closeModal}>
         <>
           <h1 className="modal-contact__title">Contacto proveedor</h1>
