@@ -1,0 +1,11 @@
+.container__header{
+    display: flex;
+    width: fit-content;
+    margin:0 auto;
+    border:2px solid #00aeff;
+    background-color: #00aeff6e;
+    color: #fff;
+    margin-top:30px;
+    border-radius: 5px;
+    padding:10px 15px;
+}
