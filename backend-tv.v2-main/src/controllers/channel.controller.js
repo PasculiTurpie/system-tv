@@ -158,7 +158,7 @@ module.exports.getChannelId = async (req, res) => {
     let resolvedSignal = channel.signal;
     if (signalId) {
       resolvedSignal = await Signal.findById(signalId)
-        .select("nameChannel nombre tipoTecnologia contact")
+        .select("nameChannel nombre tipoTecnologia logoChannel contact")
         .populate({ path: "contact", select: "nombre email telefono phone" })
         .lean({ getters: true, virtuals: true })
         .exec();

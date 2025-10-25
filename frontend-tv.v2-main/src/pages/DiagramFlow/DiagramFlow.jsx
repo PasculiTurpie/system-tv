@@ -78,6 +78,7 @@ export const DiagramFlow = () => {
             const apiNodes = res?.data?.nodes ?? [];
             const apiEdges = res?.data?.edges ?? [];
             const channel = res.data.signal;
+            console.log(res.data)
             const nfNodes = normalizeNodes(apiNodes);
             const nfEdges = normalizeEdges(apiEdges);
 
@@ -107,6 +108,7 @@ console.log(channel)
     return (
         <div style={{ width: "100%", height: "90vh" }}>
             <div className="container__header">
+                <img className="logo__channel" src={`${dataChannel.logoChannel}`}/>
                 <h3 className="title__channel">{`${dataChannel.nameChannel} - ${dataChannel.tipoTecnologia}`}</h3>
             </div>
             <ReactFlow
