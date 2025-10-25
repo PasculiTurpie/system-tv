@@ -49,6 +49,7 @@ import BulkIrdUploader from "./components/BulkIrdUploader/BulkIrdUploader";
 import ServicesMultiHost from "./components/ServicesMultiHost/ServicesMultiHost";
 import TipoEquipoForm from "./pages/Tipo-Equipo/TipoEquipoForm";
 import TipoEquipoList from "./pages/Tipo-Equipo/TipoEquipoList";
+import { DiagramFlow } from "./pages/DiagramFlow/DiagramFlow";
 
 
 const App = () => {
@@ -102,7 +103,7 @@ const App = () => {
                         <Route path="/audit-logs" element={<AuditLogPage />} />
                         <Route path="/massive-loading" element={<BulkIrdUploader />} />
                     </Route>
-                    <Route path="/channels/:id" element={<ChannelDiagram />} />
+                    <Route path="/channels/:id" element={<DiagramFlow />} />
                 </Route>
 
                 <Route path="*" element={<NotFound />} />

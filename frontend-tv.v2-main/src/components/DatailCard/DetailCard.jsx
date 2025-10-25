@@ -60,8 +60,6 @@ const DetailCard = () => {
 
       setFlowDetail({ nodes, edges });
       setNodeCount(Array.isArray(nodes) ? nodes.length : 0);
-
-      console.log("🔹 Nodos encontrados:", nodes.length);
     } catch (err) {
       console.error("Error obteniendo el diagrama:", err);
       setFlowDetail(null);
