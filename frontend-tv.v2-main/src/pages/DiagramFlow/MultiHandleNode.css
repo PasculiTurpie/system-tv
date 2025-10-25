@@ -1,7 +1,7 @@
 .mh-node {
   width: 180px;
-  background: #0f172a;
-  color: #e2e8f0;
+  background: #b5bed3;
+  color: #292d31;
   border: 1px solid #334155;
   border-radius: 12px;
   padding: 12px;
@@ -37,7 +37,7 @@
 }
 
 .mh-out {
-  border-color: #ef4444 !important; /* rojo salidas */
+  border-color: #ffffff !important; /* rojo salidas */
 }
 
 /* Distribución visual más ordenada */
