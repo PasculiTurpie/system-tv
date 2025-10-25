@@ -4,21 +4,28 @@ import { useParams } from "react-router-dom";
 import {
     ReactFlow,
     Background,
-    Controls
+    Controls,
+    applyNodeChanges,
+    applyEdgeChanges,
+    addEdge,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import api from "../../utils/api";
 import "./DiagramFlow.css";
-
-
+import MultiHandleNode from "./MultiHandleNode";
 
 export const DiagramFlow = () => {
-    const [edges, setEdges] = useState([]);
-    const [nodes, setNodes] = useState([]);
+    const [edges, setEdges] = useState("");
+    const [nodes, setNodes] = useState("");
     const [loading, setLoading] = useState(true);
     const [dataChannel, setDataChannel] = useState();
     const [error, setError] = useState("");
     const { id } = useParams();
+
+
+    const nodeTypes = {
+  custom: MultiHandleNode,
+};
 
     const fetchDataFlow = useCallback(async () => {
         try {
@@ -27,10 +34,8 @@ export const DiagramFlow = () => {
             setNodes(res.data.nodes);
             setEdges(res.data.edges);
             const channel = res.data.signal;
-            console.log(nodes);
-            console.log(edges);
 
-            console.log(channel);
+
 
             setDataChannel(channel);
         } catch (err) {
@@ -45,9 +50,29 @@ export const DiagramFlow = () => {
         fetchDataFlow();
     }, [fetchDataFlow]);
 
+    const onNodesChange = useCallback(
+        (changes) =>
+            setNodes((nodesSnapshot) =>
+                applyNodeChanges(changes, nodesSnapshot)
+            ),
+        []
+    );
+    const onEdgesChange = useCallback(
+        (changes) =>
+            setEdges((edgesSnapshot) =>
+                applyEdgeChanges(changes, edgesSnapshot)
+            ),
+        []
+    );
+    const onConnect = useCallback(
+        (params) => setEdges((edgesSnapshot) => addEdge(params, edgesSnapshot)),
+        []
+    );
+
+                console.log(edges);
+
     if (loading) return <p>Cargando diagrama...</p>;
     if (error) return <p>{error}</p>;
- 
 
     return (
         <div style={{ width: "100%", height: "90vh" }}>
@@ -61,6 +86,10 @@ export const DiagramFlow = () => {
             <ReactFlow
                 nodes={nodes}
                 edges={edges}
+                nodeTypes ={ nodeTypes }
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
+                onConnect={onConnect}
                 fitView
             >
                 <Background />
