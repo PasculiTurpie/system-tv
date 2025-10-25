@@ -7,7 +7,7 @@ const MultiHandleNode = memo(({ data }) => {
   const { title = `${data.label}`, subtitle = "", readOnly = false } = data || {};
 
   // Función auxiliar para generar handles según tipo y posición
-  const renderHandles = (type, side, count = 4) => {
+  const renderHandles = (type, side, count = 8) => {
     const positionMap = {
       top: Position.Top,
       right: Position.Right,
