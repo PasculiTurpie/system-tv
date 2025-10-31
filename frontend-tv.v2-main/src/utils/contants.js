@@ -15,7 +15,7 @@ const dataFlow = {
     nodes: [
         {
             id: "1",
-            type: "image",
+            type: "imageNode",
             position: { x: 350, y: 0 },
             data: {
                 label: "IS-21",
@@ -24,7 +24,7 @@ const dataFlow = {
         },
         {
             id: "2",
-            type: "image",
+            type: "imageNode",
             position: { x: 250, y: 200 },
             data: {
                 label: "IRD Cisco D9859",
@@ -33,7 +33,7 @@ const dataFlow = {
         },
         {
             id: "3",
-            type: "image",
+            type: "imageNode",
             position: { x: 450, y: 200 },
             data: {
                 label: "IRD Cisco D9859",

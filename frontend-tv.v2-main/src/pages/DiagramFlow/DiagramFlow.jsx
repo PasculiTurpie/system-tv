@@ -2,101 +2,135 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import {
-    ReactFlow,
-    Background,
-    Controls,
-    applyNodeChanges,
-    applyEdgeChanges,
-    addEdge,
+  ReactFlow,
+  Background,
+  Controls,
+  applyNodeChanges,
+  applyEdgeChanges,
+  addEdge,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import api from "../../utils/api";
 import "./DiagramFlow.css";
-import MultiHandleNode from "./MultiHandleNode";
+import CustomNode from "./CustomNode";
+// ⚠️ Revisa el nombre real del archivo: "constants" vs "contants"
+import dataFlow from "../../utils/contants";
 
-export const DiagramFlow = () => {
-    const [edges, setEdges] = useState("");
-    const [nodes, setNodes] = useState("");
-    const [loading, setLoading] = useState(true);
-    const [dataChannel, setDataChannel] = useState();
-    const [error, setError] = useState("");
-    const { id } = useParams();
+// --- Config: alterna entre API real y MOCK local ---
+const USE_MOCK = true; // pon en false para usar API real
 
-
-    const nodeTypes = {
-  custom: MultiHandleNode,
+// Tipos de nodo (asegúrate que tus nodos tienen type: "imageNode")
+const nodeTypes = {
+  imageNode: CustomNode,
 };
 
-    const fetchDataFlow = useCallback(async () => {
-        try {
-            const res = await api.getChannelDiagramById(id);
-            console.log(res.data.nodes);
-            setNodes(res.data.nodes);
-            setEdges(res.data.edges);
-            const channel = res.data.signal;
+export const DiagramFlow = () => {
+  const { id } = useParams();
 
+  // ✅ Arrays (no strings) para React Flow
+  const [nodes, setNodes] = useState([]);
+  const [edges, setEdges] = useState([]);
 
+  const [dataChannel, setDataChannel] = useState(null);
+  const [loading, setLoading] = useState(!USE_MOCK); // si usamos mock, no partimos en loading
+  const [error, setError] = useState("");
 
-            setDataChannel(channel);
-        } catch (err) {
-            console.error("Error al obtener diagrama:", err);
-            setError("Error al cargar el diagrama");
-        } finally {
-            setLoading(false);
-        }
-    }, [id]);
+  // --- Carga desde API ---
+  const fetchDataFlow = useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await api.getChannelDiagramById(id);
 
-    useEffect(() => {
-        fetchDataFlow();
-    }, [fetchDataFlow]);
+      // Estructura esperada: { nodes: [], edges: [], signal: { ... } }
+      const nodesRes = Array.isArray(res?.data?.nodes) ? res.data.nodes : [];
+      const edgesRes = Array.isArray(res?.data?.edges) ? res.data.edges : [];
+      const channelRes = res?.data?.signal ?? null;
 
-    const onNodesChange = useCallback(
-        (changes) =>
-            setNodes((nodesSnapshot) =>
-                applyNodeChanges(changes, nodesSnapshot)
-            ),
-        []
-    );
-    const onEdgesChange = useCallback(
-        (changes) =>
-            setEdges((edgesSnapshot) =>
-                applyEdgeChanges(changes, edgesSnapshot)
-            ),
-        []
-    );
-    const onConnect = useCallback(
-        (params) => setEdges((edgesSnapshot) => addEdge(params, edgesSnapshot)),
-        []
-    );
+      setNodes(nodesRes);
+      setEdges(edgesRes);
+      setDataChannel(channelRes);
+      setError("");
+    } catch (err) {
+      console.error("Error al obtener diagrama:", err);
+      setError("Error al cargar el diagrama");
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
 
-                console.log(edges);
+  // --- Carga desde MOCK ---
+  const loadMock = useCallback(() => {
+    // Estructura esperada en dataFlow: { nodes: [], edges: [], logoChannel, nameChannel, tipoTecnologia }
+    setNodes(Array.isArray(dataFlow?.nodes) ? dataFlow.nodes : []);
+    setEdges(Array.isArray(dataFlow?.edges) ? dataFlow.edges : []);
+    setDataChannel({
+      logoChannel: dataFlow?.logoChannel,
+      nameChannel: dataFlow?.nameChannel,
+      tipoTecnologia: dataFlow?.tipoTecnologia,
+    });
+    setError("");
+    setLoading(false);
+  }, []);
 
-    if (loading) return <p>Cargando diagrama...</p>;
-    if (error) return <p>{error}</p>;
+  useEffect(() => {
+    if (USE_MOCK) {
+      loadMock();
+    } else {
+      fetchDataFlow();
+    }
+  }, [fetchDataFlow, loadMock]);
 
-    return (
-        <div style={{ width: "100%", height: "90vh" }}>
-            <div className="container__header">
-                <img
-                    className="logo__channel"
-                    src={`${dataChannel.logoChannel}`}
-                />
-                <h3 className="title__channel">{`${dataChannel.nameChannel} - ${dataChannel.tipoTecnologia}`}</h3>
-            </div>
-            <ReactFlow
-                nodes={nodes}
-                edges={edges}
-                nodeTypes ={ nodeTypes }
-                onNodesChange={onNodesChange}
-                onEdgesChange={onEdgesChange}
-                onConnect={onConnect}
-                fitView
-            >
-                <Background />
-                <Controls position="top-left" />
-            </ReactFlow>
-        </div>
-    );
+  // --- Handlers de React Flow ---
+  const onNodesChange = useCallback(
+    (changes) => {
+      setNodes((prev) => applyNodeChanges(changes, prev));
+    },
+    []
+  );
+
+  const onEdgesChange = useCallback(
+    (changes) => {
+      setEdges((prev) => applyEdgeChanges(changes, prev));
+    },
+    []
+  );
+
+  const onConnect = useCallback((params) => {
+    setEdges((prev) => addEdge(params, prev));
+  }, []);
+
+  // --- Render ---
+  if (loading) return <p>Cargando diagrama...</p>;
+  if (error) return <p>{error}</p>;
+
+  const logo =
+    dataChannel?.logoChannel ||
+    "https://via.placeholder.com/100x60?text=LOGO";
+  const titulo =
+    (dataChannel?.nameChannel || "Canal sin nombre") +
+    (dataChannel?.tipoTecnologia ? ` - ${dataChannel.tipoTecnologia}` : "");
+
+  return (
+    <div style={{ width: "100%", height: "90vh" }}>
+      <div className="container__header">
+        <img className="logo__channel" src={logo} alt="Logo canal" />
+        <h3 className="title__channel">{titulo}</h3>
+      </div>
+
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        nodeTypes={nodeTypes}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onConnect={onConnect}
+        fitView
+      >
+        <Background />
+        <Controls position="top-left" />
+      </ReactFlow>
+    </div>
+  );
 };
 
 export default DiagramFlow;
