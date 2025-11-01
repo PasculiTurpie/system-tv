@@ -58,7 +58,7 @@ const dataFlow = {
             },
             markerEnd: {
                 type: "arrowclosed",
-                color: "#00bcd4",
+                color: "green",
             },
         },
         {
