@@ -1,5 +1,6 @@
 import { Handle, Position } from '@xyflow/react';
 import dataFlow from "../../utils/contants";
+import './CustomNode.css'
 const CustomNode = ({ data, selected }) => {
 
 
@@ -18,23 +19,22 @@ const CustomNode = ({ data, selected }) => {
         boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
       }}
     >
-      <Handle type="target" position={Position.Top} />
-
+      <Handle type="target" position={Position.Right} />
+      <Handle type="source" position={Position.Left} />
       
       
       {/* Contenedor de la Imagen */}
-      <div style={{ marginBottom: '5px' }}>
+      <div style={{ marginBottom: '5px' }} className='container__image'>
         <img
           src={data.image} // La URL de la imagen se pasa en data
           alt={data.label}
-          style={{ width: '60px', height: '60px', objectFit: 'contain' }}
+          style={{ width: '100%', height: '100%', objectFit: 'contain'}}
         />
       </div>
       
       {/* Etiqueta del Nodo */}
-      <strong>{data.label}</strong>
+      <span className='title__image'>{data.label}</span>
       
-      <Handle type="source" position={Position.Bottom} />
     </div>
   );
 };

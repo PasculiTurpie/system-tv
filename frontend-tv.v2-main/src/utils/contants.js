@@ -19,25 +19,25 @@ const dataFlow = {
             position: { x: 350, y: 0 },
             data: {
                 label: "IS-21",
-                image: "https://i.ibb.co/m5dxbBRh/parabolic.png",
+                image: "https://i.ibb.co/23VpLD2N/satelite.jpg",
             },
         },
         {
             id: "2",
             type: "imageNode",
-            position: { x: 250, y: 200 },
+            position: { x: 150, y: 200 },
             data: {
                 label: "IRD Cisco D9859",
-                image: "https://i.ibb.co/pvW06r6K/ird-motorola.png",
+                image: "https://i.ibb.co/fGM5NTcX/ird.jpg",
             },
         },
         {
             id: "3",
             type: "imageNode",
-            position: { x: 450, y: 200 },
+            position: { x: 550, y: 200 },
             data: {
-                label: "IRD Cisco D9859",
-                image: "https://i.ibb.co/pvW06r6K/ird-motorola.png",
+                label: "Titan121",
+                image: "https://i.ibb.co/wrJZLrqR/titan.jpg",
             },
         },
     ],
@@ -46,32 +46,41 @@ const dataFlow = {
             id: "e1-1",
             source: "1",
             target: "2",
+            label: "Vuelta",
+            type: "smoothstep", // lineal | bezier | smoothstep | step
+            animated: true,
+            style: {
+                stroke: "green",
+            },
             data: {
                 bandwidth: "10Gbps",
                 protocolo: "UDP",
+            },
+            markerEnd: {
+                type: "arrowclosed",
+                color: "#00bcd4",
             },
         },
         {
             id: "e1-2",
-            source: "1",
-            target: "3",
+            source: "3",
+            target: "1",
+            type: "smoothstep", // lineal | bezier | smoothstep | step
+            animated: true,
+            label:'Ida',
+            style: {
+                stroke: "red",
+            },
             data: {
                 bandwidth: "10Gbps",
                 protocolo: "UDP",
             },
-        },
-        {
-            id: "e1-3",
-            source: "1",
-            target: "3",
-            data: {
-                bandwidth: "10Gbps",
-                protocolo: "UDP",
+             markerEnd: {
+                type: "arrowclosed",
+                color: "red",
             },
-        },
+        }
     ],
 };
-
- 
 
 export default dataFlow;
