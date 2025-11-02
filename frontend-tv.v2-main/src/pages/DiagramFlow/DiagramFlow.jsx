@@ -13,6 +13,7 @@ import "@xyflow/react/dist/style.css";
 import api from "../../utils/api";
 import "./DiagramFlow.css";
 import CustomNode from "./CustomNode";
+import DraggableDirectionalEdge from "./DraggableDirectionalEdge";
 // ⚠️ Revisa el nombre real del archivo: "constants" vs "contants"
 import dataFlow from "../../utils/contants";
 
@@ -22,6 +23,10 @@ const USE_MOCK = true; // pon en false para usar API real
 // Tipos de nodo (asegúrate que tus nodos tienen type: "imageNode")
 const nodeTypes = {
   imageNode: CustomNode,
+};
+
+const edgeTypes = {
+   draggableDirectional: DraggableDirectionalEdge,
 };
 
 export const DiagramFlow = () => {
@@ -121,6 +126,7 @@ export const DiagramFlow = () => {
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}

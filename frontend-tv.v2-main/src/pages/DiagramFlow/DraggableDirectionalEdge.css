@@ -1,0 +1,9 @@
+/* src/pages/ChannelDiagram/DiagramFlow.css */
+.edge-stroke-animated {
+  stroke-dasharray: 6 6;
+  animation: dash-move 1s linear infinite;
+}
+
+@keyframes dash-move {
+  to { stroke-dashoffset: -12; }
+}

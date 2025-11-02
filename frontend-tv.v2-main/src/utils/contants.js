@@ -65,7 +65,7 @@ const dataFlow = {
             source: "1",
             target: "2",
             label: "Vuelta",
-            type: "smoothstep", // lineal | bezier | smoothstep | step
+            type: "draggableDirectional", // lineal | bezier | smoothstep | step
             animated: true,
             style: {
                 stroke: "green",
@@ -85,7 +85,7 @@ const dataFlow = {
             target: "1",
             sourceHandle: "out-right-1",
             targetHandle: "in-left-2",
-            type: "smoothstep", // lineal | bezier | smoothstep | step
+            type: "draggableDirectional", // lineal | bezier | smoothstep | step
             animated: true,
             label: "Ida",
             style: {
@@ -106,7 +106,7 @@ const dataFlow = {
             target: "1",
             sourceHandle: "out-top-1",
             targetHandle: "in-bottom-3",
-            type: "smoothstep", // lineal | bezier | smoothstep | step
+            type: "draggableDirectional", // lineal | bezier | smoothstep | step
             animated: true,
             label: "Ida",
             style: {
@@ -127,7 +127,7 @@ const dataFlow = {
             target: "5",
             sourceHandle: "out-right-3",
             targetHandle: "in-bottom-1",
-            type: "smoothstep", // lineal | bezier | smoothstep | step
+            type: "draggableDirectional", // lineal | bezier | smoothstep | step
             animated: true,
             label: "Ida",
             style: {
@@ -136,6 +136,7 @@ const dataFlow = {
             data: {
                 bandwidth: "10Gbps",
                 protocolo: "UDP",
+                tooltip: "Detalle del flujo (MPTS 239.10.10.1:5000)",
             },
             markerEnd: {
                 type: "arrowclosed",
@@ -148,15 +149,17 @@ const dataFlow = {
             target: "3",
             sourceHandle: "out-bottom-4",
             targetHandle: "in-right-4",
-            type: "smoothstep", // lineal | bezier | smoothstep | step
+            type: "draggableDirectional", // lineal | bezier | smoothstep | step
             animated: true,
             label: "Ida",
             style: {
                 stroke: "green",
             },
             data: {
-                bandwidth: "10Gbps",
-                protocolo: "UDP",
+                label: "nuevo enlace",
+                direction: "ida",
+                tooltipTitle: "Enlace creado",
+                tooltip: `Enlace MPLS`,
             },
             markerEnd: {
                 type: "arrowclosed",
