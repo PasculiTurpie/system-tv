@@ -35,9 +35,9 @@ import ScrollToTop from "./components/ScrollToTop/ScrollToTop";
 
 import SearchFilter from "./components/SearchFilter/SearchFilter";
 
-import ChannelDiagram from "./pages/ChannelDiagram/ChannelDiagram";
+/* import ChannelDiagram from "./pages/ChannelDiagram/ChannelDiagram";*/
 import ChannelForm from "./pages/ChannelDiagram/ChannelForm";
-import ChannelListDiagram from "./pages/ChannelDiagram/ChannelListDiagram";
+import ChannelListDiagram from "./pages/ChannelDiagram/ChannelListDiagram"; 
 
 import AuditLogPage from "./pages/Audit/AuditLogPage";
 import 'sweetalert2/dist/sweetalert2.min.css';

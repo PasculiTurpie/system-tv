@@ -3,9 +3,9 @@ import dataFlow from "../../utils/contants";
 import "./CustomNode.css";
 const CustomNode = ({ data, selected }) => {
     const leftPerc = [10, 35, 60, 85]; // lado izquierdo (vertical => usar top)
-    const rightPerc = [15, 50, 85]; // lado derecho
+    const rightPerc = [10, 35, 60, 85]; // lado derecho
     const topPerc = [10, 40, 70, 90]; // borde superior (horizontal => usar left)
-    const bottomPerc = [20, 50, 80];
+    const bottomPerc = [10, 40, 70, 90];
 
     return (
         <div
@@ -26,8 +26,8 @@ const CustomNode = ({ data, selected }) => {
                     key={`in-left-${i + 1}`}
                     id={`in-left-${i + 1}`}
                     type="target"
-                    position={Position.Left}
-                    style={{ top: `${p}%`, transform: "translateY(-50%)", opacity: 0}}
+                    position={Position.Right}
+                    style={{ top: `${p}%`, transform: "translateY(-50%)", opacity: 1}}
                 />
             ))}
 
@@ -37,8 +37,8 @@ const CustomNode = ({ data, selected }) => {
                     key={`out-right-${i + 1}`}
                     id={`out-right-${i + 1}`}
                     type="source"
-                    position={Position.Right}
-                    style={{ top: `${p}%`, transform: "translateY(-50%)", opacity: 0 }}
+                    position={Position.Left}
+                    style={{ top: `${p}%`, transform: "translateY(-50%)", opacity: 1 }}
                 />
             ))}
 
@@ -49,7 +49,7 @@ const CustomNode = ({ data, selected }) => {
                     id={`out-top-${i + 1}`}
                     type="source"
                     position={Position.Top}
-                    style={{ left: `${p}%`, transform: "translateX(-50%)", opacity: 0 }}
+                    style={{ left: `${p}%`, transform: "translateX(-50%)", opacity: 1 }}
                 />
             ))}
 
@@ -60,7 +60,7 @@ const CustomNode = ({ data, selected }) => {
                     id={`in-bottom-${i + 1}`}
                     type="target"
                     position={Position.Bottom}
-                    style={{ left: `${p}%`, transform: "translateX(-50%)", opacity: 0 }}
+                    style={{ left: `${p}%`, transform: "translateX(-50%)", opacity: 1 }}
                 />
             ))}
 

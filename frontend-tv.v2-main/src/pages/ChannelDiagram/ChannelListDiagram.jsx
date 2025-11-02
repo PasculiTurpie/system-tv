@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import api from "../../utils/api";
-import { getSampleChannelSummaries } from "./samples";
+
 import { clearLocalStorage } from "../../utils/localStorageUtils";
 
 const PAGE_SIZE = 10;
@@ -16,11 +16,10 @@ const ChannelListDiagram = () => {
   const navigate = useNavigate();
 
   const fetchChannels = async () => {
-    const samples = getSampleChannelSummaries();
     try {
       const res = await api.listChannelDiagrams();
       const data = Array.isArray(res?.data) ? res.data : [];
-      const combined = [...data, ...samples];
+      const combined = [...data];
       setChannels(combined);
       setFilteredChannels(combined);
       setCurrentPage(1);

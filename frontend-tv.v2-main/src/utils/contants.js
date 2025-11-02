@@ -40,6 +40,33 @@ const dataFlow = {
                 image: "https://i.ibb.co/wrJZLrqR/titan.jpg",
             },
         },
+        {
+            id: "3",
+            type: "imageNode",
+            position: { x: 950, y: 200 },
+            data: {
+                label: "DCM",
+                image: "https://i.ibb.co/wrJZLrqR/titan.jpg",
+            },
+        },
+        {
+            id: "4",
+            type: "imageNode",
+            position: { x: 550, y: 200 },
+            data: {
+                label: "Titan121",
+                image: "https://i.ibb.co/wrJZLrqR/titan.jpg",
+            },
+        },
+        {
+            id: "5",
+            type: "imageNode",
+            position: { x: -250, y: 200 },
+            data: {
+                label: "RTES",
+                image: "https://i.ibb.co/wrJZLrqR/titan.jpg",
+            },
+        },
     ],
     edges: [
         {
@@ -78,6 +105,44 @@ const dataFlow = {
              markerEnd: {
                 type: "arrowclosed",
                 color: "red",
+            },
+        },
+        {
+            id: "e1-3",
+            source: "4",
+            target: "1",
+            type: "smoothstep", // lineal | bezier | smoothstep | step
+            animated: true,
+            label:'Ida',
+            style: {
+                stroke: "red",
+            },
+            data: {
+                bandwidth: "10Gbps",
+                protocolo: "UDP",
+            },
+             markerEnd: {
+                type: "arrowclosed",
+                color: "red",
+            },
+        },
+        {
+            id: "e1-4",
+            source: "1",
+            target: "5",
+            type: "smoothstep", // lineal | bezier | smoothstep | step
+            animated: true,
+            label:'Ida',
+            style: {
+                stroke: "green",
+            },
+            data: {
+                bandwidth: "10Gbps",
+                protocolo: "UDP",
+            },
+             markerEnd: {
+                type: "arrowclosed",
+                color: "green",
             },
         }
     ],
