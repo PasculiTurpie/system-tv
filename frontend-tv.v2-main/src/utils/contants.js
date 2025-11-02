@@ -25,7 +25,7 @@ const dataFlow = {
         {
             id: "2",
             type: "imageNode",
-            position: { x: 150, y: 200 },
+            position: { x: 150, y: 300 },
             data: {
                 label: "IRD Cisco D9859",
                 image: "https://i.ibb.co/fGM5NTcX/ird.jpg",
@@ -34,25 +34,16 @@ const dataFlow = {
         {
             id: "3",
             type: "imageNode",
-            position: { x: 550, y: 200 },
+            position: { x: 750, y: 200 },
             data: {
-                label: "Titan121",
-                image: "https://i.ibb.co/wrJZLrqR/titan.jpg",
-            },
-        },
-        {
-            id: "3",
-            type: "imageNode",
-            position: { x: 950, y: 200 },
-            data: {
-                label: "DCM",
-                image: "https://i.ibb.co/wrJZLrqR/titan.jpg",
+                label: "Switch",
+                image: "https://i.ibb.co/fGMRq8Fz/switch.jpg",
             },
         },
         {
             id: "4",
             type: "imageNode",
-            position: { x: 550, y: 200 },
+            position: { x: 550, y: 300 },
             data: {
                 label: "Titan121",
                 image: "https://i.ibb.co/wrJZLrqR/titan.jpg",
@@ -61,10 +52,10 @@ const dataFlow = {
         {
             id: "5",
             type: "imageNode",
-            position: { x: -250, y: 200 },
+            position: { x: -50, y: 200 },
             data: {
                 label: "RTES",
-                image: "https://i.ibb.co/wrJZLrqR/titan.jpg",
+                image: "https://i.ibb.co/VcfxF9hz/rtes.jpg",
             },
         },
     ],
