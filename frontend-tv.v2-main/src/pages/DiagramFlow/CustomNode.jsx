@@ -41,6 +41,16 @@ const CustomNode = ({ data, selected }) => {
                     style={{ top: `${p}%`, transform: "translateY(-50%)", opacity: 1 }}
                 />
             ))}
+            {/* RIGHT: sources a distintas alturas */}
+            {rightPerc.map((p, i) => (
+                <Handle
+                    key={`in-right-${i + 1}`}
+                    id={`in-right-${i + 1}`}
+                    type="target"
+                    position={Position.Left}
+                    style={{ top: `${p}%`, transform: "translateY(-50%)", opacity: 1 }}
+                />
+            ))}
 
             {/* TOP: sources a distintos anchos */}
             {topPerc.map((p, i) => (
@@ -59,6 +69,17 @@ const CustomNode = ({ data, selected }) => {
                     key={`in-bottom-${i + 1}`}
                     id={`in-bottom-${i + 1}`}
                     type="target"
+                    position={Position.Bottom}
+                    style={{ left: `${p}%`, transform: "translateX(-50%)", opacity: 1 }}
+                />
+            ))}
+
+            {/* BOTTOM: targets a distintos anchos */}
+            {bottomPerc.map((p, i) => (
+                <Handle
+                    key={`out-bottom-${i + 1}`}
+                    id={`out-bottom-${i + 1}`}
+                    type="source"
                     position={Position.Bottom}
                     style={{ left: `${p}%`, transform: "translateX(-50%)", opacity: 1 }}
                 />

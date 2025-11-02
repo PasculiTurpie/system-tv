@@ -83,9 +83,11 @@ const dataFlow = {
             id: "e1-2",
             source: "3",
             target: "1",
+            sourceHandle: "out-right-1",
+            targetHandle: "in-left-2",
             type: "smoothstep", // lineal | bezier | smoothstep | step
             animated: true,
-            label:'Ida',
+            label: "Ida",
             style: {
                 stroke: "red",
             },
@@ -93,7 +95,7 @@ const dataFlow = {
                 bandwidth: "10Gbps",
                 protocolo: "UDP",
             },
-             markerEnd: {
+            markerEnd: {
                 type: "arrowclosed",
                 color: "red",
             },
@@ -102,9 +104,11 @@ const dataFlow = {
             id: "e1-3",
             source: "4",
             target: "1",
+            sourceHandle: "out-top-1",
+            targetHandle: "in-bottom-3",
             type: "smoothstep", // lineal | bezier | smoothstep | step
             animated: true,
-            label:'Ida',
+            label: "Ida",
             style: {
                 stroke: "red",
             },
@@ -112,7 +116,7 @@ const dataFlow = {
                 bandwidth: "10Gbps",
                 protocolo: "UDP",
             },
-             markerEnd: {
+            markerEnd: {
                 type: "arrowclosed",
                 color: "red",
             },
@@ -121,9 +125,11 @@ const dataFlow = {
             id: "e1-4",
             source: "1",
             target: "5",
+            sourceHandle: "out-right-3",
+            targetHandle: "in-bottom-1",
             type: "smoothstep", // lineal | bezier | smoothstep | step
             animated: true,
-            label:'Ida',
+            label: "Ida",
             style: {
                 stroke: "green",
             },
@@ -131,7 +137,7 @@ const dataFlow = {
                 bandwidth: "10Gbps",
                 protocolo: "UDP",
             },
-             markerEnd: {
+            markerEnd: {
                 type: "arrowclosed",
                 color: "green",
             },
@@ -140,9 +146,11 @@ const dataFlow = {
             id: "e1-5",
             source: "1",
             target: "3",
+            sourceHandle: "out-bottom-4",
+            targetHandle: "in-right-4",
             type: "smoothstep", // lineal | bezier | smoothstep | step
             animated: true,
-            label:'Ida',
+            label: "Ida",
             style: {
                 stroke: "green",
             },
@@ -150,7 +158,7 @@ const dataFlow = {
                 bandwidth: "10Gbps",
                 protocolo: "UDP",
             },
-             markerEnd: {
+            markerEnd: {
                 type: "arrowclosed",
                 color: "green",
             },
