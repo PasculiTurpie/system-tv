@@ -136,6 +136,7 @@ const dataFlow = {
                 label:'enlace 4',
                 bandwidth: "10Gbps",
                 protocolo: "UDP",
+                tooltipTitle: "Enlace creado",
                 tooltip: "Gi1/0/23 to ETH1",
             },
             markerEnd: {
