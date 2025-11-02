@@ -64,7 +64,6 @@ const dataFlow = {
             id: "e1-1",
             source: "1",
             target: "2",
-            label: "Vuelta",
             type: "draggableDirectional", // lineal | bezier | smoothstep | step
             animated: true,
             style: {
@@ -73,6 +72,7 @@ const dataFlow = {
             data: {
                 bandwidth: "10Gbps",
                 protocolo: "UDP",
+                label: "Enlace1",
             },
             markerEnd: {
                 type: "arrowclosed",
@@ -87,11 +87,11 @@ const dataFlow = {
             targetHandle: "in-left-2",
             type: "draggableDirectional", // lineal | bezier | smoothstep | step
             animated: true,
-            label: "Ida",
             style: {
                 stroke: "red",
             },
             data: {
+                label:'enlace 2',
                 bandwidth: "10Gbps",
                 protocolo: "UDP",
             },
@@ -108,11 +108,11 @@ const dataFlow = {
             targetHandle: "in-bottom-3",
             type: "draggableDirectional", // lineal | bezier | smoothstep | step
             animated: true,
-            label: "Ida",
             style: {
                 stroke: "red",
             },
             data: {
+                label:'enlace 3',
                 bandwidth: "10Gbps",
                 protocolo: "UDP",
             },
@@ -129,14 +129,14 @@ const dataFlow = {
             targetHandle: "in-bottom-1",
             type: "draggableDirectional", // lineal | bezier | smoothstep | step
             animated: true,
-            label: "Ida",
             style: {
                 stroke: "green",
             },
             data: {
+                label:'enlace 4',
                 bandwidth: "10Gbps",
                 protocolo: "UDP",
-                tooltip: "Detalle del flujo (MPTS 239.10.10.1:5000)",
+                tooltip: "Gi1/0/23 to ETH1",
             },
             markerEnd: {
                 type: "arrowclosed",
@@ -151,12 +151,11 @@ const dataFlow = {
             targetHandle: "in-right-4",
             type: "draggableDirectional", // lineal | bezier | smoothstep | step
             animated: true,
-            label: "Ida",
             style: {
                 stroke: "green",
             },
             data: {
-                label: "nuevo enlace",
+                label: 'enlace 5',
                 direction: "ida",
                 tooltipTitle: "Enlace creado",
                 tooltip: `Enlace MPLS`,
