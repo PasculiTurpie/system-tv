@@ -135,7 +135,26 @@ const dataFlow = {
                 type: "arrowclosed",
                 color: "green",
             },
-        }
+        },
+        {
+            id: "e1-5",
+            source: "1",
+            target: "3",
+            type: "smoothstep", // lineal | bezier | smoothstep | step
+            animated: true,
+            label:'Ida',
+            style: {
+                stroke: "green",
+            },
+            data: {
+                bandwidth: "10Gbps",
+                protocolo: "UDP",
+            },
+             markerEnd: {
+                type: "arrowclosed",
+                color: "green",
+            },
+        },
     ],
 };
 
