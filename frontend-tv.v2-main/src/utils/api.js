@@ -195,7 +195,7 @@ class Api {
     }
     searchChannels(keyword) {
   return this._axios
-    .get("/channels/search", { params: { keyword } })
+    .get("/search", { params: { keyword } })
     .then((r) => r);
 }
 

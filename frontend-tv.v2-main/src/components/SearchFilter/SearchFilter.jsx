@@ -9,6 +9,7 @@ const SearchFilter = () => {
   const [querySearch] = useSearchParams();
   const keyword = querySearch.get("keyword");
 
+
   const [dataSearch, setDataSearch] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
@@ -17,6 +18,7 @@ const SearchFilter = () => {
 
   const navigate = useNavigate();
 
+
   useEffect(() => {
     let cancelled = false;
 
@@ -24,7 +26,6 @@ const SearchFilter = () => {
       try {
         setIsLoading(true);
         const response = await api.searchChannels(keyword);
-
         if (cancelled) return;
 
         if (response.data.length > 0) {
@@ -116,7 +117,6 @@ const SearchFilter = () => {
                       </div>
                     </div>
 
-                    {/* Imagen con loader */}
                     <div className="card__image-wrapper">
                       {isImgLoading && <div className="card__spinner" />}
                       <img

@@ -8,11 +8,15 @@ router
   .get(SignalController.getSignal)
   .post(SignalController.createSignal);
 
+
 router
   .route("/signals/:id")
   .get(SignalController.getIdSignal)
   .put(SignalController.updateSignal)
   .delete(SignalController.deleteSignal);
+
+  router
+  .get("/search",SignalController.searchSignals)
 
 
 module.exports = router;
