@@ -1,13 +1,13 @@
-import { useNavigate, useSearchParams } from "react-router-dom";
-import api from "../../utils/api";
 import { useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import Loader from "../../components/Loader/Loader";
+import api from "../../utils/api";
 import "../../components/Card/Card.css";
 import "./SearchFilter.css";
 
 const SearchFilter = () => {
   const [querySearch] = useSearchParams();
-  const keyword = querySearch.get("keyword");
+  const keyword = querySearch.get("keyword")?.trim() ?? "";
 
   const [dataSearch, setDataSearch] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -47,7 +47,7 @@ const SearchFilter = () => {
       }
     };
 
-    if (keyword && keyword.trim() !== "") {
+    if (keyword) {
       setImageLoading({});
       fetchData();
     } else {
@@ -61,12 +61,8 @@ const SearchFilter = () => {
     };
   }, [keyword]);
 
-  const handleClick = (e) => {
-    const card = e.target.closest(".card__container");
-    const id = card?.dataset.id;
-    if (id) {
-      navigate(`/signal/${id}`);
-    }
+  const handleCardClick = (id) => {
+    navigate(`/signal/${id}`);
   };
 
   // Handlers para carga de imágenes
@@ -76,6 +72,11 @@ const SearchFilter = () => {
 
   const handleImageStartLoading = (id) => {
     setImageLoading((prev) => ({ ...prev, [id]: true }));
+  };
+
+  const handleImageError = (id, event) => {
+    event.currentTarget.style.display = "none";
+    setImageLoading((prev) => ({ ...prev, [id]: false }));
   };
 
   return (
@@ -91,55 +92,78 @@ const SearchFilter = () => {
           No se encontraron resultados para: <strong>{keyword}</strong>
         </p>
       ) : (
-        <>
-          <div className="container__search">
-            <span className="search__register">
-              {dataSearch.length > 1
-                ? `Se encontraron ${dataSearch.length} registros`
-                : `Se encontró ${dataSearch.length} registro`}
-            </span>
-            <div className="card__list">
-              {dataSearch.map((signalItem) => {
-                const isImgLoading = imageLoading[signalItem._id];
-                return (
-                  <div
-                    className="card__container"
-                    key={signalItem._id}
-                    data-id={signalItem._id}
-                    onClick={handleClick}
-                  >
-                    <div className="card__group-item">
-                      <h4 className="card__title">{signalItem.nameChannel}</h4>
-                      <div className="card__number">
-                        <h5 className="card__number-item">{`Norte: ${signalItem.numberChannelCn}`}</h5>
-                        <h5 className="card__number-item">{`Sur: ${signalItem.numberChannelSur}`}</h5>
-                      </div>
-                    </div>
+        <div className="card__layout card__layout--search">
+          <h3 className="card__heading card__heading--search">
+            <span className="card__total">{dataSearch.length}</span>
+            {dataSearch.length === 1
+              ? " resultado encontrado"
+              : " resultados encontrados"}
+          </h3>
+          {keyword && (
+            <p className="search__subtitle">
+              Coincidencias para <strong>{keyword}</strong>
+            </p>
+          )}
 
-                    {/* Imagen con loader */}
-                    <div className="card__image-wrapper">
-                      {isImgLoading && <div className="card__spinner" />}
+          <div className="card__grid">
+            {dataSearch.map((signalItem) => {
+              const id = signalItem._id;
+              const isImgLoading = imageLoading[id];
+
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  className="card__container"
+                  onClick={() => handleCardClick(id)}
+                  aria-label={`Abrir detalle de ${signalItem.nameChannel}`}
+                >
+                  <div className="card__header">
+                    <h4 className="card__title" title={signalItem.nameChannel}>
+                      {signalItem.nameChannel}
+                    </h4>
+                    <div className="card__number">
+                      <span className="badge">
+                        Norte: {signalItem.numberChannelCn ?? "-"}
+                      </span>
+                      <span className="badge">
+                        Sur: {signalItem.numberChannelSur ?? "-"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="card__image-wrapper">
+                    {isImgLoading && <div className="card__spinner" />}
+                    {signalItem.logoChannel ? (
                       <img
                         className="card__logo"
                         src={signalItem.logoChannel}
-                        alt="Logo del canal"
-                        onLoad={() => handleImageLoad(signalItem._id)}
-                        onLoadStart={() => handleImageStartLoading(signalItem._id)}
-                        style={{ display: isImgLoading ? "none" : "block" }}
+                        alt={`Logo de ${signalItem.nameChannel}`}
+                        loading="lazy"
+                        decoding="async"
+                        onLoad={() => handleImageLoad(id)}
+                        onLoadStart={() => handleImageStartLoading(id)}
+                        onError={(event) => handleImageError(id, event)}
+                        style={{ visibility: isImgLoading ? "hidden" : "visible" }}
                       />
-                    </div>
+                    ) : (
+                      <div className="card__logo--placeholder" aria-hidden="true">
+                        {signalItem?.nameChannel?.[0]?.toUpperCase() || "?"}
+                      </div>
+                    )}
+                  </div>
 
-                    <div className="card__severidad">
-                      <span>{signalItem.tipoTecnologia}</span>
-                      <br />
-                      <span>{`Severidad: ${signalItem.severidadChannel}`}</span>
+                  <div className="card__footer">
+                    <div className="tech">{signalItem.tipoTecnologia}</div>
+                    <div className="sev">
+                      Severidad: <strong>{signalItem.severidadChannel}</strong>
                     </div>
                   </div>
-                );
-              })}
-            </div>
+                </button>
+              );
+            })}
           </div>
-        </>
+        </div>
       )}
     </div>
   );
