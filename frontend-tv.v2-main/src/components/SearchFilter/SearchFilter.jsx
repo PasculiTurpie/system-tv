@@ -7,54 +7,72 @@ import "./SearchFilter.css";
 
 const SearchFilter = () => {
   const [querySearch] = useSearchParams();
-  const keyword = querySearch.get("keyword");
-
+  const keyword = (querySearch.get("keyword") ?? "").trim();
 
   const [dataSearch, setDataSearch] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [hasError, setHasError] = useState(false);
   const [noResults, setNoResults] = useState(false);
-  const [imageLoading, setImageLoading] = useState({}); // 👈 Para controlar el estado de carga por imagen
+
+  // Estados por imagen: loading y error por _id
+  const [imageLoading, setImageLoading] = useState({});
+  const [imageError, setImageError] = useState({});
 
   const navigate = useNavigate();
-
 
   useEffect(() => {
     let cancelled = false;
 
     const fetchData = async () => {
+      setIsLoading(true);
+      setHasError(false);
+      setNoResults(false);
+
       try {
-        setIsLoading(true);
-        const response = await api.searchChannels(keyword);
+        const res = await api.searchChannels(keyword);
+
         if (cancelled) return;
 
-        if (response.data.length > 0) {
-          setDataSearch(response.data);
-          setNoResults(false);
-          setHasError(false);
-        } else {
-          setDataSearch([]);
-          setNoResults(true);
-          setHasError(false);
-        }
+        // Soporta res.data = [] o res.data.data = []
+        const list = Array.isArray(res?.data)
+          ? res.data
+          : Array.isArray(res?.data?.data)
+          ? res.data.data
+          : [];
+
+        setDataSearch(list);
+        setNoResults(list.length === 0);
+
+        // Inicializa estado de carga por imagen en true
+        const initialLoading = {};
+        list.forEach((item) => {
+          if (item?._id) initialLoading[item._id] = true;
+        });
+        setImageLoading(initialLoading);
+        setImageError({});
       } catch (error) {
         if (cancelled) return;
         console.error("Error al obtener las señales:", error);
         setHasError(true);
+        setDataSearch([]);
+        setNoResults(false);
+        setImageLoading({});
+        setImageError({});
       } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
+        if (!cancelled) setIsLoading(false);
       }
     };
 
-    if (keyword && keyword.trim() !== "") {
-      setImageLoading({});
+    if (keyword) {
       fetchData();
     } else {
+      // Si no hay keyword, no se consulta y se muestra “sin resultados”
       setDataSearch([]);
       setNoResults(true);
+      setHasError(false);
       setIsLoading(false);
+      setImageLoading({});
+      setImageError({});
     }
 
     return () => {
@@ -65,18 +83,17 @@ const SearchFilter = () => {
   const handleClick = (e) => {
     const card = e.target.closest(".card__container");
     const id = card?.dataset.id;
-    if (id) {
-      navigate(`/signal/${id}`);
-    }
+    if (id) navigate(`/channels/${id}`);
   };
 
-  // Handlers para carga de imágenes
+  // Handlers por imagen
   const handleImageLoad = (id) => {
     setImageLoading((prev) => ({ ...prev, [id]: false }));
   };
 
-  const handleImageStartLoading = (id) => {
-    setImageLoading((prev) => ({ ...prev, [id]: true }));
+  const handleImageError = (id) => {
+    setImageLoading((prev) => ({ ...prev, [id]: false }));
+    setImageError((prev) => ({ ...prev, [id]: true }));
   };
 
   return (
@@ -92,54 +109,70 @@ const SearchFilter = () => {
           No se encontraron resultados para: <strong>{keyword}</strong>
         </p>
       ) : (
-        <>
-          <div className="container__search">
-            <span className="search__register">
-              {dataSearch.length > 1
-                ? `Se encontraron ${dataSearch.length} registros`
-                : `Se encontró ${dataSearch.length} registro`}
-            </span>
-            <div className="card__list">
-              {dataSearch.map((signalItem) => {
-                const isImgLoading = imageLoading[signalItem._id];
-                return (
-                  <div
-                    className="card__container"
-                    key={signalItem._id}
-                    data-id={signalItem._id}
-                    onClick={handleClick}
-                  >
-                    <div className="card__group-item">
-                      <h4 className="card__title">{signalItem.nameChannel}</h4>
-                      <div className="card__number">
-                        <h5 className="card__number-item">{`Norte: ${signalItem.numberChannelCn}`}</h5>
-                        <h5 className="card__number-item">{`Sur: ${signalItem.numberChannelSur}`}</h5>
-                      </div>
-                    </div>
+        <div className="container__search">
+          <span className="search__register">
+            {dataSearch.length === 1
+              ? `Se encontró ${dataSearch.length} registro`
+              : `Se encontraron ${dataSearch.length} registros`}
+          </span>
 
-                    <div className="card__image-wrapper">
-                      {isImgLoading && <div className="card__spinner" />}
+          <div className="card__list">
+            {dataSearch.map((signalItem) => {
+              const id = signalItem?._id;
+              const isImgLoading = !!imageLoading[id];
+              const hasImgError = !!imageError[id];
+
+              return (
+                <div
+                  className="card__container"
+                  key={id}
+                  data-id={id}
+                  onClick={handleClick}
+                >
+                  <div className="card__group-item">
+                    <h4 className="card__title">{signalItem.nameChannel}</h4>
+                    <div className="card__number">
+                      <h5 className="card__number-item">
+                        {`Norte: ${signalItem.numberChannelCn}`}
+                      </h5>
+                      <h5 className="card__number-item">
+                        {`Sur: ${signalItem.numberChannelSur}`}
+                      </h5>
+                    </div>
+                  </div>
+
+                  {/* Imagen con loader y fallback */}
+                  <div className="card__image-wrapper">
+                    {isImgLoading && <div className="card__spinner" />}
+
+                    {!hasImgError ? (
                       <img
                         className="card__logo"
                         src={signalItem.logoChannel}
-                        alt="Logo del canal"
-                        onLoad={() => handleImageLoad(signalItem._id)}
-                        onLoadStart={() => handleImageStartLoading(signalItem._id)}
-                        style={{ display: isImgLoading ? "none" : "block" }}
+                        alt={`Logo de ${signalItem.nameChannel}`}
+                        onLoad={() => handleImageLoad(id)}
+                        onError={() => handleImageError(id)}
+                        // Evita parpadeo mientras carga
+                        style={{ visibility: isImgLoading ? "hidden" : "visible" }}
+                        loading="lazy"
                       />
-                    </div>
-
-                    <div className="card__severidad">
-                      <span>{signalItem.tipoTecnologia}</span>
-                      <br />
-                      <span>{`Severidad: ${signalItem.severidadChannel}`}</span>
-                    </div>
+                    ) : (
+                      <div className="card__logo--fallback" aria-label="Sin logo">
+                        Sin logo
+                      </div>
+                    )}
                   </div>
-                );
-              })}
-            </div>
+
+                  <div className="card__severidad">
+                    <span>{signalItem.tipoTecnologia}</span>
+                    <br />
+                    <span>{`Severidad: ${signalItem.severidadChannel}`}</span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        </>
+        </div>
       )}
     </div>
   );
