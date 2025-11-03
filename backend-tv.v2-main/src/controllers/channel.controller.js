@@ -996,46 +996,89 @@ const escapeRegex = (str = "") => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 module.exports.searchChannel = async (req, res) => {
   try {
     const { keyword = "" } = req.query;
-    if (!keyword.trim()) {
+    const trimmedKeyword = String(keyword).trim();
+
+    if (!trimmedKeyword) {
       return res.status(400).json({ message: "Debe proporcionar ?keyword=" });
     }
 
-    const safe = escapeRegex(keyword);
-    const isNumeric = /^\d+$/.test(keyword);
-    const numVal = isNumeric ? Number(keyword) : null;
+    const safe = escapeRegex(trimmedKeyword);
+    const regex = new RegExp(safe, "i");
+    const isNumeric = /^\d+$/.test(trimmedKeyword);
 
-    const orClauses = [];
-
-    // nameChannel siempre con búsqueda parcial case-insensitive
-    orClauses.push({ "signal.nameChannel": { $regex: safe, $options: "i" } });
-
+    const numericVariants = new Set();
     if (isNumeric) {
-      // Evitar $regex sobre Number: aceptar string o number exactos
-      orClauses.push(
-        { "signal.numberChannelSur": { $in: [keyword, numVal] } },
-        { "signal.numberChannelCn":  { $in: [keyword, numVal] } },
-      );
-    } else {
-      // keyword no numérico: tolerancia por regex (si están guardados como string)
-      orClauses.push(
-        { "signal.numberChannelSur": { $regex: safe, $options: "i" } },
-        { "signal.numberChannelCn":  { $regex: safe, $options: "i" } },
+      numericVariants.add(trimmedKeyword);
+      const numVal = Number(trimmedKeyword);
+      if (Number.isFinite(numVal)) {
+        numericVariants.add(String(numVal));
+      }
+    }
+
+    const signalConditions = [
+      { nameChannel: { $regex: regex } },
+      { numberChannelSur: { $regex: regex } },
+      { numberChannelCn: { $regex: regex } },
+    ];
+
+    if (numericVariants.size) {
+      const numericValues = Array.from(numericVariants.values());
+      signalConditions.push(
+        { numberChannelSur: { $in: numericValues } },
+        { numberChannelCn: { $in: numericValues } }
       );
     }
 
-    const query = { $or: orClauses };
+    const signals = await Signal.find({ $or: signalConditions })
+      .select(
+        "nameChannel numberChannelSur numberChannelCn logoChannel severidadChannel tipoServicio source nombre tipoTecnologia contact"
+      )
+      .populate({ path: "contact", select: "nombre email telefono phone" })
+      .lean({ getters: true, virtuals: true });
 
-    const results = await Channel.find(query)
-      .sort({ updatedAt: -1 })
-      .lean();
-
-    if (!results.length) {
+    if (!signals.length) {
       return res.status(404).json({ message: "No se encontraron resultados." });
     }
 
-    return res.status(200).json(results);
+    const signalMap = new Map();
+    const signalIds = [];
+    for (const signal of signals) {
+      const idStr = String(signal._id);
+      if (!signalMap.has(idStr)) {
+        signalMap.set(idStr, signal);
+        signalIds.push(signal._id);
+      }
+    }
+
+    const channels = await Channel.find({ signal: { $in: signalIds } })
+      .select(
+        "signal nodes.id nodes.type nodes.position nodes.data nodes.handles nodes.equipo edges.id edges.source edges.target edges.sourceHandle edges.targetHandle edges.type edges.style edges.data edges.label createdAt updatedAt"
+      )
+      .sort({ updatedAt: -1, _id: 1 })
+      .lean({ getters: true, virtuals: true });
+
+    if (!channels.length) {
+      return res.status(404).json({ message: "No se encontraron resultados." });
+    }
+
+    const enriched = channels.map((channel) => {
+      const rawSignal = channel?.signal;
+      const signalId = rawSignal ? String(rawSignal).trim() : null;
+      const resolvedSignal = signalId
+        ? signalMap.get(signalId) || rawSignal
+        : rawSignal;
+      return {
+        ...channel,
+        signal: resolvedSignal,
+      };
+    });
+
+    return res.status(200).json(normalizeChannels(enriched));
   } catch (err) {
     console.error("Error en searchChannel:", err);
-    return res.status(500).json({ message: "Error al buscar channels.", error: err.message });
+    return res.status(500).json({
+      message: "Error al buscar channels.",
+      error: err.message,
+    });
   }
 };
