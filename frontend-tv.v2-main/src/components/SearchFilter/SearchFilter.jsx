@@ -1,6 +1,6 @@
 import { useNavigate, useSearchParams } from "react-router-dom";
 import api from "../../utils/api";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Loader from "../../components/Loader/Loader";
 import "../../components/Card/Card.css";
 import "./SearchFilter.css";
@@ -20,6 +20,28 @@ const SearchFilter = () => {
 
   const navigate = useNavigate();
 
+  // 👇 Contenedor para controlar el scroll interno (si aplica)
+  const containerRef = useRef(null);
+
+  // 🔝 Forzar scroll al tope cuando cambia keyword o termina la carga
+  useEffect(() => {
+    // Si hay contenedor con overflow, scrollea ese
+    if (containerRef.current) {
+      try {
+        containerRef.current.scrollTo({ top: 0, behavior: "instant" });
+      } catch {
+        // algunos navegadores no soportan "instant"
+        containerRef.current.scrollTop = 0;
+      }
+    }
+    // Y de todas formas forzamos el scroll de la ventana
+    try {
+      window.scrollTo({ top: 0, behavior: "instant" });
+    } catch {
+      window.scrollTo(0, 0);
+    }
+  }, [keyword, isLoading, noResults, hasError]);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -30,7 +52,6 @@ const SearchFilter = () => {
 
       try {
         const res = await api.searchChannels(keyword);
-
         if (cancelled) return;
 
         // Soporta res.data = [] o res.data.data = []
@@ -97,7 +118,7 @@ const SearchFilter = () => {
   };
 
   return (
-    <div className="container__result">
+    <div className="container__result" ref={containerRef}>
       {isLoading ? (
         <div className="loader__charge">
           <Loader message="Cargando y conectando con el servidor..." />
