@@ -1,21 +1,27 @@
-.container__result{
-    width: 100%;
-    display: flex;
+.container__result {
+    width          : 100%;
+    display        : flex;
     justify-content: center;
-    padding: 0 16px;
-    margin: auto;
-    min-height: calc(100vh - 274px);
+    padding        : 0 16px;
+    margin         : auto;
+    min-height     : calc(100vh - 274px);
 }
 
 .card__layout--search {
-    width: 100%;
+    width     : 100%;
     margin-top: 30px;
+    padding   : 0 16px;
+}
+
+.card__layout--search .card__grid {
+    justify-content: center;
 }
 
 .card__heading--search {
     justify-content: center;
-    flex-wrap: wrap;
-    text-align: center;
+    flex-wrap      : wrap;
+    text-align     : center;
+    gap            : 8px;
 }
 
 .card__heading--search .card__total {
@@ -23,7 +29,7 @@
 }
 
 .search__subtitle {
-    margin: 4px 0 24px;
+    margin    : 4px 0 24px;
     text-align: center;
-    color: #4b5563;
+    color     : #4b5563;
 }
