@@ -163,6 +163,21 @@
     filter    : drop-shadow(0 1px 1px rgba(0, 0, 0, .05));
 }
 
+.card__logo--placeholder {
+    width          : 110px;
+    height         : 90px;
+    display        : grid;
+    place-items    : center;
+    border-radius  : 12px;
+    background     : linear-gradient(135deg, rgba(55, 93, 157, .12), rgba(55, 93, 157, .04));
+    color          : #375d9d;
+    font-size      : 34px;
+    font-weight    : 800;
+    letter-spacing : .5px;
+    text-transform : uppercase;
+    box-shadow     : inset 0 0 0 1px rgba(55, 93, 157, .1);
+}
+
 /* Spinner de carga de imagen */
 .card__spinner {
     width           : 28px;

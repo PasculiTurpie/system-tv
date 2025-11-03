@@ -46,7 +46,9 @@ const SearchFilter = () => {
         // Inicializa estado de carga por imagen en true
         const initialLoading = {};
         list.forEach((item) => {
-          if (item?._id) initialLoading[item._id] = true;
+          if (item?._id && item?.logoChannel) {
+            initialLoading[item._id] = true;
+          }
         });
         setImageLoading(initialLoading);
         setImageError({});
@@ -80,9 +82,7 @@ const SearchFilter = () => {
     };
   }, [keyword]);
 
-  const handleClick = (e) => {
-    const card = e.target.closest(".card__container");
-    const id = card?.dataset.id;
+  const handleCardClick = (id) => {
     if (id) navigate(`/channels/${id}`);
   };
 
@@ -99,7 +99,9 @@ const SearchFilter = () => {
   return (
     <div className="container__result">
       {isLoading ? (
-        <Loader message="Cargando y conectando con el servidor..." />
+        <div className="loader__charge">
+          <Loader message="Cargando y conectando con el servidor..." />
+        </div>
       ) : hasError ? (
         <p className="error__data">
           Error al conectar. Comuníquese con el administrador.
@@ -109,66 +111,77 @@ const SearchFilter = () => {
           No se encontraron resultados para: <strong>{keyword}</strong>
         </p>
       ) : (
-        <div className="container__search">
-          <span className="search__register">
+        <div className="card__layout card__layout--search">
+          <h3 className="card__heading card__heading--search">
+            <span className="card__total">{dataSearch.length}</span>
             {dataSearch.length === 1
-              ? `Se encontró ${dataSearch.length} registro`
-              : `Se encontraron ${dataSearch.length} registros`}
-          </span>
+              ? "resultado encontrado"
+              : "resultados encontrados"}
+          </h3>
+          <p className="search__subtitle">
+            Búsqueda para: <strong>{keyword}</strong>
+          </p>
 
-          <div className="card__list">
+          <div className="card__grid">
             {dataSearch.map((signalItem) => {
               const id = signalItem?._id;
               const isImgLoading = !!imageLoading[id];
               const hasImgError = !!imageError[id];
+              const hasLogo = Boolean(signalItem?.logoChannel);
 
               return (
-                <div
+                <button
+                  type="button"
                   className="card__container"
                   key={id}
                   data-id={id}
-                  onClick={handleClick}
+                  onClick={() => handleCardClick(id)}
+                  aria-label={`Abrir detalle de ${signalItem.nameChannel}`}
                 >
-                  <div className="card__group-item">
-                    <h4 className="card__title">{signalItem.nameChannel}</h4>
+                  <div className="card__header">
+                    <h4 className="card__title" title={signalItem.nameChannel}>
+                      {signalItem.nameChannel}
+                    </h4>
                     <div className="card__number">
-                      <h5 className="card__number-item">
-                        {`Norte: ${signalItem.numberChannelCn}`}
-                      </h5>
-                      <h5 className="card__number-item">
-                        {`Sur: ${signalItem.numberChannelSur}`}
-                      </h5>
+                      <span className="badge">
+                        Norte: {signalItem.numberChannelCn ?? "-"}
+                      </span>
+                      <span className="badge">
+                        Sur: {signalItem.numberChannelSur ?? "-"}
+                      </span>
                     </div>
                   </div>
 
-                  {/* Imagen con loader y fallback */}
                   <div className="card__image-wrapper">
-                    {isImgLoading && <div className="card__spinner" />}
+                    {isImgLoading && hasLogo && (
+                      <div className="card__spinner" aria-hidden="true" />
+                    )}
 
-                    {!hasImgError ? (
+                    {hasLogo && !hasImgError ? (
                       <img
                         className="card__logo"
                         src={signalItem.logoChannel}
                         alt={`Logo de ${signalItem.nameChannel}`}
                         onLoad={() => handleImageLoad(id)}
                         onError={() => handleImageError(id)}
-                        // Evita parpadeo mientras carga
                         style={{ visibility: isImgLoading ? "hidden" : "visible" }}
                         loading="lazy"
+                        decoding="async"
                       />
                     ) : (
-                      <div className="card__logo--fallback" aria-label="Sin logo">
-                        Sin logo
+                      <div className="card__logo--placeholder" aria-hidden="true">
+                        {signalItem?.nameChannel?.[0]?.toUpperCase() || "?"}
                       </div>
                     )}
                   </div>
 
-                  <div className="card__severidad">
-                    <span>{signalItem.tipoTecnologia}</span>
-                    <br />
-                    <span>{`Severidad: ${signalItem.severidadChannel}`}</span>
+                  <div className="card__footer">
+                    <div className="tech">{signalItem.tipoTecnologia}</div>
+                    <div className="sev">
+                      Severidad: <strong>{signalItem.severidadChannel}</strong>
+                    </div>
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>
