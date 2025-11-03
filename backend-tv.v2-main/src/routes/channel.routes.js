@@ -14,6 +14,8 @@ router
   .get(ChannelController.getChannelId)
   .put(ChannelController.updateChannel)
   .delete(ChannelController.deleteChannel);
+  
+router.get("/search", ChannelController.searchChannel);
 
 router.put("/channels/:id/flow", ChannelController.updateChannelFlow);
 router

@@ -14,6 +14,5 @@ router
   .put(SignalController.updateSignal)
   .delete(SignalController.deleteSignal);
 
-router.get("/signals/search", SignalController.searchSignals);
 
 module.exports = router;

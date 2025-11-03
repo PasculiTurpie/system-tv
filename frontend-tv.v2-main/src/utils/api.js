@@ -193,11 +193,11 @@ class Api {
     updateSignal(id, values) {
         return this._axios.put(`/signals/${id}`, values).then((r) => r.data);
     }
-    searchFilter(keyword) {
-        return this._axios
-            .get("/signals/search", { params: { keyword } })
-            .then((r) => r);
-    }
+    searchChannels(keyword) {
+  return this._axios
+    .get("/channels/search", { params: { keyword } })
+    .then((r) => r);
+}
 
     // ====== IRD / EQUIPOS ======
     getIrd() {

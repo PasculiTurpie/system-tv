@@ -989,3 +989,53 @@ module.exports.patchLabelPositions = async (req, res) => {
     return res.status(500).json({ error: error.message });
   }
 };
+
+
+const escapeRegex = (str = "") => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+module.exports.searchChannel = async (req, res) => {
+  try {
+    const { keyword = "" } = req.query;
+    if (!keyword.trim()) {
+      return res.status(400).json({ message: "Debe proporcionar ?keyword=" });
+    }
+
+    const safe = escapeRegex(keyword);
+    const isNumeric = /^\d+$/.test(keyword);
+    const numVal = isNumeric ? Number(keyword) : null;
+
+    const orClauses = [];
+
+    // nameChannel siempre con búsqueda parcial case-insensitive
+    orClauses.push({ "signal.nameChannel": { $regex: safe, $options: "i" } });
+
+    if (isNumeric) {
+      // Evitar $regex sobre Number: aceptar string o number exactos
+      orClauses.push(
+        { "signal.numberChannelSur": { $in: [keyword, numVal] } },
+        { "signal.numberChannelCn":  { $in: [keyword, numVal] } },
+      );
+    } else {
+      // keyword no numérico: tolerancia por regex (si están guardados como string)
+      orClauses.push(
+        { "signal.numberChannelSur": { $regex: safe, $options: "i" } },
+        { "signal.numberChannelCn":  { $regex: safe, $options: "i" } },
+      );
+    }
+
+    const query = { $or: orClauses };
+
+    const results = await Channel.find(query)
+      .sort({ updatedAt: -1 })
+      .lean();
+
+    if (!results.length) {
+      return res.status(404).json({ message: "No se encontraron resultados." });
+    }
+
+    return res.status(200).json(results);
+  } catch (err) {
+    console.error("Error en searchChannel:", err);
+    return res.status(500).json({ message: "Error al buscar channels.", error: err.message });
+  }
+};

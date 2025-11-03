@@ -23,7 +23,7 @@ const SearchFilter = () => {
     const fetchData = async () => {
       try {
         setIsLoading(true);
-        const response = await api.searchFilter(keyword);
+        const response = await api.searchChannels(keyword);
 
         if (cancelled) return;
 

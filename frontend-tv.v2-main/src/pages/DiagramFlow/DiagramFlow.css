@@ -10,6 +10,9 @@
     padding:10px 15px;
     column-gap: 15px;
 }
+.title__channel{
+    font-size: 16px;
+}
 .logo__channel{
-    width: 100px;
+    width: 80px;
 }

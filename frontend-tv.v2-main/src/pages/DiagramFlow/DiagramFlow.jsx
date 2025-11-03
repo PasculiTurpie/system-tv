@@ -116,11 +116,15 @@ export const DiagramFlow = () => {
     (dataChannel?.tipoTecnologia ? ` - ${dataChannel.tipoTecnologia}` : "");
 
   return (
-    <div style={{ width: "100%", height: "90vh" }}>
-      <div className="container__header">
+    <>
+    <div className="container__diagramFlow outlet-main">
+
+
+    <div className="container__header">
         <img className="logo__channel" src={logo} alt="Logo canal" />
         <h3 className="title__channel">{titulo}</h3>
       </div>
+        <div className="conatiner__flow" style={{ width: "90vw", height: "100%" }}>
 
       <ReactFlow
         nodes={nodes}
@@ -136,6 +140,9 @@ export const DiagramFlow = () => {
         <Controls position="top-left" />
       </ReactFlow>
     </div>
+    </div>
+    
+    </>
   );
 };
 
