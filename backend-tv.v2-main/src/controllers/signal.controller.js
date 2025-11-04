@@ -1,4 +1,5 @@
 const Signal = require("../models/signal.model");
+const { escapeRegex } = require("../../helpers/escapeRegex");
 
 module.exports.createSignal = async (req, res) => {
   try {
@@ -104,37 +105,54 @@ module.exports.deleteSignal = async (req, res) => {
 
 
 module.exports.searchSignals = async (req, res) => {
-  const { keyword } = req.query;
+  const raw = (req.query.keyword ?? "").toString();
+  const keyword = raw.trim();
 
-  if (!keyword) return res.status(400).json({ message: "Parámetro 'keyword' requerido" });
+  if (!keyword) {
+    return res.status(400).json({ message: "Parámetro 'keyword' requerido" });
+  }
 
   try {
-    const isNumber = !isNaN(keyword);
-    const regex = new RegExp(keyword, "i");
+    const isNumeric = /^\d+$/.test(keyword); // sólo dígitos
+    const regex = new RegExp(escapeRegex(keyword), "i");
 
-    // Si es número, comparamos con el valor exacto también
-    const query = isNumber
-      ? {
-          $or: [
-            { nameChannel: regex },
-            { numberChannelSur: keyword }, // número exacto
-            { numberChannelCn: keyword },
-          ],
-        }
-      : {
-          $or: [
-            { nameChannel: regex },
-            { numberChannelSur: regex },
-            { numberChannelCn: regex },
-          ],
-        };
+    const query = {
+      $or: [
+        { nameChannel: regex },
+        { numberChannelSur: regex }, // en DB son strings => regex funciona
+        { numberChannelCn: regex },
+        { tipoTecnologia: regex },
+        { tipoServicio: regex },
+      ],
+    };
 
-    const results = await Signal.find(query).populate("contact");
+    // 👉 find + populate (sin expresiones en sort)
+    const docs = await Signal.find(query).populate("contact").lean();
 
-    res.json(results);
+    // 🔢 Si el keyword es numérico, ordenamos en memoria de menor a mayor
+    // priorizando Sur y luego Cn (ajusta si prefieres lo contrario)
+    const toNum = (v) => {
+      const n = parseInt(v, 10);
+      return Number.isFinite(n) ? n : Number.POSITIVE_INFINITY;
+    };
+
+    let results = docs;
+
+    if (isNumeric) {
+      results = [...docs].sort((a, b) => {
+        const aSur = toNum(a.numberChannelSur);
+        const bSur = toNum(b.numberChannelSur);
+        if (aSur !== bSur) return aSur - bSur;
+
+        const aCn = toNum(a.numberChannelCn);
+        const bCn = toNum(b.numberChannelCn);
+        return aCn - bCn;
+      });
+    }
+
+    return res.json(results);
   } catch (error) {
     console.error("Error en búsqueda:", error);
-    res.status(500).json({ message: "Error al buscar señales" });
+    return res.status(500).json({ message: "Error al buscar señales" });
   }
 };
-

@@ -36,8 +36,6 @@ const Search = () => {
       const q = term.trim();
       if (q) {
         navigate(`/search?keyword=${encodeURIComponent(q)}`, { replace: false });
-      } else {
-        navigate(`/search`, { replace: false });
       }
     }, DEBOUNCE_MS);
 
@@ -64,7 +62,6 @@ const Search = () => {
                 timer: 1600,
                 showConfirmButton: false,
               });
-              navigate(`/search`, { replace: false });
               return;
             }
             // ⚡ Navegación inmediata al presionar Enter
@@ -113,7 +110,6 @@ const Search = () => {
                       onClick={() => {
                         setFieldValue("searchFilter", "");
                         setTerm("");
-                        navigate(`/search`, { replace: false });
                       }}
                     >
                     </button>
