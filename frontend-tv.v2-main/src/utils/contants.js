@@ -68,11 +68,14 @@ const dataFlow = {
             animated: true,
             style: {
                 stroke: "green",
+                strokeWidth:2
             },
             data: {
                 bandwidth: "10Gbps",
                 protocolo: "UDP",
                 label: "Enlace1",
+                tooltipTitle: "Enlace creado",
+                tooltip: "Gi1/0/23 to ETH1",
             },
             markerEnd: {
                 type: "arrowclosed",
@@ -94,6 +97,8 @@ const dataFlow = {
                 label:'enlace 2',
                 bandwidth: "10Gbps",
                 protocolo: "UDP",
+                tooltipTitle: "Enlace creado",
+                tooltip: "Gi1/0/23 to ETH1",
             },
             markerEnd: {
                 type: "arrowclosed",
@@ -115,6 +120,8 @@ const dataFlow = {
                 label:'enlace 3',
                 bandwidth: "10Gbps",
                 protocolo: "UDP",
+                tooltipTitle: "Enlace creado",
+                tooltip: "Gi1/0/23 to ETH1",
             },
             markerEnd: {
                 type: "arrowclosed",

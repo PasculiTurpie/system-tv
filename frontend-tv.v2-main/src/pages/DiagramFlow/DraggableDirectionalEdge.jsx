@@ -150,7 +150,7 @@ export default function DraggableDirectionalEdge(props) {
           <div
             xmlns="http://www.w3.org/1999/xhtml"
             style={{
-              maxWidth: 240,
+              maxWidth: 'fit-content',
               padding: "8px 10px",
               borderRadius: 8,
               background: "rgba(0,0,0,0.8)",

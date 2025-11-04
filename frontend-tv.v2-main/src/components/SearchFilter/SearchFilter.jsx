@@ -104,7 +104,7 @@ const SearchFilter = () => {
   }, [keyword]);
 
   const handleCardClick = (id) => {
-    if (id) navigate(`/channels/${id}`);
+    if (id) navigate(`/signal/${id}`);
   };
 
   // Handlers por imagen
