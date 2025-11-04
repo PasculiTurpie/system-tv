@@ -1,6 +1,13 @@
 // src/pages/ServicesMultiHost.jsx
-import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import React, {
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+    useCallback,
+} from "react";
 import api from "../../utils/api";
+import '../../components/Loader__Spinner/loader__spinner.css'
 
 /**
  * Listado de Señales desde múltiples hosts Titan
@@ -15,909 +22,1075 @@ import api from "../../utils/api";
 
 const TITAN_SERVICES_PATH = "/api/v1/servicesmngt/services";
 const env =
-  typeof import.meta !== "undefined" && import.meta?.env ? import.meta.env : {};
+    typeof import.meta !== "undefined" && import.meta?.env
+        ? import.meta.env
+        : {};
 const TITAN_PROTOCOL = env.VITE_TITAN_PROTOCOL || "http";
 const TITAN_REQUEST_OPTIONS = {
-  path: TITAN_SERVICES_PATH,
-  protocol: TITAN_PROTOCOL,
+    path: TITAN_SERVICES_PATH,
+    protocol: TITAN_PROTOCOL,
 };
 
 // ───────────────────────── estado de hosts Titan (dinámico vía getEquipo) ─────────────────────────
 const useTitanHosts = () => {
-  const [hosts, setHosts] = useState([]); // [{label, ip}]
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+    const [hosts, setHosts] = useState([]); // [{label, ip}]
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
 
-  const loadHosts = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await api.getEquipo();
-      const equipos = Array.isArray(response?.data) ? response.data : [];
-      const seenIps = new Set();
-      const titanHosts = [];
+    const loadHosts = useCallback(async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const response = await api.getEquipo();
+            const equipos = Array.isArray(response?.data) ? response.data : [];
+            const seenIps = new Set();
+            const titanHosts = [];
 
-      for (const item of equipos) {
-        const typeNameRaw = pickFirst(
-          item?.tipoNombre?.tipoNombre,
-          item?.tipoNombre?.nombre,
-          item?.tipoNombre,
-          item?.tipo,
-          item?.tipo_equipo
-        );
-        const typeName =
-          typeof typeNameRaw === "string" ? typeNameRaw.trim().toLowerCase() : "";
+            for (const item of equipos) {
+                const typeNameRaw = pickFirst(
+                    item?.tipoNombre?.tipoNombre,
+                    item?.tipoNombre?.nombre,
+                    item?.tipoNombre,
+                    item?.tipo,
+                    item?.tipo_equipo
+                );
+                const typeName =
+                    typeof typeNameRaw === "string"
+                        ? typeNameRaw.trim().toLowerCase()
+                        : "";
 
-        if (!typeName || !typeName.includes("titan")) {
-          continue;
+                if (!typeName || !typeName.includes("titan")) {
+                    continue;
+                }
+
+                const ip = pickFirst(item?.ip_gestion, item?.ipGestion);
+                const normalizedIp = ip ? String(ip).trim() : "";
+                if (!normalizedIp || seenIps.has(normalizedIp)) continue;
+
+                seenIps.add(normalizedIp);
+                const rawName = item?.nombre ? String(item.nombre).trim() : "";
+                titanHosts.push({
+                    label: rawName || normalizedIp || "(sin nombre)",
+                    ip: normalizedIp,
+                });
+            }
+
+            titanHosts.sort((a, b) =>
+                a.label.localeCompare(b.label, undefined, {
+                    numeric: true,
+                    sensitivity: "base",
+                })
+            );
+
+            if (titanHosts.length === 0) {
+                setError(
+                    "No se encontraron equipos Titan con IP de gestión configurada."
+                );
+            }
+            setHosts(titanHosts);
+        } catch (err) {
+            setHosts([]);
+            setError(`Equipos Titan: ${describeError(err)}`);
+        } finally {
+            setLoading(false);
         }
+    }, []);
 
-        const ip = pickFirst(item?.ip_gestion, item?.ipGestion);
-        const normalizedIp = ip ? String(ip).trim() : "";
-        if (!normalizedIp || seenIps.has(normalizedIp)) continue;
-
-        seenIps.add(normalizedIp);
-        const rawName = item?.nombre ? String(item.nombre).trim() : "";
-        titanHosts.push({
-          label: rawName || normalizedIp || "(sin nombre)",
-          ip: normalizedIp,
-        });
-      }
-
-      titanHosts.sort((a, b) =>
-        a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: "base" })
-      );
-
-      if (titanHosts.length === 0) {
-        setError("No se encontraron equipos Titan con IP de gestión configurada.");
-      }
-      setHosts(titanHosts);
-    } catch (err) {
-      setHosts([]);
-      setError(`Equipos Titan: ${describeError(err)}`);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  return { hosts, loading, error, loadHosts, setHosts };
+    return { hosts, loading, error, loadHosts, setHosts };
 };
 
 // Anchos fijos de columnas críticas (tabla principal)
 const COL_WIDTHS = {
-  fuente: 260,
-  estado: 140,
-  alarma: 120,
+    fuente: 260,
+    estado: 140,
+    alarma: 120,
 };
 
 /* ───────────────────────── utils ───────────────────────── */
 
 function pickFirst(...cands) {
-  for (const v of cands) if (v !== undefined && v !== null) return v;
-  return undefined;
+    for (const v of cands) if (v !== undefined && v !== null) return v;
+    return undefined;
 }
 
 /** get(obj, 'Outputs[0][0].Outputs[0].Url') seguro (soporta [idx] y .prop) */
 function get(obj, path, def = undefined) {
-  if (!obj || !path) return def;
-  const norm = String(path)
-    .replace(/\[(\w+)\]/g, ".$1") // [0] -> .0
-    .replace(/^\./, "");
-  const out = norm.split(".").reduce((acc, key) => {
-    if (acc == null) return undefined;
-    return acc[key];
-  }, obj);
-  return out === undefined ? def : out;
+    if (!obj || !path) return def;
+    const norm = String(path)
+        .replace(/\[(\w+)\]/g, ".$1") // [0] -> .0
+        .replace(/^\./, "");
+    const out = norm.split(".").reduce((acc, key) => {
+        if (acc == null) return undefined;
+        return acc[key];
+    }, obj);
+    return out === undefined ? def : out;
 }
 
 /** extrae el array de servicios desde múltiples formas de respuesta */
 function extractServicesArray(resp) {
-  const r = resp ?? {};
-  if (Array.isArray(r)) return r;
-  if (Array.isArray(r.services)) return r.services;
-  if (Array.isArray(r.Services)) return r.Services;
-  if (Array.isArray(r.data?.services)) return r.data.services;
-  if (Array.isArray(r.data?.Services)) return r.data.Services;
-  if (Array.isArray(r.result)) return r.result;
-  return [];
+    const r = resp ?? {};
+    if (Array.isArray(r)) return r;
+    if (Array.isArray(r.services)) return r.services;
+    if (Array.isArray(r.Services)) return r.Services;
+    if (Array.isArray(r.data?.services)) return r.data.services;
+    if (Array.isArray(r.data?.Services)) return r.data.Services;
+    if (Array.isArray(r.result)) return r.result;
+    return [];
 }
 
 /* ───────────────────────── detección de fuente y alarmas (ratificadas) ───────────────────────── */
 
 // Mensajes explícitos que SÍ significan falla
 const FAIL_NAMES = new Set([
-  "Video Signal Missing",
-  "Audio Signal Silent",
-  "Video Signal Frozen",
-  "Input Source Loss",
+    "Video Signal Missing",
+    "Audio Signal Silent",
+    "Video Signal Frozen",
+    "Input Source Loss",
 ]);
 
 function detectVideoSource(svc) {
-  const state = get(svc, "State.State");
-  const streaming = !!get(svc, "State.Streaming", false);
+    const state = get(svc, "State.State");
+    const streaming = !!get(svc, "State.Streaming", false);
 
-  const msgs = get(svc, "State.Messages", []);
-  const failMsgs = Array.isArray(msgs)
-    ? msgs.filter((m) => {
-        if (!m) return false;
-        if (typeof m === "string") return FAIL_NAMES.has(m);
-        const name = m.Name;
-        return typeof name === "string" && FAIL_NAMES.has(name);
-      })
-    : [];
+    const msgs = get(svc, "State.Messages", []);
+    const failMsgs = Array.isArray(msgs)
+        ? msgs.filter((m) => {
+              if (!m) return false;
+              if (typeof m === "string") return FAIL_NAMES.has(m);
+              const name = m.Name;
+              return typeof name === "string" && FAIL_NAMES.has(name);
+          })
+        : [];
 
-  const emuMode = get(svc, "Device.Template.Tracks.VideoTracks[0].EmulationMode.Mode", "Off");
-  const patternName = get(svc, "Device.Template.Tracks.VideoTracks[0].EmulationMode.PatternName", null);
-  const stillPictureEnabled = !!get(svc, "Device.Template.Tracks.VideoTracks[0].Variants[0].StillPicture", false);
-  const stillPictureFilename = get(svc, "Device.Template.Tracks.VideoTracks[0].Variants[0].StillPictureFilename", null);
+    const emuMode = get(
+        svc,
+        "Device.Template.Tracks.VideoTracks[0].EmulationMode.Mode",
+        "Off"
+    );
+    const patternName = get(
+        svc,
+        "Device.Template.Tracks.VideoTracks[0].EmulationMode.PatternName",
+        null
+    );
+    const stillPictureEnabled = !!get(
+        svc,
+        "Device.Template.Tracks.VideoTracks[0].Variants[0].StillPicture",
+        false
+    );
+    const stillPictureFilename = get(
+        svc,
+        "Device.Template.Tracks.VideoTracks[0].Variants[0].StillPictureFilename",
+        null
+    );
 
-  const liveInputUrl = pickFirst(
-    get(svc, "Input[0].IPInputList[0].Url"),
-    get(svc, "Input.IPInputList[0].Url"),
-    get(svc, "IPInputList[0].Url"),
-    get(svc, "Input.Url"),
-    get(svc, "InputUrl")
-  );
+    const liveInputUrl = pickFirst(
+        get(svc, "Input[0].IPInputList[0].Url"),
+        get(svc, "Input.IPInputList[0].Url"),
+        get(svc, "IPInputList[0].Url"),
+        get(svc, "Input.Url"),
+        get(svc, "InputUrl")
+    );
 
-  if (failMsgs.length > 0) {
-    const reason = failMsgs
-      .map((m) => (typeof m === "string" ? m : m?.Name || m?.Description))
-      .filter(Boolean)
-      .join(" | ");
+    if (failMsgs.length > 0) {
+        const reason = failMsgs
+            .map((m) => (typeof m === "string" ? m : m?.Name || m?.Description))
+            .filter(Boolean)
+            .join(" | ");
+        return {
+            encodingState: state,
+            streaming,
+            mode: "fail",
+            sourceName: reason || liveInputUrl || "(input issue)",
+            reason: reason || null,
+            liveInputUrl,
+            emulationMode: emuMode,
+            patternName,
+            stillPictureEnabled,
+            stillPictureFilename,
+        };
+    }
+
+    if (emuMode && String(emuMode).toLowerCase() === "pattern") {
+        return {
+            encodingState: state,
+            streaming,
+            mode: "pattern",
+            sourceName: patternName ?? "(pattern)",
+            reason: null,
+            liveInputUrl,
+            emulationMode: emuMode,
+            patternName,
+            stillPictureEnabled,
+            stillPictureFilename,
+        };
+    }
+
+    if (stillPictureEnabled) {
+        return {
+            encodingState: state,
+            streaming,
+            mode: "still",
+            sourceName: stillPictureFilename ?? "(still picture)",
+            reason: null,
+            liveInputUrl,
+            emulationMode: emuMode,
+            patternName,
+            stillPictureEnabled,
+            stillPictureFilename,
+        };
+    }
+
     return {
-      encodingState: state,
-      streaming,
-      mode: "fail",
-      sourceName: reason || liveInputUrl || "(input issue)",
-      reason: reason || null,
-      liveInputUrl,
-      emulationMode: emuMode,
-      patternName,
-      stillPictureEnabled,
-      stillPictureFilename,
+        encodingState: state,
+        streaming,
+        mode: "live",
+        sourceName: liveInputUrl ?? "",
+        reason: null,
+        liveInputUrl,
+        emulationMode: emuMode,
+        patternName,
+        stillPictureEnabled,
+        stillPictureFilename,
     };
-  }
-
-  if (emuMode && String(emuMode).toLowerCase() === "pattern") {
-    return {
-      encodingState: state,
-      streaming,
-      mode: "pattern",
-      sourceName: patternName ?? "(pattern)",
-      reason: null,
-      liveInputUrl,
-      emulationMode: emuMode,
-      patternName,
-      stillPictureEnabled,
-      stillPictureFilename,
-    };
-  }
-
-  if (stillPictureEnabled) {
-    return {
-      encodingState: state,
-      streaming,
-      mode: "still",
-      sourceName: stillPictureFilename ?? "(still picture)",
-      reason: null,
-      liveInputUrl,
-      emulationMode: emuMode,
-      patternName,
-      stillPictureEnabled,
-      stillPictureFilename,
-    };
-  }
-
-  return {
-    encodingState: state,
-    streaming,
-    mode: "live",
-    sourceName: liveInputUrl ?? "",
-    reason: null,
-    liveInputUrl,
-    emulationMode: emuMode,
-    patternName,
-    stillPictureEnabled,
-    stillPictureFilename,
-  };
 }
 
 /** VideoAlarm SOLO si hay mensaje explícito de falla; opcionalmente pattern/still si el flag está activo */
 function detectVideoAlarm(svc, treatPatternOrStillAsFail) {
-  const msgs = get(svc, "State.Messages", []);
-  const hasExplicitVideoFail =
-    Array.isArray(msgs) &&
-    msgs.some((m) => {
-      const name = typeof m === "string" ? m : m?.Name;
-      return (
-        name === "Video Signal Missing" ||
-        name === "Video Signal Frozen" ||
-        name === "Input Source Loss"
-      );
-    });
+    const msgs = get(svc, "State.Messages", []);
+    const hasExplicitVideoFail =
+        Array.isArray(msgs) &&
+        msgs.some((m) => {
+            const name = typeof m === "string" ? m : m?.Name;
+            return (
+                name === "Video Signal Missing" ||
+                name === "Video Signal Frozen" ||
+                name === "Input Source Loss"
+            );
+        });
 
-  const emuMode = get(svc, "Device.Template.Tracks.VideoTracks[0].EmulationMode.Mode", "Off");
-  const modeLower = String(emuMode || "").toLowerCase();
-  const patternOrStill =
-    modeLower === "pattern" ||
-    modeLower === "still" ||
-    !!get(svc, "Device.Template.Tracks.VideoTracks[0].Variants[0].StillPicture", false);
+    const emuMode = get(
+        svc,
+        "Device.Template.Tracks.VideoTracks[0].EmulationMode.Mode",
+        "Off"
+    );
+    const modeLower = String(emuMode || "").toLowerCase();
+    const patternOrStill =
+        modeLower === "pattern" ||
+        modeLower === "still" ||
+        !!get(
+            svc,
+            "Device.Template.Tracks.VideoTracks[0].Variants[0].StillPicture",
+            false
+        );
 
-  const videoAlarm = hasExplicitVideoFail || (treatPatternOrStillAsFail && patternOrStill);
+    const videoAlarm =
+        hasExplicitVideoFail || (treatPatternOrStillAsFail && patternOrStill);
 
-  return { videoAlarm, hasExplicitVideoFail, patternOrStill };
+    return { videoAlarm, hasExplicitVideoFail, patternOrStill };
 }
 
 /** AudioAlarm SOLO si hay mensaje explícito o silencio habilitado + niveles ≤ umbral */
 function detectAudioAlarm(svc) {
-  const msgs = get(svc, "State.Messages", []);
-  const hasExplicitAudioFail =
-    Array.isArray(msgs) &&
-    msgs.some((m) => {
-      const name = typeof m === "string" ? m : m?.Name;
-      return name === "Audio Signal Silent";
-    });
+    const msgs = get(svc, "State.Messages", []);
+    const hasExplicitAudioFail =
+        Array.isArray(msgs) &&
+        msgs.some((m) => {
+            const name = typeof m === "string" ? m : m?.Name;
+            return name === "Audio Signal Silent";
+        });
 
-  if (hasExplicitAudioFail) {
-    return { audioAlarm: true, reason: "explicit", audioLevelDb: null, audioThreshold: null };
-  }
+    if (hasExplicitAudioFail) {
+        return {
+            audioAlarm: true,
+            reason: "explicit",
+            audioLevelDb: null,
+            audioThreshold: null,
+        };
+    }
 
-  // Si el monitoreo de silencio no está habilitado, no marcamos por nivel
-  const silenceEnable =
-    !!get(svc, "GlobalConfiguration.AudioSilenceParameters.Enable", false) ||
-    !!get(svc, "Device.Template.GlobalConfiguration.AudioSilenceParameters.Enable", false);
+    // Si el monitoreo de silencio no está habilitado, no marcamos por nivel
+    const silenceEnable =
+        !!get(
+            svc,
+            "GlobalConfiguration.AudioSilenceParameters.Enable",
+            false
+        ) ||
+        !!get(
+            svc,
+            "Device.Template.GlobalConfiguration.AudioSilenceParameters.Enable",
+            false
+        );
 
-  if (!silenceEnable) {
-    return { audioAlarm: false, reason: "silence_monitor_disabled", audioLevelDb: null, audioThreshold: null };
-  }
+    if (!silenceEnable) {
+        return {
+            audioAlarm: false,
+            reason: "silence_monitor_disabled",
+            audioLevelDb: null,
+            audioThreshold: null,
+        };
+    }
 
-  // Con monitoreo de silencio habilitado: nivel vs umbral
-  const threshold =
-    pickFirst(
-      get(svc, "GlobalConfiguration.AudioSilenceParameters.Threshold"),
-      get(svc, "Device.Template.GlobalConfiguration.AudioSilenceParameters.Threshold")
-    ) ?? -70;
+    // Con monitoreo de silencio habilitado: nivel vs umbral
+    const threshold =
+        pickFirst(
+            get(svc, "GlobalConfiguration.AudioSilenceParameters.Threshold"),
+            get(
+                svc,
+                "Device.Template.GlobalConfiguration.AudioSilenceParameters.Threshold"
+            )
+        ) ?? -70;
 
-  const levels = get(svc, "State.AudioLevels", []);
-  const flat = Array.isArray(levels) ? levels.flat().filter((v) => typeof v === "number") : [];
+    const levels = get(svc, "State.AudioLevels", []);
+    const flat = Array.isArray(levels)
+        ? levels.flat().filter((v) => typeof v === "number")
+        : [];
 
-  if (flat.length === 0) {
-    // Sin muestras de nivel → no asumimos falla
-    return { audioAlarm: false, reason: "no_levels", audioLevelDb: null, audioThreshold: threshold };
-  }
+    if (flat.length === 0) {
+        // Sin muestras de nivel → no asumimos falla
+        return {
+            audioAlarm: false,
+            reason: "no_levels",
+            audioLevelDb: null,
+            audioThreshold: threshold,
+        };
+    }
 
-  const maxLevel = Math.max(...flat);
-  const audioAlarm = maxLevel <= threshold;
-  return { audioAlarm, reason: "threshold", audioLevelDb: maxLevel, audioThreshold: threshold };
+    const maxLevel = Math.max(...flat);
+    const audioAlarm = maxLevel <= threshold;
+    return {
+        audioAlarm,
+        reason: "threshold",
+        audioLevelDb: maxLevel,
+        audioThreshold: threshold,
+    };
 }
 
 /** Suma de errores TS (PID errors o total CC errors) */
 function getTsErrors(svc) {
-  const pidErrors = get(svc, "State.EtrStatistics[0].PidErrors", []);
-  const totalCce = get(svc, "State.EtrStatistics[0].TotalContinuityCountErrors", 0);
-  let sum = 0;
-  if (Array.isArray(pidErrors)) {
-    for (const p of pidErrors) {
-      const n = Number(p?.errors);
-      if (!Number.isNaN(n)) sum += n;
+    const pidErrors = get(svc, "State.EtrStatistics[0].PidErrors", []);
+    const totalCce = get(
+        svc,
+        "State.EtrStatistics[0].TotalContinuityCountErrors",
+        0
+    );
+    let sum = 0;
+    if (Array.isArray(pidErrors)) {
+        for (const p of pidErrors) {
+            const n = Number(p?.errors);
+            if (!Number.isNaN(n)) sum += n;
+        }
     }
-  }
-  const total = sum || Number(totalCce) || 0;
-  return total;
+    const total = sum || Number(totalCce) || 0;
+    return total;
 }
 
 /* ───────────────────────── extracción por fila ───────────────────────── */
 function extractRow(hostLabel, ip, svc, opts = {}) {
-  const { treatPatternOrStillAsFail = false } = opts;
-  const s = svc ?? {};
-  const name = pickFirst(get(s, "Name"), get(s, "name"), get(s, "ServiceName"), get(s, "serviceName"));
+    const { treatPatternOrStillAsFail = false } = opts;
+    const s = svc ?? {};
+    const name = pickFirst(
+        get(s, "Name"),
+        get(s, "name"),
+        get(s, "ServiceName"),
+        get(s, "serviceName")
+    );
 
-  const inputUrl = pickFirst(
-    get(s, "Input[0].IPInputList[0].Url"),
-    get(s, "Input.IPInputList[0].Url"),
-    get(s, "IPInputList[0].Url"),
-    get(s, "Input.Url"),
-    get(s, "InputUrl")
-  );
+    const inputUrl = pickFirst(
+        get(s, "Input[0].IPInputList[0].Url"),
+        get(s, "Input.IPInputList[0].Url"),
+        get(s, "IPInputList[0].Url"),
+        get(s, "Input.Url"),
+        get(s, "InputUrl")
+    );
 
-  const outputUrlExact = pickFirst(get(s, "Outputs[0][0].Outputs[0].Url"), get(s, "Outputs[0][0].Outputs.Url"));
-  const outputUrlFallback = pickFirst(
-    get(s, "Outputs[0].Outputs[0].Url"),
-    get(s, "Outputs[0].Outputs.Url"),
-    get(s, "Outputs[0][0].Outputs[0]"),
-    get(s, "Outputs[0].Url"),
-    get(s, "Outputs.Url"),
-    get(s, "Output.Url")
-  );
-  const outputUrl = pickFirst(outputUrlExact, outputUrlFallback);
+    const outputUrlExact = pickFirst(
+        get(s, "Outputs[0][0].Outputs[0].Url"),
+        get(s, "Outputs[0][0].Outputs.Url")
+    );
+    const outputUrlFallback = pickFirst(
+        get(s, "Outputs[0].Outputs[0].Url"),
+        get(s, "Outputs[0].Outputs.Url"),
+        get(s, "Outputs[0][0].Outputs[0]"),
+        get(s, "Outputs[0].Url"),
+        get(s, "Outputs.Url"),
+        get(s, "Output.Url")
+    );
+    const outputUrl = pickFirst(outputUrlExact, outputUrlFallback);
 
-  const stateVal = pickFirst(get(s, "State.State"), get(s, "state.state"), get(s, "State"), get(s, "state"));
+    const stateVal = pickFirst(
+        get(s, "State.State"),
+        get(s, "state.state"),
+        get(s, "State"),
+        get(s, "state")
+    );
 
-  // Fuente descriptiva (NO decide falla)
-  const src = detectVideoSource(s);
-  const sourceText =
-    src.mode === "fail"
-      ? `fail: ${src.sourceName ?? ""}`
-      : src.mode === "pattern"
-      ? `pattern: ${src.sourceName ?? ""}`
-      : src.mode === "still"
-      ? `still: ${src.sourceName ?? ""}`
-      : `live: ${src.sourceName ?? ""}`;
+    // Fuente descriptiva (NO decide falla)
+    const src = detectVideoSource(s);
+    const sourceText =
+        src.mode === "fail"
+            ? `fail: ${src.sourceName ?? ""}`
+            : src.mode === "pattern"
+            ? `pattern: ${src.sourceName ?? ""}`
+            : src.mode === "still"
+            ? `still: ${src.sourceName ?? ""}`
+            : `live: ${src.sourceName ?? ""}`;
 
-  // Alarmas según reglas ratificadas y preferencia de UI
-  const { videoAlarm, hasExplicitVideoFail, patternOrStill } = detectVideoAlarm(s, treatPatternOrStillAsFail);
-  const { audioAlarm, audioLevelDb, audioThreshold } = detectAudioAlarm(s);
-  const tsErrors = getTsErrors(s);
+    // Alarmas según reglas ratificadas y preferencia de UI
+    const { videoAlarm, hasExplicitVideoFail, patternOrStill } =
+        detectVideoAlarm(s, treatPatternOrStillAsFail);
+    const { audioAlarm, audioLevelDb, audioThreshold } = detectAudioAlarm(s);
+    const tsErrors = getTsErrors(s);
 
-  return {
-    host: hostLabel,
-    ip,
-    name: name ?? "(sin nombre)",
-    inputUrl: inputUrl ?? "",
-    outputs: outputUrl ?? "",
-    sourceMode: src.mode,
-    sourceName: src.sourceName ?? "",
-    sourceText,
-    state: typeof stateVal === "object" ? JSON.stringify(stateVal) : stateVal ?? "",
-    // Datos de alarmas
-    audioAlarm,
-    audioLevelDb,
-    audioThreshold,
-    videoAlarm,
-    tsErrors,
-    // Flags internos útiles para tooltips / depuración
-    _explicitVideoFail: !!hasExplicitVideoFail,
-    _patternOrStill: !!patternOrStill,
-  };
+    return {
+        host: hostLabel,
+        ip,
+        name: name ?? "(sin nombre)",
+        inputUrl: inputUrl ?? "",
+        outputs: outputUrl ?? "",
+        sourceMode: src.mode,
+        sourceName: src.sourceName ?? "",
+        sourceText,
+        state:
+            typeof stateVal === "object"
+                ? JSON.stringify(stateVal)
+                : stateVal ?? "",
+        // Datos de alarmas
+        audioAlarm,
+        audioLevelDb,
+        audioThreshold,
+        videoAlarm,
+        tsErrors,
+        // Flags internos útiles para tooltips / depuración
+        _explicitVideoFail: !!hasExplicitVideoFail,
+        _patternOrStill: !!patternOrStill,
+    };
 }
 
 /* ───────────────────────── Titans helpers ───────────────────────── */
 
 function describeError(error) {
-  if (!error) return "Error desconocido";
-  if (typeof error === "string") return error;
-  const response = error.response;
-  if (response) {
-    const status = response.status ?? "?";
-    const statusText = response.statusText ? ` ${response.statusText}` : "";
-    const data = response.data;
-    let detail = "";
-    if (data) {
-      if (typeof data === "string") detail = data;
-      else if (typeof data?.error === "string") detail = data.error;
-      else if (typeof data?.message === "string") detail = data.message;
-      else {
-        try {
-          detail = JSON.stringify(data);
-        } catch {
-          detail = String(data);
+    if (!error) return "Error desconocido";
+    if (typeof error === "string") return error;
+    const response = error.response;
+    if (response) {
+        const status = response.status ?? "?";
+        const statusText = response.statusText ? ` ${response.statusText}` : "";
+        const data = response.data;
+        let detail = "";
+        if (data) {
+            if (typeof data === "string") detail = data;
+            else if (typeof data?.error === "string") detail = data.error;
+            else if (typeof data?.message === "string") detail = data.message;
+            else {
+                try {
+                    detail = JSON.stringify(data);
+                } catch {
+                    detail = String(data);
+                }
+            }
+            if (detail) detail = ` - ${detail}`;
         }
-      }
-      if (detail) detail = ` - ${detail}`;
+        return `HTTP ${status}${statusText}${detail}`.trim();
     }
-    return `HTTP ${status}${statusText}${detail}`.trim();
-  }
-  if (error?.message) return error.message;
-  try {
-    return JSON.stringify(error);
-  } catch {
-    return String(error);
-  }
+    if (error?.message) return error.message;
+    try {
+        return JSON.stringify(error);
+    } catch {
+        return String(error);
+    }
 }
 
 function describeTitanEntryError(entry) {
-  if (!entry) return "sin datos";
-  if (typeof entry === "string") return entry;
-  if (entry.error) {
-    if (typeof entry.error === "string") return entry.error;
-    if (entry.error?.message) return entry.error.message;
-    try {
-      return JSON.stringify(entry.error);
-    } catch {
-      return String(entry.error);
+    if (!entry) return "sin datos";
+    if (typeof entry === "string") return entry;
+    if (entry.error) {
+        if (typeof entry.error === "string") return entry.error;
+        if (entry.error?.message) return entry.error.message;
+        try {
+            return JSON.stringify(entry.error);
+        } catch {
+            return String(entry.error);
+        }
     }
-  }
-  if (entry.message) return entry.message;
-  if (entry.status || entry.statusText) {
-    const status = entry.status ?? "?";
-    const text = entry.statusText ? ` ${entry.statusText}` : "";
-    return `HTTP ${status}${text}`.trim();
-  }
-  return "error desconocido";
+    if (entry.message) return entry.message;
+    if (entry.status || entry.statusText) {
+        const status = entry.status ?? "?";
+        const text = entry.statusText ? ` ${entry.statusText}` : "";
+        return `HTTP ${status}${text}`.trim();
+    }
+    return "error desconocido";
 }
 
 function unwrapTitanPayload(entry) {
-  if (!entry || typeof entry !== "object") return entry;
-  if (entry.data !== undefined) return entry.data;
-  if (entry.payload !== undefined) return entry.payload;
-  if (entry.body !== undefined) return entry.body;
-  if (entry.result !== undefined) return entry.result;
-  return entry;
+    if (!entry || typeof entry !== "object") return entry;
+    if (entry.data !== undefined) return entry.data;
+    if (entry.payload !== undefined) return entry.payload;
+    if (entry.body !== undefined) return entry.body;
+    if (entry.result !== undefined) return entry.result;
+    return entry;
 }
 
 function normalizeTitanMultiResponse(payload) {
-  if (!payload) return [];
-  if (Array.isArray(payload)) return payload;
-  if (Array.isArray(payload.results)) return payload.results;
-  if (Array.isArray(payload.data)) return payload.data;
-  if (Array.isArray(payload.items)) return payload.items;
-  if (Array.isArray(payload.hosts)) return payload.hosts;
-  return [];
+    if (!payload) return [];
+    if (Array.isArray(payload)) return payload;
+    if (Array.isArray(payload.results)) return payload.results;
+    if (Array.isArray(payload.data)) return payload.data;
+    if (Array.isArray(payload.items)) return payload.items;
+    if (Array.isArray(payload.hosts)) return payload.hosts;
+    return [];
 }
 
 function getEntryHost(entry) {
-  if (!entry) return null;
-  return (
-    entry.host ??
-    entry.ip ??
-    entry.hostIp ??
-    entry.hostname ??
-    (typeof entry === "object" && typeof entry.host === "string" ? entry.host : null)
-  );
+    if (!entry) return null;
+    return (
+        entry.host ??
+        entry.ip ??
+        entry.hostIp ??
+        entry.hostname ??
+        (typeof entry === "object" && typeof entry.host === "string"
+            ? entry.host
+            : null)
+    );
 }
 
 function isEntryOk(entry) {
-  if (!entry) return false;
-  if (typeof entry.ok === "boolean") return entry.ok;
-  if ("error" in entry && entry.error) return false;
-  if (entry.status !== undefined) {
-    const status = Number(entry.status);
-    if (!Number.isNaN(status)) return status >= 200 && status < 300;
-  }
-  return true;
+    if (!entry) return false;
+    if (typeof entry.ok === "boolean") return entry.ok;
+    if ("error" in entry && entry.error) return false;
+    if (entry.status !== undefined) {
+        const status = Number(entry.status);
+        if (!Number.isNaN(status)) return status >= 200 && status < 300;
+    }
+    return true;
 }
 
 function processTitanEntries(entries, hostMap, opts) {
-  const rows = [];
-  const errors = [];
-  const seenHosts = new Set();
+    const rows = [];
+    const errors = [];
+    const seenHosts = new Set();
 
-  for (const entry of entries) {
-    const hostIp = getEntryHost(entry);
-    if (hostIp) seenHosts.add(hostIp);
-    const hostInfo = hostMap.get(hostIp) || {
-      label: hostIp ?? "(desconocido)",
-      ip: hostIp ?? "(desconocido)",
-    };
+    for (const entry of entries) {
+        const hostIp = getEntryHost(entry);
+        if (hostIp) seenHosts.add(hostIp);
+        const hostInfo = hostMap.get(hostIp) || {
+            label: hostIp ?? "(desconocido)",
+            ip: hostIp ?? "(desconocido)",
+        };
 
-    if (isEntryOk(entry)) {
-      const payload = unwrapTitanPayload(entry);
-      const services = extractServicesArray(payload);
-      rows.push(
-        ...services.map((svc) => extractRow(hostInfo.label, hostInfo.ip, svc, opts))
-      );
-    } else {
-      errors.push(`${hostInfo.label} (${hostInfo.ip}): ${describeTitanEntryError(entry)}`);
+        if (isEntryOk(entry)) {
+            const payload = unwrapTitanPayload(entry);
+            const services = extractServicesArray(payload);
+            rows.push(
+                ...services.map((svc) =>
+                    extractRow(hostInfo.label, hostInfo.ip, svc, opts)
+                )
+            );
+        } else {
+            errors.push(
+                `${hostInfo.label} (${hostInfo.ip}): ${describeTitanEntryError(
+                    entry
+                )}`
+            );
+        }
     }
-  }
 
-  return { rows, errors, seenHosts };
+    return { rows, errors, seenHosts };
 }
 
 /* ───────────────────────── CSV ───────────────────────── */
 
 function escapeCsvField(v) {
-  if (v === null || v === undefined) return "";
-  const s = String(v);
-  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-  return s;
+    if (v === null || v === undefined) return "";
+    const s = String(v);
+    if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+    return s;
 }
 
 function rowsToCsv(rows) {
-  const headers = [
-    "Host",
-    "IP",
-    "Name",
-    "Input.IPInputList.Url",
-    "Outputs[0].Outputs.Url",
-    "Fuente",
-    "State.State",
-    "AudioAlarm",
-    "VideoAlarm",
-    "AudioLevelDb",
-    "AudioThreshold",
-    "TsErrors",
-  ];
-  const lines = [headers.map(escapeCsvField).join(",")];
-  for (const r of rows) {
-    lines.push(
-      [
-        r.host,
-        r.ip,
-        r.name,
-        r.inputUrl,
-        typeof r.outputs === "string" ? r.outputs : JSON.stringify(r.outputs),
-        r.sourceText,
-        r.state,
-        r.audioAlarm,
-        r.videoAlarm,
-        r.audioLevelDb ?? "",
-        r.audioThreshold ?? "",
-        r.tsErrors ?? 0,
-      ]
-        .map(escapeCsvField)
-        .join(",")
-    );
-  }
-  return lines.join("\r\n");
+    const headers = [
+        "Host",
+        "IP",
+        "Name",
+        "Input.IPInputList.Url",
+        "Outputs[0].Outputs.Url",
+        "Fuente",
+        "State.State",
+        "AudioAlarm",
+        "VideoAlarm",
+        "AudioLevelDb",
+        "AudioThreshold",
+        "TsErrors",
+    ];
+    const lines = [headers.map(escapeCsvField).join(",")];
+    for (const r of rows) {
+        lines.push(
+            [
+                r.host,
+                r.ip,
+                r.name,
+                r.inputUrl,
+                typeof r.outputs === "string"
+                    ? r.outputs
+                    : JSON.stringify(r.outputs),
+                r.sourceText,
+                r.state,
+                r.audioAlarm,
+                r.videoAlarm,
+                r.audioLevelDb ?? "",
+                r.audioThreshold ?? "",
+                r.tsErrors ?? 0,
+            ]
+                .map(escapeCsvField)
+                .join(",")
+        );
+    }
+    return lines.join("\r\n");
 }
 
 function downloadText(filename, text) {
-  const blob = new Blob([text], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+    const blob = new Blob([text], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
 }
 
 /* Helpers UI */
 function hostHref(ip) {
-  if (!ip) return "#";
-  return `${TITAN_PROTOCOL}://${ip}`;
+    if (!ip) return "#";
+    return `${TITAN_PROTOCOL}://${ip}`;
 }
 
 /* ───────────────────────── Duplicados de Output URLs ───────────────────────── */
 
 function collectDuplicateOutputErrors(rows) {
-  const map = new Map(); // url -> [{name, ip}]
-  for (const r of rows) {
-    const url = typeof r.outputs === "string" ? r.outputs.trim() : "";
-    if (!url) continue;
-    const key = url.toLowerCase();
-    if (!map.has(key)) map.set(key, []);
-    map.get(key).push({ name: r.name, ip: r.ip });
-  }
-  const errors = [];
-  for (const [url, list] of map.entries()) {
-    if (list.length > 1) {
-      const refs = list.map((x) => `${x.name} @ ${x.ip}`).join("; ");
-      errors.push(`Output Url duplicado: ${url} (usado por ${list.length} señales: ${refs})`);
+    const map = new Map(); // url -> [{name, ip}]
+    for (const r of rows) {
+        const url = typeof r.outputs === "string" ? r.outputs.trim() : "";
+        if (!url) continue;
+        const key = url.toLowerCase();
+        if (!map.has(key)) map.set(key, []);
+        map.get(key).push({ name: r.name, ip: r.ip });
     }
-  }
-  return errors;
+    const errors = [];
+    for (const [url, list] of map.entries()) {
+        if (list.length > 1) {
+            const refs = list.map((x) => `${x.name} @ ${x.ip}`).join("; ");
+            errors.push(
+                `Output Url duplicado: ${url} (usado por ${list.length} señales: ${refs})`
+            );
+        }
+    }
+    return errors;
 }
 
 /* ───────────────────────── Ordenamiento ───────────────────────── */
 
 function compareRowsWithConfig(a, b, sortConfig) {
-  if (!sortConfig || !sortConfig.key) return 0;
-  const { primary: aPrimary, secondary: aSecondary } = getSortDataForKey(a, sortConfig.key);
-  const { primary: bPrimary, secondary: bSecondary } = getSortDataForKey(b, sortConfig.key);
+    if (!sortConfig || !sortConfig.key) return 0;
+    const { primary: aPrimary, secondary: aSecondary } = getSortDataForKey(
+        a,
+        sortConfig.key
+    );
+    const { primary: bPrimary, secondary: bSecondary } = getSortDataForKey(
+        b,
+        sortConfig.key
+    );
 
-  const base = comparePrimitive(aPrimary, bPrimary);
-  if (base !== 0) {
-    return sortConfig.direction === "desc" ? -base : base;
-  }
+    const base = comparePrimitive(aPrimary, bPrimary);
+    if (base !== 0) {
+        return sortConfig.direction === "desc" ? -base : base;
+    }
 
-  const tieBreaker = comparePrimitive(aSecondary, bSecondary);
-  if (tieBreaker !== 0) {
-    return sortConfig.direction === "desc" ? -tieBreaker : tieBreaker;
-  }
+    const tieBreaker = comparePrimitive(aSecondary, bSecondary);
+    if (tieBreaker !== 0) {
+        return sortConfig.direction === "desc" ? -tieBreaker : tieBreaker;
+    }
 
-  return 0;
+    return 0;
 }
 
 function getSortDataForKey(row, key) {
-  switch (key) {
-    case "host":
-      return { primary: row?.host ?? "", secondary: row?.ip ?? "" };
-    case "ip": {
-      const numeric = ipToSortableNumber(row?.ip);
-      if (numeric !== null) {
-        return { primary: numeric, secondary: row?.ip ?? "" };
-      }
-      return { primary: row?.ip ?? "", secondary: row?.host ?? "" };
+    switch (key) {
+        case "host":
+            return { primary: row?.host ?? "", secondary: row?.ip ?? "" };
+        case "ip": {
+            const numeric = ipToSortableNumber(row?.ip);
+            if (numeric !== null) {
+                return { primary: numeric, secondary: row?.ip ?? "" };
+            }
+            return { primary: row?.ip ?? "", secondary: row?.host ?? "" };
+        }
+        case "name":
+            return { primary: row?.name ?? "", secondary: row?.host ?? "" };
+        case "inputUrl":
+            return { primary: row?.inputUrl ?? "", secondary: row?.host ?? "" };
+        case "outputs": {
+            const out =
+                typeof row?.outputs === "string"
+                    ? row.outputs
+                    : JSON.stringify(row?.outputs ?? "");
+            return { primary: out ?? "", secondary: row?.host ?? "" };
+        }
+        case "audioAlarm":
+            return {
+                primary: row?.audioAlarm ? 1 : 0,
+                secondary: row?.host ?? "",
+            };
+        case "videoAlarm":
+            return {
+                primary: row?.videoAlarm ? 1 : 0,
+                secondary: row?.host ?? "",
+            };
+        case "state":
+            return { primary: row?.state ?? "", secondary: row?.host ?? "" };
+        case "tsErrors": {
+            const numeric = Number(row?.tsErrors);
+            const primary = Number.isFinite(numeric) ? numeric : 0;
+            return { primary, secondary: row?.host ?? "" };
+        }
+        default:
+            return { primary: row?.[key] ?? "", secondary: row?.host ?? "" };
     }
-    case "name":
-      return { primary: row?.name ?? "", secondary: row?.host ?? "" };
-    case "inputUrl":
-      return { primary: row?.inputUrl ?? "", secondary: row?.host ?? "" };
-    case "outputs": {
-      const out =
-        typeof row?.outputs === "string"
-          ? row.outputs
-          : JSON.stringify(row?.outputs ?? "");
-      return { primary: out ?? "", secondary: row?.host ?? "" };
-    }
-    case "audioAlarm":
-      return { primary: row?.audioAlarm ? 1 : 0, secondary: row?.host ?? "" };
-    case "videoAlarm":
-      return { primary: row?.videoAlarm ? 1 : 0, secondary: row?.host ?? "" };
-    case "state":
-      return { primary: row?.state ?? "", secondary: row?.host ?? "" };
-    case "tsErrors": {
-      const numeric = Number(row?.tsErrors);
-      const primary = Number.isFinite(numeric) ? numeric : 0;
-      return { primary, secondary: row?.host ?? "" };
-    }
-    default:
-      return { primary: row?.[key] ?? "", secondary: row?.host ?? "" };
-  }
 }
 
 function comparePrimitive(a, b) {
-  if (a == null && b == null) return 0;
-  if (a == null) return -1;
-  if (b == null) return 1;
+    if (a == null && b == null) return 0;
+    if (a == null) return -1;
+    if (b == null) return 1;
 
-  if (typeof a === "number" && typeof b === "number") {
-    if (Number.isNaN(a) && Number.isNaN(b)) return 0;
-    if (Number.isNaN(a)) return -1;
-    if (Number.isNaN(b)) return 1;
-    if (a < b) return -1;
-    if (a > b) return 1;
-    return 0;
-  }
+    if (typeof a === "number" && typeof b === "number") {
+        if (Number.isNaN(a) && Number.isNaN(b)) return 0;
+        if (Number.isNaN(a)) return -1;
+        if (Number.isNaN(b)) return 1;
+        if (a < b) return -1;
+        if (a > b) return 1;
+        return 0;
+    }
 
-  return String(a).localeCompare(String(b), undefined, {
-    numeric: true,
-    sensitivity: "base",
-  });
+    return String(a).localeCompare(String(b), undefined, {
+        numeric: true,
+        sensitivity: "base",
+    });
 }
 
 function ipToSortableNumber(ip) {
-  if (typeof ip !== "string") return null;
-  const parts = ip.trim().split(".");
-  if (parts.length !== 4) return null;
-  let value = 0;
-  for (const part of parts) {
-    if (!/^\d+$/.test(part)) return null;
-    const num = Number(part);
-    if (Number.isNaN(num)) return null;
-    value = value * 256 + Math.min(Math.max(num, 0), 255);
-  }
-  return value;
+    if (typeof ip !== "string") return null;
+    const parts = ip.trim().split(".");
+    if (parts.length !== 4) return null;
+    let value = 0;
+    for (const part of parts) {
+        if (!/^\d+$/.test(part)) return null;
+        const num = Number(part);
+        if (Number.isNaN(num)) return null;
+        value = value * 256 + Math.min(Math.max(num, 0), 255);
+    }
+    return value;
 }
 
 /* ───────────────────────── Componente ───────────────────────── */
 
-export default function ServicesMultiHost() {
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState([]);
-  const [query, setQuery] = useState("");
-  const [autoRefresh, setAutoRefresh] = useState(false);
-  const [showErrors, setShowErrors] = useState(false);
-  const [treatPatternAsFail, setTreatPatternAsFail] = useState(false); // << Switch UI
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
-  const timerRef = useRef(null);
-  const searchRef = useRef(null);
-
-  // hosts Titan desde backend
-  const { hosts, loading: hostsLoading, error: hostFetchError, loadHosts } = useTitanHosts();
-
-  // Carga de servicios usando los hosts descubiertos
-  const loadAll = useCallback(async () => {
-    if (!hosts || hosts.length === 0) {
-      setRows([]);
-      setErrors(hostFetchError ? [hostFetchError] : ["No hay hosts Titan para consultar."]);
-      return;
-    }
-
-    setLoading(true);
-    setErrors([]);
-
-    const hostMap = new Map(hosts.map((item) => [item.ip, item]));
-    const hostIps = hosts.map((item) => item.ip);
-    let nextRows = [];
-    let nextErrors = [];
-
-    const opts = { treatPatternOrStillAsFail: treatPatternAsFail };
-
-    const pushRowsFromHost = (hostInfo, payload) => {
-      const services = extractServicesArray(payload);
-      nextRows.push(
-        ...services.map((svc) => extractRow(hostInfo.label, hostInfo.ip, svc, opts))
-      );
-    };
-
-    try {
-      const multiResponse = await api.getTitanServicesMulti(
-        hostIps,
-        TITAN_REQUEST_OPTIONS
-      );
-      const entries = normalizeTitanMultiResponse(multiResponse);
-      const processed = processTitanEntries(entries, hostMap, opts);
-
-      nextRows = [...processed.rows];
-      nextErrors = [...processed.errors];
-
-      // Fallback: por si alguno no vino en el multi
-      const missingHosts = hostIps.filter((ip) => !processed.seenHosts.has(ip));
-      if (missingHosts.length > 0) {
-        const settled = await Promise.allSettled(
-          missingHosts.map((ip) =>
-            api.getTitanServices(ip, TITAN_REQUEST_OPTIONS)
-          )
-        );
-
-        settled.forEach((result, index) => {
-          const ip = missingHosts[index];
-          const hostInfo = hostMap.get(ip) || { label: ip, ip };
-          if (result.status === "fulfilled") {
-            pushRowsFromHost(hostInfo, result.value);
-          } else {
-            nextErrors.push(
-              `${hostInfo.label} (${hostInfo.ip}): ${describeError(result.reason)}`
-            );
-          }
-        });
-      }
-    } catch (err) {
-      // Fallback total: per-host
-      nextRows = [];
-      nextErrors = [`Titans multi-host: ${describeError(err)}`];
-
-      const settled = await Promise.allSettled(
-        hosts.map((host) => api.getTitanServices(host.ip, TITAN_REQUEST_OPTIONS))
-      );
-
-      settled.forEach((result, index) => {
-        const hostInfo = hosts[index];
-        if (result.status === "fulfilled") {
-          pushRowsFromHost(hostInfo, result.value);
-        } else {
-          nextErrors.push(
-            `${hostInfo.label} (${hostInfo.ip}): ${describeError(result.reason)}`
-          );
-        }
-      });
-    }
-
-    // Agregar errores por URLs de salida duplicadas
-    const dupErrors = collectDuplicateOutputErrors(nextRows);
-    if (dupErrors.length > 0) {
-      nextErrors = [...nextErrors, ...dupErrors];
-    }
-
-    setRows(nextRows);
-    setErrors(nextErrors);
-    setLoading(false);
-  }, [hosts, hostFetchError, treatPatternAsFail]);
-
-  // 1) Descubrir hosts en el montaje
-  useEffect(() => {
-    loadHosts();
-  }, [loadHosts]);
-
-  // 2) Cuando cambien los hosts (o terminen de cargar), ejecutar la carga de servicios
-  useEffect(() => {
-    if (!hostsLoading) {
-      // si hubo error al cargar hosts, igual refleja en errores
-      if (hostFetchError) {
-        setErrors((e) => (e.includes(hostFetchError) ? e : [...e, hostFetchError]));
-      }
-      // si hay hosts, cargar servicios
-      if (hosts.length > 0) {
-        loadAll();
-      } else if (!hostFetchError) {
-        // sin hosts y sin error explícito
-        setRows([]);
-      }
-    }
-  }, [hostsLoading, hosts, hostFetchError, loadAll]);
-
-  // 3) Auto-refresh cada 30s, solo si hay hosts
-  useEffect(() => {
-    if (!autoRefresh) {
-      if (timerRef.current) clearInterval(timerRef.current);
-      timerRef.current = null;
-      return;
-    }
-    timerRef.current = setInterval(() => {
-      loadAll();
-    }, 30_000);
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-      timerRef.current = null;
-    };
-  }, [autoRefresh, loadAll]);
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    let nextRows = rows;
-    if (q) {
-      nextRows = rows.filter((r) =>
-        [
-          r.host,
-          r.ip,
-          r.name,
-          r.inputUrl,
-          r.outputs,
-          r.sourceText,
-          r.state,
-          r.audioAlarm,
-          r.videoAlarm,
-          r.tsErrors,
-        ]
-          .filter(Boolean)
-          .some((v) => String(v).toLowerCase().includes(q))
-      );
-    }
-
-    if (!sortConfig.key) {
-      return nextRows;
-    }
-
-    const sorted = [...nextRows].sort((a, b) => compareRowsWithConfig(a, b, sortConfig));
-    return sorted;
-  }, [rows, query, sortConfig]);
-
-  // SOLO fallas explícitas (audio/video) o detenido
-  const failingRows = useMemo(
-    () =>
-      filtered.filter(
-        (r) =>
-          r._explicitVideoFail || // mensaje explícito de video
-          r.audioAlarm === true || // audio en alarma por mensaje/umbral con silencio habilitado
-          r.state === "Stopped" // encoder detenido
-      ),
-    [filtered]
-  );
-
-  const handleExportCsv = useCallback(() => {
-    const stamp = new Date().toISOString().replace(/[:.]/g, "-").replace("T", "_").replace("Z", "");
-    const csv = rowsToCsv(filtered);
-    downloadText(`titan_signals_${stamp}.csv`, csv);
-  }, [filtered]);
-
-  const handleClear = useCallback(() => {
-    setQuery("");
-    if (searchRef.current) {
-      searchRef.current.focus();
-      if (typeof searchRef.current.select === "function") {
-        searchRef.current.select();
-      }
-    }
-  }, []);
-
-  const handleSort = useCallback((key) => {
-    setSortConfig((prev) => {
-      if (prev.key === key) {
-        return { key, direction: prev.direction === "asc" ? "desc" : "asc" };
-      }
-      return { key, direction: "asc" };
-    });
-  }, []);
-
-  const handleSortKeyDown = useCallback(
-    (event, key) => {
-      if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault();
-        handleSort(key);
-      }
-    },
-    [handleSort]
-  );
-
-  const renderSortLabel = useCallback(
-    (label, key) => {
-      const isActive = sortConfig.key === key;
-      const indicator = isActive
-        ? sortConfig.direction === "asc"
-          ? "▲"
-          : "▼"
-        : "↕";
-      return (
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-          <span>{label}</span>
-          <span style={{ fontSize: 11, color: "#6b7280" }}>{indicator}</span>
-        </span>
-      );
-    },
-    [sortConfig]
-  );
-
-  const titanSignalsCount = filtered.length;
-
+function Spinner({ size = 16, stroke = 2, label = "Cargando…" }) {
   return (
-    <div style={{ padding: 16 }}>
-      {/* estilos de botones + buscador */}
-      <style>{`
+    <span
+      role="status"
+      aria-live="polite"
+      aria-label={label}
+      title={label}
+      className="spinner"
+      style={{ width: size, height: size, borderWidth: stroke }}
+    />
+  );
+}
+
+export default function ServicesMultiHost() {
+    const [rows, setRows] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [errors, setErrors] = useState([]);
+    const [query, setQuery] = useState("");
+    const [autoRefresh, setAutoRefresh] = useState(false);
+    const [showErrors, setShowErrors] = useState(false);
+    const [treatPatternAsFail, setTreatPatternAsFail] = useState(false); // << Switch UI
+    const [sortConfig, setSortConfig] = useState({
+        key: null,
+        direction: "asc",
+    });
+    const timerRef = useRef(null);
+    const searchRef = useRef(null);
+
+    // hosts Titan desde backend
+    const {
+        hosts,
+        loading: hostsLoading,
+        error: hostFetchError,
+        loadHosts,
+    } = useTitanHosts();
+
+    // Carga de servicios usando los hosts descubiertos
+    const loadAll = useCallback(async () => {
+        if (!hosts || hosts.length === 0) {
+            setRows([]);
+            setErrors(
+                hostFetchError
+                    ? [hostFetchError]
+                    : ["No hay hosts Titan para consultar."]
+            );
+            return;
+        }
+
+        setLoading(true);
+        setErrors([]);
+
+        const hostMap = new Map(hosts.map((item) => [item.ip, item]));
+        const hostIps = hosts.map((item) => item.ip);
+        let nextRows = [];
+        let nextErrors = [];
+
+        const opts = { treatPatternOrStillAsFail: treatPatternAsFail };
+
+        const pushRowsFromHost = (hostInfo, payload) => {
+            const services = extractServicesArray(payload);
+            nextRows.push(
+                ...services.map((svc) =>
+                    extractRow(hostInfo.label, hostInfo.ip, svc, opts)
+                )
+            );
+        };
+
+        try {
+            const multiResponse = await api.getTitanServicesMulti(
+                hostIps,
+                TITAN_REQUEST_OPTIONS
+            );
+            const entries = normalizeTitanMultiResponse(multiResponse);
+            const processed = processTitanEntries(entries, hostMap, opts);
+
+            nextRows = [...processed.rows];
+            nextErrors = [...processed.errors];
+
+            // Fallback: por si alguno no vino en el multi
+            const missingHosts = hostIps.filter(
+                (ip) => !processed.seenHosts.has(ip)
+            );
+            if (missingHosts.length > 0) {
+                const settled = await Promise.allSettled(
+                    missingHosts.map((ip) =>
+                        api.getTitanServices(ip, TITAN_REQUEST_OPTIONS)
+                    )
+                );
+
+                settled.forEach((result, index) => {
+                    const ip = missingHosts[index];
+                    const hostInfo = hostMap.get(ip) || { label: ip, ip };
+                    if (result.status === "fulfilled") {
+                        pushRowsFromHost(hostInfo, result.value);
+                    } else {
+                        nextErrors.push(
+                            `${hostInfo.label} (${
+                                hostInfo.ip
+                            }): ${describeError(result.reason)}`
+                        );
+                    }
+                });
+            }
+        } catch (err) {
+            // Fallback total: per-host
+            nextRows = [];
+            nextErrors = [`Titans multi-host: ${describeError(err)}`];
+
+            const settled = await Promise.allSettled(
+                hosts.map((host) =>
+                    api.getTitanServices(host.ip, TITAN_REQUEST_OPTIONS)
+                )
+            );
+
+            settled.forEach((result, index) => {
+                const hostInfo = hosts[index];
+                if (result.status === "fulfilled") {
+                    pushRowsFromHost(hostInfo, result.value);
+                } else {
+                    nextErrors.push(
+                        `${hostInfo.label} (${hostInfo.ip}): ${describeError(
+                            result.reason
+                        )}`
+                    );
+                }
+            });
+        }
+
+        // Agregar errores por URLs de salida duplicadas
+        const dupErrors = collectDuplicateOutputErrors(nextRows);
+        if (dupErrors.length > 0) {
+            nextErrors = [...nextErrors, ...dupErrors];
+        }
+
+        setRows(nextRows);
+        setErrors(nextErrors);
+        setLoading(false);
+    }, [hosts, hostFetchError, treatPatternAsFail]);
+
+    // 1) Descubrir hosts en el montaje
+    useEffect(() => {
+        loadHosts();
+    }, [loadHosts]);
+
+    // 2) Cuando cambien los hosts (o terminen de cargar), ejecutar la carga de servicios
+    useEffect(() => {
+        if (!hostsLoading) {
+            // si hubo error al cargar hosts, igual refleja en errores
+            if (hostFetchError) {
+                setErrors((e) =>
+                    e.includes(hostFetchError) ? e : [...e, hostFetchError]
+                );
+            }
+            // si hay hosts, cargar servicios
+            if (hosts.length > 0) {
+                loadAll();
+            } else if (!hostFetchError) {
+                // sin hosts y sin error explícito
+                setRows([]);
+            }
+        }
+    }, [hostsLoading, hosts, hostFetchError, loadAll]);
+
+    // 3) Auto-refresh cada 30s, solo si hay hosts
+    useEffect(() => {
+        if (!autoRefresh) {
+            if (timerRef.current) clearInterval(timerRef.current);
+            timerRef.current = null;
+            return;
+        }
+        timerRef.current = setInterval(() => {
+            loadAll();
+        }, 30_000);
+        return () => {
+            if (timerRef.current) clearInterval(timerRef.current);
+            timerRef.current = null;
+        };
+    }, [autoRefresh, loadAll]);
+
+    const filtered = useMemo(() => {
+        const q = query.trim().toLowerCase();
+        let nextRows = rows;
+        if (q) {
+            nextRows = rows.filter((r) =>
+                [
+                    r.host,
+                    r.ip,
+                    r.name,
+                    r.inputUrl,
+                    r.outputs,
+                    r.sourceText,
+                    r.state,
+                    r.audioAlarm,
+                    r.videoAlarm,
+                    r.tsErrors,
+                ]
+                    .filter(Boolean)
+                    .some((v) => String(v).toLowerCase().includes(q))
+            );
+        }
+
+        if (!sortConfig.key) {
+            return nextRows;
+        }
+
+        const sorted = [...nextRows].sort((a, b) =>
+            compareRowsWithConfig(a, b, sortConfig)
+        );
+        return sorted;
+    }, [rows, query, sortConfig]);
+
+    // SOLO fallas explícitas (audio/video) o detenido
+    const failingRows = useMemo(
+        () =>
+            filtered.filter(
+                (r) =>
+                    r._explicitVideoFail || // mensaje explícito de video
+                    r.audioAlarm === true || // audio en alarma por mensaje/umbral con silencio habilitado
+                    r.state === "Stopped" // encoder detenido
+            ),
+        [filtered]
+    );
+
+    const handleExportCsv = useCallback(() => {
+        const stamp = new Date()
+            .toISOString()
+            .replace(/[:.]/g, "-")
+            .replace("T", "_")
+            .replace("Z", "");
+        const csv = rowsToCsv(filtered);
+        downloadText(`titan_signals_${stamp}.csv`, csv);
+    }, [filtered]);
+
+    const handleClear = useCallback(() => {
+        setQuery("");
+        if (searchRef.current) {
+            searchRef.current.focus();
+            if (typeof searchRef.current.select === "function") {
+                searchRef.current.select();
+            }
+        }
+    }, []);
+
+    const handleSort = useCallback((key) => {
+        setSortConfig((prev) => {
+            if (prev.key === key) {
+                return {
+                    key,
+                    direction: prev.direction === "asc" ? "desc" : "asc",
+                };
+            }
+            return { key, direction: "asc" };
+        });
+    }, []);
+
+    const handleSortKeyDown = useCallback(
+        (event, key) => {
+            if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                handleSort(key);
+            }
+        },
+        [handleSort]
+    );
+
+    const renderSortLabel = useCallback(
+        (label, key) => {
+            const isActive = sortConfig.key === key;
+            const indicator = isActive
+                ? sortConfig.direction === "asc"
+                    ? "▲"
+                    : "▼"
+                : "↕";
+            return (
+                <span
+                    style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                    }}
+                >
+                    <span>{label}</span>
+                    <span style={{ fontSize: 11, color: "#6b7280" }}>
+                        {indicator}
+                    </span>
+                </span>
+            );
+        },
+        [sortConfig]
+    );
+
+    const titanSignalsCount = filtered.length;
+
+    return (
+        <div style={{ padding: 16 }}>
+            {/* estilos de botones + buscador */}
+            <style>{`
         a { text-decoration: none; } /* sin subrayado */
         .btn {
           appearance: none;
@@ -1007,63 +1180,87 @@ export default function ServicesMultiHost() {
         }
       `}</style>
 
-      <h2
-        style={{
-          margin: 0,
-          marginBottom: 8,
-          display: "flex",
-          alignItems: "baseline",
-          gap: 8,
-        }}
-      >
-        
-        <span>Listado de señales (Titan)</span>
-        <span style={{ fontSize: 16, color: "#6b7280" }}>({`Total señales: ${titanSignalsCount}`})</span>
-      </h2>
+            <h2
+                style={{
+                    margin: 0,
+                    marginBottom: 8,
+                    display: "flex",
+                    alignItems: "baseline",
+                    gap: 8,
+                }}
+            >
+                <span>Listado de señales (Titan)</span>
+                <span style={{ fontSize: 16, color: "#6b7280" }}>
+                    ({`Total señales: ${titanSignalsCount}`})
+                </span>
+            </h2>
 
-      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
-        <input
-          ref={searchRef}
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Buscar (host, IP, nombre, estado...)"
-          className="search-input"
-          style={{ minWidth: 260 }}
-        />
-        <button
-          onClick={handleClear}
-          disabled={!query}
-          className="btn btn-orange btn-clear"
-          aria-label="Limpiar búsqueda"
-          title="Limpiar búsqueda"
-        >
-          Limpiar
-        </button>
-        <button onClick={loadAll} disabled={loading || hostsLoading || hosts.length === 0} className="btn btn-primary">
-          {loading ? "Cargando..." : "Refrescar"}
-        </button>
-        <label style={{ display: "flex", gap: 6, alignItems: "center" }}>
-          <input
-            type="checkbox"
-            checked={autoRefresh}
-            onChange={(e) => setAutoRefresh(e.target.checked)}
-            disabled={hostsLoading || hosts.length === 0}
-          />
-          Auto 30s
-        </label>
+            <div
+                style={{
+                    display: "flex",
+                    gap: 8,
+                    alignItems: "center",
+                    flexWrap: "wrap",
+                    marginBottom: 12,
+                }}
+            >
+                <input
+                    ref={searchRef}
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Buscar (host, IP, nombre, estado...)"
+                    className="search-input"
+                    style={{ minWidth: 260 }}
+                />
+                <button
+                    onClick={handleClear}
+                    disabled={!query}
+                    className="btn btn-orange btn-clear"
+                    aria-label="Limpiar búsqueda"
+                    title="Limpiar búsqueda"
+                >
+                    Limpiar
+                </button>
+                <button
+  onClick={loadAll}
+  disabled={loading || hostsLoading || hosts.length === 0}
+  className="btn btn-primary"
+>
+  {loading ? (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+      <Spinner size={14} stroke={2} />
+      Cargando…
+    </span>
+  ) : (
+    "Refrescar"
+  )}
+</button>
+                <label
+                    style={{ display: "flex", gap: 6, alignItems: "center" }}
+                >
+                    <input
+                        type="checkbox"
+                        checked={autoRefresh}
+                        onChange={(e) => setAutoRefresh(e.target.checked)}
+                        disabled={hostsLoading || hosts.length === 0}
+                    />
+                    Auto 30s
+                </label>
 
-        <label style={{ display: "flex", gap: 6, alignItems: "center" }}>
-          <input
-            type="checkbox"
-            checked={showErrors}
-            onChange={(e) => setShowErrors(e.target.checked)}
-            disabled={errors.length === 0}
-          />
-          Mostrar errores
-        </label>
+                <label
+                    style={{ display: "flex", gap: 6, alignItems: "center" }}
+                >
+                    <input
+                        type="checkbox"
+                        checked={showErrors}
+                        onChange={(e) => setShowErrors(e.target.checked)}
+                        disabled={errors.length === 0}
+                    />
+                    Mostrar errores
+                </label>
 
-        {/* Nuevo: Switch Pattern/Still como falla */}
-        {/* <label style={{ display: "flex", gap: 6, alignItems: "center" }} title="Si está activo, Pattern/Still se considerará falla de video.">
+                {/* Nuevo: Switch Pattern/Still como falla */}
+                {/* <label style={{ display: "flex", gap: 6, alignItems: "center" }} title="Si está activo, Pattern/Still se considerará falla de video.">
           <input
             type="checkbox"
             checked={treatPatternAsFail}
@@ -1077,274 +1274,456 @@ export default function ServicesMultiHost() {
           Pattern/Still como falla
         </label> */}
 
-        <button onClick={handleExportCsv} disabled={filtered.length === 0} className="btn btn-outline">
-          Exportar CSV
-        </button>
-      </div>
+                <button
+                    onClick={handleExportCsv}
+                    disabled={filtered.length === 0}
+                    className="btn btn-outline"
+                >
+                    Exportar CSV
+                </button>
+            </div>
 
-      {/* Estado de carga/errores de hosts */}
-      {(hostsLoading || hostFetchError) && (
-        <div style={{ background: "#fffbea", border: "1px solid #fcd34d", padding: 8, marginBottom: 12 }}>
-          {hostsLoading ? "Descubriendo hosts Titan..." : hostFetchError}
-        </div>
-      )}
+            {/* Estado de carga/errores de hosts */}
+            {(hostsLoading || hostFetchError) && (
+                <div
+                    style={{
+                        background: "#fffbea",
+                        border: "1px solid #fcd34d",
+                        padding: 8,
+                        marginBottom: 12,
+                    }}
+                >
+                    {hostsLoading
+                        ? "Descubriendo hosts Titan..."
+                        : hostFetchError}
+                </div>
+            )}
 
-      {showErrors && errors.length > 0 && (
-        <div style={{ background: "#fff4f4", border: "1px solid #f5c2c7", padding: 8, marginBottom: 12 }}>
-          <strong>Errores de conexión y validaciones:</strong>
-          <ul style={{ margin: 0, paddingInlineStart: 18 }}>
-            {errors.map((er, i) => (
-              <li key={i} style={{ whiteSpace: "pre-wrap" }}>{er}</li>
-            ))}
-          </ul>
-        </div>
-      )}
+            {showErrors && errors.length > 0 && (
+                <div
+                    style={{
+                        background: "#fff4f4",
+                        border: "1px solid #f5c2c7",
+                        padding: 8,
+                        marginBottom: 12,
+                    }}
+                >
+                    <strong>Errores de conexión y validaciones:</strong>
+                    <ul style={{ margin: 0, paddingInlineStart: 18 }}>
+                        {errors.map((er, i) => (
+                            <li key={i} style={{ whiteSpace: "pre-wrap" }}>
+                                {er}
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
 
-      {/* Tabla de señales en falla */}
-      {failingRows.length > 0 && (
-        <div style={{ marginBottom: 12 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-            <strong>Señales en falla</strong>
-            <span style={{ fontSize: 12, color: "#666" }}>({failingRows.length})</span>
-          </div>
-          <div
-            style={{
-              display: "inline-block",
-              border: "1px solid #f0c4c4",
-              background: "#fffafa",
-              padding: 0,
-            }}
-          >
-            <table
-              style={{
-                borderCollapse: "collapse",
-                tableLayout: "auto",
-                width: "auto",
-                display: "inline-table",
-                fontSize: 14,
-              }}
-            >
-              <thead style={{ background: "#fdeeee" }}>
-                <tr>
-                  <th style={{ ...thCompact, width: 36, maxWidth: 36, textAlign: "center" }}> </th>
-                  <th style={thCompact}>Name</th>
-                  <th style={thCompact}>IP</th>
-                  <th style={thCompact}>Fuente</th>
-                  <th style={thCompact}>Audio</th>
-                  <th style={thCompact}>Video</th>
-                  <th style={thCompact}>TS Err</th>
-                </tr>
-              </thead>
-              <tbody>
-                {failingRows.map((r, i) => (
-                  <tr key={`fail-${r.ip}-${i}`}>
-                    <td style={{ ...tdCompact, width: 36, maxWidth: 36, textAlign: "center" }}>
-                      <span
+            {/* Tabla de señales en falla */}
+            {failingRows.length > 0 && (
+                <div style={{ marginBottom: 12 }}>
+                    <div
                         style={{
-                          display: "inline-block",
-                          width: 12,
-                          height: 12,
-                          borderRadius: "50%",
-                          backgroundColor: "red",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                            marginBottom: 6,
                         }}
-                        title="fail"
-                      />
-                    </td>
-                    <td style={tdCompact} title={r.name}>
-                      {r.name}
-                    </td>
-                    <td style={{ ...tdCompact }}>
-                      <a
-                        href={hostHref(r.ip)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ whiteSpace: "nowrap" }}
-                        title={`${TITAN_PROTOCOL}://${r.ip}`}
-                      >
-                        {r.ip}
-                      </a>
-                    </td>
-                    <td style={tdCompact} title={r.sourceText}>
-                      {r.sourceText}
-                    </td>
-                    <td style={tdCompact}>
-                      {r.audioAlarm ? (
-                        <span className="badge badge-red" title={`Nivel: ${r.audioLevelDb ?? "N/A"} dB  (umbral ${r.audioThreshold ?? "N/A"} dB)`}>Alarma</span>
-                      ) : (
-                        <span className="badge badge-green" title={`Nivel: ${r.audioLevelDb ?? "N/A"} dB`}>OK</span>
-                      )}
-                    </td>
-                    <td style={tdCompact}>
-                      {r._explicitVideoFail || (r._patternOrStill && treatPatternAsFail) ? (
-                        <span className="badge badge-red">{r._explicitVideoFail ? "Alarma" : "Pattern/Still"}</span>
-                      ) : (
-                        <span className="badge badge-green">OK</span>
-                      )}
-                    </td>
-                    <td style={{ ...tdCompact, textAlign: "right" }}>{r.tsErrors ?? 0}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Tabla principal */}
-      <div className="table-wrap"
-  style={{ overflow: "auto", maxHeight: "75vh", border: "1px solid #ddd", position: "relative" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14, tableLayout: "fixed" }}>
-          <thead style={{ position: "sticky", top: 0, background: "#fafafa", zIndex: 100, textAlign:'left'  }}>
-            <tr>
-              <th
-                style={{ ...th, cursor: "pointer", userSelect: "none" }}
-                onClick={() => handleSort("host")}
-                onKeyDown={(event) => handleSortKeyDown(event, "host")}
-                role="button"
-                tabIndex={0}
-              >
-                {renderSortLabel("Host", "host")}
-              </th>
-              <th
-                style={{ ...th, cursor: "pointer", userSelect: "none" }}
-                onClick={() => handleSort("ip")}
-                onKeyDown={(event) => handleSortKeyDown(event, "ip")}
-                role="button"
-                tabIndex={0}
-              >
-                {renderSortLabel("IP", "ip")}
-              </th>
-              <th
-                style={{ ...th, cursor: "pointer", userSelect: "none" }}
-                onClick={() => handleSort("name")}
-                onKeyDown={(event) => handleSortKeyDown(event, "name")}
-                role="button"
-                tabIndex={0}
-              >
-                {renderSortLabel("Name", "name")}
-              </th>
-              <th
-                style={{ ...th, cursor: "pointer", userSelect: "none" }}
-                onClick={() => handleSort("inputUrl")}
-                onKeyDown={(event) => handleSortKeyDown(event, "inputUrl")}
-                role="button"
-                tabIndex={0}
-              >
-                {renderSortLabel("Multicast entrada", "inputUrl")}
-              </th>
-              <th
-                style={{ ...th, cursor: "pointer", userSelect: "none" }}
-                onClick={() => handleSort("outputs")}
-                onKeyDown={(event) => handleSortKeyDown(event, "outputs")}
-                role="button"
-                tabIndex={0}
-              >
-                {renderSortLabel("Multicast salida", "outputs")}
-              </th>
-              {/* <th style={{ ...th, width: COL_WIDTHS.fuente, maxWidth: COL_WIDTHS.fuente }}>Fuente</th> */}
-              <th
-                style={{
-                  ...th,
-                  width: COL_WIDTHS.alarma,
-                  maxWidth: COL_WIDTHS.alarma,
-                  cursor: "pointer",
-                  userSelect: "none",
-                }}
-                onClick={() => handleSort("audioAlarm")}
-                onKeyDown={(event) => handleSortKeyDown(event, "audioAlarm")}
-                role="button"
-                tabIndex={0}
-              >
-                {renderSortLabel("Audio", "audioAlarm")}
-              </th>
-              <th
-                style={{
-                  ...th,
-                  width: COL_WIDTHS.alarma,
-                  maxWidth: COL_WIDTHS.alarma,
-                  cursor: "pointer",
-                  userSelect: "none",
-                }}
-                onClick={() => handleSort("videoAlarm")}
-                onKeyDown={(event) => handleSortKeyDown(event, "videoAlarm")}
-                role="button"
-                tabIndex={0}
-              >
-                {renderSortLabel("Video", "videoAlarm")}
-              </th>
-              <th
-                style={{
-                  ...th,
-                  width: COL_WIDTHS.estado,
-                  maxWidth: COL_WIDTHS.estado,
-                  cursor: "pointer",
-                  userSelect: "none",
-                }}
-                onClick={() => handleSort("state")}
-                onKeyDown={(event) => handleSortKeyDown(event, "state")}
-                role="button"
-                tabIndex={0}
-              >
-                {renderSortLabel("Estado", "state")}
-              </th>
-              <th
-                style={{
-                  ...th,
-                  width: 120,
-                  maxWidth: 140,
-                  cursor: "pointer",
-                  userSelect: "none",
-                }}
-                onClick={() => handleSort("tsErrors")}
-                onKeyDown={(event) => handleSortKeyDown(event, "tsErrors")}
-                role="button"
-                tabIndex={0}
-              >
-                {renderSortLabel("TS Err", "tsErrors")}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 ? (
-              <tr>
-                <td colSpan={9} style={{ padding: 12, textAlign: "center", color: "#666" }}>
-                  {(loading || hostsLoading) ? "Cargando..." : "Sin datos para mostrar"}
-                </td>
-              </tr>
-            ) : (
-              filtered.map((r, idx) => {
-                const stateText = r.state === "Stopped" ? "Stopped (fail)" : r.state;
-                const isStateFail = r._explicitVideoFail || r.state === "Stopped" || r.audioAlarm === true;
-                return (
-                  <tr key={`${r.ip}-${idx}`}>
-                    <td style={td}>{r.host}</td>
-                    <td style={td}>
-                      <a
-                        href={hostHref(r.ip)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ whiteSpace: "nowrap" }}
-                        title={`${TITAN_PROTOCOL}://${r.ip}`}
-                      >
-                        {r.ip}
-                      </a>
-                    </td>
-                    <td style={td}>{r.name}</td>
-                    <td
-                      style={{ ...td, whiteSpace: "nowrap", maxWidth: 420, overflow: "hidden", textOverflow: "ellipsis" }}
-                      title={r.inputUrl}
                     >
-                      {r.inputUrl}
-                    </td>
-                    <td
-                      style={{ ...td, maxWidth: 420, overflow: "hidden", textOverflow: "ellipsis" }}
-                      title={typeof r.outputs === "string" ? r.outputs : JSON.stringify(r.outputs)}
+                        <strong>Señales en falla</strong>
+                        <span style={{ fontSize: 12, color: "#666" }}>
+                            ({failingRows.length})
+                        </span>
+                    </div>
+                    <div
+                        style={{
+                            display: "inline-block",
+                            border: "1px solid #f0c4c4",
+                            background: "#fffafa",
+                            padding: 0,
+                        }}
                     >
-                      {typeof r.outputs === "string" ? r.outputs : JSON.stringify(r.outputs)}
-                    </td>
+                        <table
+                            style={{
+                                borderCollapse: "collapse",
+                                tableLayout: "auto",
+                                width: "auto",
+                                display: "inline-table",
+                                fontSize: 14,
+                            }}
+                        >
+                            <thead style={{ background: "#fdeeee" }}>
+                                <tr>
+                                    <th
+                                        style={{
+                                            ...thCompact,
+                                            width: 36,
+                                            maxWidth: 36,
+                                            textAlign: "center",
+                                        }}
+                                    >
+                                        {" "}
+                                    </th>
+                                    <th style={thCompact}>Name</th>
+                                    <th style={thCompact}>IP</th>
+                                    <th style={thCompact}>Fuente</th>
+                                    <th style={thCompact}>Audio</th>
+                                    <th style={thCompact}>Video</th>
+                                    <th style={thCompact}>TS Err</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {failingRows.map((r, i) => (
+                                    <tr key={`fail-${r.ip}-${i}`}>
+                                        <td
+                                            style={{
+                                                ...tdCompact,
+                                                width: 36,
+                                                maxWidth: 36,
+                                                textAlign: "center",
+                                            }}
+                                        >
+                                            <span
+                                                style={{
+                                                    display: "inline-block",
+                                                    width: 12,
+                                                    height: 12,
+                                                    borderRadius: "50%",
+                                                    backgroundColor: "red",
+                                                }}
+                                                title="fail"
+                                            />
+                                        </td>
+                                        <td style={tdCompact} title={r.name}>
+                                            {r.name}
+                                        </td>
+                                        <td style={{ ...tdCompact }}>
+                                            <a
+                                                href={hostHref(r.ip)}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                style={{ whiteSpace: "nowrap" }}
+                                                title={`${TITAN_PROTOCOL}://${r.ip}`}
+                                            >
+                                                {r.ip}
+                                            </a>
+                                        </td>
+                                        <td
+                                            style={tdCompact}
+                                            title={r.sourceText}
+                                        >
+                                            {r.sourceText}
+                                        </td>
+                                        <td style={tdCompact}>
+                                            {r.audioAlarm ? (
+                                                <span
+                                                    className="badge badge-red"
+                                                    title={`Nivel: ${
+                                                        r.audioLevelDb ?? "N/A"
+                                                    } dB  (umbral ${
+                                                        r.audioThreshold ??
+                                                        "N/A"
+                                                    } dB)`}
+                                                >
+                                                    Alarma
+                                                </span>
+                                            ) : (
+                                                <span
+                                                    className="badge badge-green"
+                                                    title={`Nivel: ${
+                                                        r.audioLevelDb ?? "N/A"
+                                                    } dB`}
+                                                >
+                                                    OK
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td style={tdCompact}>
+                                            {r._explicitVideoFail ||
+                                            (r._patternOrStill &&
+                                                treatPatternAsFail) ? (
+                                                <span className="badge badge-red">
+                                                    {r._explicitVideoFail
+                                                        ? "Alarma"
+                                                        : "Pattern/Still"}
+                                                </span>
+                                            ) : (
+                                                <span className="badge badge-green">
+                                                    OK
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td
+                                            style={{
+                                                ...tdCompact,
+                                                textAlign: "right",
+                                            }}
+                                        >
+                                            {r.tsErrors ?? 0}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
 
-                    {/* FUENTE */}
-                    {/* <td
+            {/* Tabla principal */}
+            <div
+                className="table-wrap"
+                style={{
+                    overflow: "auto",
+                    maxHeight: "75vh",
+                    border: "1px solid #ddd",
+                    position: "relative",
+                }}
+            >
+                <table
+                    style={{
+                        width: "100%",
+                        borderCollapse: "collapse",
+                        fontSize: 14,
+                        tableLayout: "fixed",
+                    }}
+                >
+                    <thead
+                        style={{
+                            position: "sticky",
+                            top: 0,
+                            background: "#fafafa",
+                            zIndex: 100,
+                            textAlign: "left",
+                        }}
+                    >
+                        <tr>
+                            <th
+                                style={{
+                                    ...th,
+                                    cursor: "pointer",
+                                    userSelect: "none",
+                                }}
+                                onClick={() => handleSort("host")}
+                                onKeyDown={(event) =>
+                                    handleSortKeyDown(event, "host")
+                                }
+                                role="button"
+                                tabIndex={0}
+                            >
+                                {renderSortLabel("Host", "host")}
+                            </th>
+                            <th
+                                style={{
+                                    ...th,
+                                    cursor: "pointer",
+                                    userSelect: "none",
+                                }}
+                                onClick={() => handleSort("ip")}
+                                onKeyDown={(event) =>
+                                    handleSortKeyDown(event, "ip")
+                                }
+                                role="button"
+                                tabIndex={0}
+                            >
+                                {renderSortLabel("IP", "ip")}
+                            </th>
+                            <th
+                                style={{
+                                    ...th,
+                                    cursor: "pointer",
+                                    userSelect: "none",
+                                }}
+                                onClick={() => handleSort("name")}
+                                onKeyDown={(event) =>
+                                    handleSortKeyDown(event, "name")
+                                }
+                                role="button"
+                                tabIndex={0}
+                            >
+                                {renderSortLabel("Name", "name")}
+                            </th>
+                            <th
+                                style={{
+                                    ...th,
+                                    cursor: "pointer",
+                                    userSelect: "none",
+                                }}
+                                onClick={() => handleSort("inputUrl")}
+                                onKeyDown={(event) =>
+                                    handleSortKeyDown(event, "inputUrl")
+                                }
+                                role="button"
+                                tabIndex={0}
+                            >
+                                {renderSortLabel(
+                                    "Multicast entrada",
+                                    "inputUrl"
+                                )}
+                            </th>
+                            <th
+                                style={{
+                                    ...th,
+                                    cursor: "pointer",
+                                    userSelect: "none",
+                                }}
+                                onClick={() => handleSort("outputs")}
+                                onKeyDown={(event) =>
+                                    handleSortKeyDown(event, "outputs")
+                                }
+                                role="button"
+                                tabIndex={0}
+                            >
+                                {renderSortLabel("Multicast salida", "outputs")}
+                            </th>
+                            {/* <th style={{ ...th, width: COL_WIDTHS.fuente, maxWidth: COL_WIDTHS.fuente }}>Fuente</th> */}
+                            <th
+                                style={{
+                                    ...th,
+                                    width: COL_WIDTHS.alarma,
+                                    maxWidth: COL_WIDTHS.alarma,
+                                    cursor: "pointer",
+                                    userSelect: "none",
+                                }}
+                                onClick={() => handleSort("audioAlarm")}
+                                onKeyDown={(event) =>
+                                    handleSortKeyDown(event, "audioAlarm")
+                                }
+                                role="button"
+                                tabIndex={0}
+                            >
+                                {renderSortLabel("Audio", "audioAlarm")}
+                            </th>
+                            <th
+                                style={{
+                                    ...th,
+                                    width: COL_WIDTHS.alarma,
+                                    maxWidth: COL_WIDTHS.alarma,
+                                    cursor: "pointer",
+                                    userSelect: "none",
+                                }}
+                                onClick={() => handleSort("videoAlarm")}
+                                onKeyDown={(event) =>
+                                    handleSortKeyDown(event, "videoAlarm")
+                                }
+                                role="button"
+                                tabIndex={0}
+                            >
+                                {renderSortLabel("Video", "videoAlarm")}
+                            </th>
+                            <th
+                                style={{
+                                    ...th,
+                                    width: COL_WIDTHS.estado,
+                                    maxWidth: COL_WIDTHS.estado,
+                                    cursor: "pointer",
+                                    userSelect: "none",
+                                }}
+                                onClick={() => handleSort("state")}
+                                onKeyDown={(event) =>
+                                    handleSortKeyDown(event, "state")
+                                }
+                                role="button"
+                                tabIndex={0}
+                            >
+                                {renderSortLabel("Estado", "state")}
+                            </th>
+                            <th
+                                style={{
+                                    ...th,
+                                    width: 120,
+                                    maxWidth: 140,
+                                    cursor: "pointer",
+                                    userSelect: "none",
+                                }}
+                                onClick={() => handleSort("tsErrors")}
+                                onKeyDown={(event) =>
+                                    handleSortKeyDown(event, "tsErrors")
+                                }
+                                role="button"
+                                tabIndex={0}
+                            >
+                                {renderSortLabel("TS Err", "tsErrors")}
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {filtered.length === 0 ? (
+                            <tr>
+                                <td
+                                    colSpan={9}
+                                    style={{
+                                        padding: 12,
+                                        textAlign: "center",
+                                        color: "#666",
+                                    }}
+                                >
+                                    {loading || hostsLoading ? (
+  <span className="loader-center">
+    <Spinner size={28} stroke={3} />
+    Cargando señales…
+  </span>
+) : (
+  <span className="sin-datos">Sin datos para mostrar</span>
+)}
+                                </td>
+                            </tr>
+                        ) : (
+                            filtered.map((r, idx) => {
+                                const stateText =
+                                    r.state === "Stopped"
+                                        ? "Stopped (fail)"
+                                        : r.state;
+                                const isStateFail =
+                                    r._explicitVideoFail ||
+                                    r.state === "Stopped" ||
+                                    r.audioAlarm === true;
+                                return (
+                                    <tr key={`${r.ip}-${idx}`}>
+                                        <td style={td}>{r.host}</td>
+                                        <td style={td}>
+                                            <a
+                                                href={hostHref(r.ip)}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                style={{ whiteSpace: "nowrap" }}
+                                                title={`${TITAN_PROTOCOL}://${r.ip}`}
+                                            >
+                                                {r.ip}
+                                            </a>
+                                        </td>
+                                        <td style={td}>{r.name}</td>
+                                        <td
+                                            style={{
+                                                ...td,
+                                                whiteSpace: "nowrap",
+                                                maxWidth: 420,
+                                                overflow: "hidden",
+                                                textOverflow: "ellipsis",
+                                            }}
+                                            title={r.inputUrl}
+                                        >
+                                            {r.inputUrl}
+                                        </td>
+                                        <td
+                                            style={{
+                                                ...td,
+                                                maxWidth: 420,
+                                                overflow: "hidden",
+                                                textOverflow: "ellipsis",
+                                            }}
+                                            title={
+                                                typeof r.outputs === "string"
+                                                    ? r.outputs
+                                                    : JSON.stringify(r.outputs)
+                                            }
+                                        >
+                                            {typeof r.outputs === "string"
+                                                ? r.outputs
+                                                : JSON.stringify(r.outputs)}
+                                        </td>
+
+                                        {/* FUENTE */}
+                                        {/* <td
                       style={{
                         ...td,
                         width: COL_WIDTHS.fuente,
@@ -1384,144 +1763,176 @@ export default function ServicesMultiHost() {
                       </div>
                     </td> */}
 
-                    {/* AUDIO ALARM */}
-                    <td
-                      style={{
-                        ...td,
-                        width: COL_WIDTHS.alarma,
-                        maxWidth: COL_WIDTHS.alarma,
-                        whiteSpace: "nowrap",
-                      }}
-                      title={
-                        r.audioAlarm
-                          ? `Alarma audio • Nivel: ${r.audioLevelDb ?? "N/A"} dB • Umbral ${r.audioThreshold ?? "N/A"} dB`
-                          : `Audio OK • Nivel: ${r.audioLevelDb ?? "N/A"} dB`
-                      }
-                    >
-                      {r.audioAlarm ? (
-                        <span className="badge badge-red" >Alarma</span>
-                      ) : (
-                        <span className="badge badge-green">OK</span>
-                      )}
-                    </td>
+                                        {/* AUDIO ALARM */}
+                                        <td
+                                            style={{
+                                                ...td,
+                                                width: COL_WIDTHS.alarma,
+                                                maxWidth: COL_WIDTHS.alarma,
+                                                whiteSpace: "nowrap",
+                                            }}
+                                            title={
+                                                r.audioAlarm
+                                                    ? `Alarma audio • Nivel: ${
+                                                          r.audioLevelDb ??
+                                                          "N/A"
+                                                      } dB • Umbral ${
+                                                          r.audioThreshold ??
+                                                          "N/A"
+                                                      } dB`
+                                                    : `Audio OK • Nivel: ${
+                                                          r.audioLevelDb ??
+                                                          "N/A"
+                                                      } dB`
+                                            }
+                                        >
+                                            {r.audioAlarm ? (
+                                                <span className="badge badge-red">
+                                                    Alarma
+                                                </span>
+                                            ) : (
+                                                <span className="badge badge-green">
+                                                    OK
+                                                </span>
+                                            )}
+                                        </td>
 
-                    {/* VIDEO ALARM */}
-                    <td
-                      style={{
-                        ...td,
-                        width: COL_WIDTHS.alarma,
-                        maxWidth: COL_WIDTHS.alarma,
-                        whiteSpace: "nowrap",
-                      }}
-                      title={
-                        r._explicitVideoFail
-                          ? "Alarma video"
-                          : r._patternOrStill && treatPatternAsFail
-                          ? "Pattern/Still (considerado falla)"
-                          : "Video OK"
-                      }
-                    >
-                      {r._explicitVideoFail ? (
-                        <span className="badge badge-red">Alarma</span>
-                      ) : r._patternOrStill && treatPatternAsFail ? (
-                        <span className="badge badge-amber">Pattern/Still</span>
-                      ) : (
-                        <span className="badge badge-green">OK</span>
-                      )}
-                    </td>
+                                        {/* VIDEO ALARM */}
+                                        <td
+                                            style={{
+                                                ...td,
+                                                width: COL_WIDTHS.alarma,
+                                                maxWidth: COL_WIDTHS.alarma,
+                                                whiteSpace: "nowrap",
+                                            }}
+                                            title={
+                                                r._explicitVideoFail
+                                                    ? "Alarma video"
+                                                    : r._patternOrStill &&
+                                                      treatPatternAsFail
+                                                    ? "Pattern/Still (considerado falla)"
+                                                    : "Video OK"
+                                            }
+                                        >
+                                            {r._explicitVideoFail ? (
+                                                <span className="badge badge-red">
+                                                    Alarma
+                                                </span>
+                                            ) : r._patternOrStill &&
+                                              treatPatternAsFail ? (
+                                                <span className="badge badge-amber">
+                                                    Pattern/Still
+                                                </span>
+                                            ) : (
+                                                <span className="badge badge-green">
+                                                    OK
+                                                </span>
+                                            )}
+                                        </td>
 
-                    {/* ESTADO */}
-                    <td
-                      style={{
-                        ...td,
-                        width: COL_WIDTHS.estado,
-                        maxWidth: COL_WIDTHS.estado,
-                        whiteSpace: "nowrap",
-                      }}
-                      title={stateText}
-                    >
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
-                        <span
-                          style={{
-                            display: "inline-block",
-                            width: 12,
-                            height: 12,
-                            borderRadius: "50%",
-                            flex: "0 0 auto",
-                            backgroundColor: isStateFail ? "red" : "green",
-                          }}
-                        />
-                        <span
-                          style={{
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                            minWidth: 0,
-                            flex: "1 1 auto",
-                          }}
-                        >
-                          {stateText}
-                        </span>
-                      </div>
-                    </td>
+                                        {/* ESTADO */}
+                                        <td
+                                            style={{
+                                                ...td,
+                                                width: COL_WIDTHS.estado,
+                                                maxWidth: COL_WIDTHS.estado,
+                                                whiteSpace: "nowrap",
+                                            }}
+                                            title={stateText}
+                                        >
+                                            <div
+                                                style={{
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    gap: 6,
+                                                    minWidth: 0,
+                                                }}
+                                            >
+                                                <span
+                                                    style={{
+                                                        display: "inline-block",
+                                                        width: 12,
+                                                        height: 12,
+                                                        borderRadius: "50%",
+                                                        flex: "0 0 auto",
+                                                        backgroundColor:
+                                                            isStateFail
+                                                                ? "red"
+                                                                : "green",
+                                                    }}
+                                                />
+                                                <span
+                                                    style={{
+                                                        overflow: "hidden",
+                                                        textOverflow:
+                                                            "ellipsis",
+                                                        whiteSpace: "nowrap",
+                                                        minWidth: 0,
+                                                        flex: "1 1 auto",
+                                                    }}
+                                                >
+                                                    {stateText}
+                                                </span>
+                                            </div>
+                                        </td>
 
-                    {/* TS ERRORS */}
-                    <td
-                      style={{
-                        ...td,
-                        textAlign: "right",
-                        whiteSpace: "nowrap",
-                      }}
-                      title="Suma de errores de PID / CC"
-                    >
-                      {r.tsErrors ?? 0}
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
+                                        {/* TS ERRORS */}
+                                        <td
+                                            style={{
+                                                ...td,
+                                                textAlign: "right",
+                                                whiteSpace: "nowrap",
+                                            }}
+                                            title="Suma de errores de PID / CC"
+                                        >
+                                            {r.tsErrors ?? 0}
+                                        </td>
+                                    </tr>
+                                );
+                            })
+                        )}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
 }
 
 /* Encabezados (centrados) y celdas */
 const th = {
-  textAlign: "center",
-  padding: "10px 8px",
-  borderBottom: "1px solid #ddd",
-  position: "sticky",
-  top: 0,
-  overflow: "hidden",
-  textOverflow: "ellipsis",
-  whiteSpace: "nowrap",
-  background: "#fafafa",   // <- asegúrate que tenga fondo
-  zIndex: 100,             // <- AÑADIR: header por encima de badges
+    textAlign: "center",
+    padding: "10px 8px",
+    borderBottom: "1px solid #ddd",
+    position: "sticky",
+    top: 0,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    background: "#fafafa", // <- asegúrate que tenga fondo
+    zIndex: 100, // <- AÑADIR: header por encima de badges
 };
 /* Encabezados/celdas compactas para la tabla de fallas (contenido ajustado) */
 const thCompact = {
-  textAlign: "center",
-  padding: "8px 8px",
-  borderBottom: "1px solid #f0c4c4",
-  whiteSpace: "nowrap",
-  position: "sticky",      // <- AÑADIR: también sticky si no lo estaba
-  top: 0,                  // <- AÑADIR
-  background: "#fdeeee",   // <- AÑADIR
-  zIndex: 100,             // <- AÑADIR
+    textAlign: "center",
+    padding: "8px 8px",
+    borderBottom: "1px solid #f0c4c4",
+    whiteSpace: "nowrap",
+    position: "sticky", // <- AÑADIR: también sticky si no lo estaba
+    top: 0, // <- AÑADIR
+    background: "#fdeeee", // <- AÑADIR
+    zIndex: 100, // <- AÑADIR
 };
 
 const td = {
-  padding: "8px 8px",
-  borderBottom: "1px solid #eee",
-  overflow: "hidden",
-  textOverflow: "ellipsis",
-  whiteSpace: "nowrap",
+    padding: "8px 8px",
+    borderBottom: "1px solid #eee",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
 };
 
 const tdCompact = {
-  padding: "6px 8px",
-  borderBottom: "1px solid #fdeeee",
-  whiteSpace: "nowrap",
+    padding: "6px 8px",
+    borderBottom: "1px solid #fdeeee",
+    whiteSpace: "nowrap",
 };

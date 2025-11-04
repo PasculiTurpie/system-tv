@@ -590,6 +590,20 @@ a{
   z-index: 0;
 }
 
+.cargando {
+  color: blue;
+  font-size: 1.2em;
+  font-weight: 600;
+}
+
+.sin-datos {
+  color: rgb(255, 0, 0);
+  font-weight: 600;
+  font-size: 1.2em;
+  font-style: italic;
+}
+
+
 @media (max-width: 768px) {
     .grid-cols-2 {
         grid-template-columns: 1fr;
