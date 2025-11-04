@@ -117,14 +117,14 @@ export const DiagramFlow = () => {
 
   return (
     <>
-    <div className="container__diagramFlow outlet-main">
+    <div className="outlet-main">
 
 
     <div className="container__header">
-        <img className="logo__channel" src={logo} alt="Logo canal" />
+      <img className="logo__channel" src={dataChannel?.logoChannel} />
         <h3 className="title__channel">{titulo}</h3>
       </div>
-        <div className="conatiner__flow" style={{ width: "90vw", height: "100%" }}>
+        <div className="conatiner__flow" style={{ width: "83vw", height: "100vh" }}>
 
       <ReactFlow
         nodes={nodes}
