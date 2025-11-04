@@ -29,6 +29,17 @@ const CustomNode = ({ data, selected }) => {
                     position={Position.Right}
                     style={{ top: `${p}%`, transform: "translateY(-50%)", opacity: 1}}
                 />
+                
+            ))}
+            {leftPerc.map((p, i) => (
+                <Handle
+                    key={`out-left-${i + 1}`}
+                    id={`out-left-${i + 1}`}
+                    type="source"
+                    position={Position.Right}
+                    style={{ top: `${p}%`, transform: "translateY(-50%)", opacity: 1}}
+                />
+                
             ))}
 
             {/* RIGHT: sources a distintas alturas */}
@@ -58,6 +69,15 @@ const CustomNode = ({ data, selected }) => {
                     key={`out-top-${i + 1}`}
                     id={`out-top-${i + 1}`}
                     type="source"
+                    position={Position.Top}
+                    style={{ left: `${p}%`, transform: "translateX(-50%)", opacity: 1 }}
+                />
+            ))}
+            {topPerc.map((p, i) => (
+                <Handle
+                    key={`in-top-${i + 1}`}
+                    id={`in-top-${i + 1}`}
+                    type="target"
                     position={Position.Top}
                     style={{ left: `${p}%`, transform: "translateX(-50%)", opacity: 1 }}
                 />

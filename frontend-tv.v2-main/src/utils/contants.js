@@ -133,7 +133,7 @@ const dataFlow = {
             source: "1",
             target: "5",
             sourceHandle: "out-right-3",
-            targetHandle: "in-bottom-1",
+            targetHandle: "in-top-1",
             type: "draggableDirectional", // lineal | bezier | smoothstep | step
             animated: true,
             style: {
