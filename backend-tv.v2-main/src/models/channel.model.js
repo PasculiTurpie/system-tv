@@ -187,6 +187,15 @@ const DiagramSchema = new mongoose.Schema(
 
 /* -------------------------------- Canal ----------------------------------- */
 
+const ContactSchema = new mongoose.Schema(
+  {
+    nombreContact: { type: String, trim: true },
+    email: { type: String, trim: true },
+    telefono: { type: String, trim: true },
+  },
+  { _id: false, minimize: false }
+);
+
 const ChannelSchema = new mongoose.Schema(
   {
     signal: {
@@ -194,6 +203,13 @@ const ChannelSchema = new mongoose.Schema(
       ref: "Signal",
       required: true,
     },
+    nameChannel: { type: String, trim: true },
+    numberChannelSur: { type: String, trim: true },
+    numberChannelCn: { type: String, trim: true },
+    logoChannel: { type: String, trim: true },
+    severidadChannel: { type: String, trim: true },
+    tipoTecnologia: { type: String, trim: true },
+    contacto: { type: [ContactSchema], default: undefined },
     // Representación principal usada en el front
     nodes: [NodeSchema],
     edges: [EdgeSchema],
