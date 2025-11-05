@@ -1088,7 +1088,7 @@ export default function ServicesMultiHost() {
     const titanSignalsCount = filtered.length;
 
     return (
-        <div style={{ padding: 16 }}>
+        <div className="outlet-main" style={{ padding: 16 }}>
             {/* estilos de botones + buscador */}
             <style>{`
         a { text-decoration: none; } /* sin subrayado */

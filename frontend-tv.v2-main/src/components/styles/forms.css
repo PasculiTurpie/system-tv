@@ -21,12 +21,12 @@
 }
 
 /* ===================== Layout ===================== */
-.outlet-main {
+/* .outlet-main {
   width    : 100%;
   max-width: 960px;
   margin   : 0 auto;
   padding  : 20px;
-}
+} */
 
 .form__add {
   width         : min(960px, 100%);

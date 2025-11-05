@@ -156,7 +156,7 @@ const ChannelListDiagram = () => {
   );
 
   return (
-    <div className="outlet-main" style={{ maxWidth: 900, margin: "0 auto" }}>
+    <div className="outlet-main" style={{ width: '100%', margin: "0 auto" }}>
       <h2>Lista de Channels</h2>
       <button
         className="button btn-primary"
@@ -201,7 +201,7 @@ const ChannelListDiagram = () => {
 
       <table
         className="table"
-        style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}
+        style={{ width: "100%", borderCollapse: "collapse", textAlign: "center" }}
       >
         <thead>
           <tr style={{ borderBottom: "2px solid #444" }}>
