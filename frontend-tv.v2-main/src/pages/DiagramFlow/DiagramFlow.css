@@ -1,6 +1,10 @@
 .container__header{
+    position: absolute;
+    top: 250px;
+    left: 250px;
     display: flex;
     width: fit-content;
+    height: fit-content;
     align-items: center;
     margin:0 auto;
     border:2px solid #00aeff;
@@ -28,4 +32,9 @@
     border: 1px solid #fff;
     color:#fff;
     background: red;
+}
+
+.container__flow{
+    width: calc(100vw - 280px);
+    height: 100vh;
 }
