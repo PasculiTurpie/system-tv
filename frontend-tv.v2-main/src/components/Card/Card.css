@@ -6,6 +6,8 @@
     flex-direction: column;
     margin        : auto;
     margin-top    : 30px;
+    margin-bottom: 50px;
+    
 }
 
 .loader__charge {
