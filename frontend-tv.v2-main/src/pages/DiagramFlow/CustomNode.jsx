@@ -27,7 +27,7 @@ const CustomNode = ({ data, selected }) => {
                     id={`in-left-${i + 1}`}
                     type="target"
                     position={Position.Right}
-                    style={{ top: `${p}%`, transform: "translateY(-50%)", opacity: 1}}
+                    style={{ top: `${p}%`, transform: "translateY(-50%)", opacity: 0}}
                 />
                 
             ))}
@@ -37,7 +37,7 @@ const CustomNode = ({ data, selected }) => {
                     id={`out-left-${i + 1}`}
                     type="source"
                     position={Position.Right}
-                    style={{ top: `${p}%`, transform: "translateY(-50%)", opacity: 1}}
+                    style={{ top: `${p}%`, transform: "translateY(-50%)", opacity: 0}}
                 />
                 
             ))}
@@ -49,7 +49,7 @@ const CustomNode = ({ data, selected }) => {
                     id={`out-right-${i + 1}`}
                     type="source"
                     position={Position.Left}
-                    style={{ top: `${p}%`, transform: "translateY(-50%)", opacity: 1 }}
+                    style={{ top: `${p}%`, transform: "translateY(-50%)", opacity: 0 }}
                 />
             ))}
             {/* RIGHT: sources a distintas alturas */}
@@ -59,7 +59,7 @@ const CustomNode = ({ data, selected }) => {
                     id={`in-right-${i + 1}`}
                     type="target"
                     position={Position.Left}
-                    style={{ top: `${p}%`, transform: "translateY(-50%)", opacity: 1 }}
+                    style={{ top: `${p}%`, transform: "translateY(-50%)", opacity: 0 }}
                 />
             ))}
 
@@ -70,7 +70,7 @@ const CustomNode = ({ data, selected }) => {
                     id={`out-top-${i + 1}`}
                     type="source"
                     position={Position.Top}
-                    style={{ left: `${p}%`, transform: "translateX(-50%)", opacity: 1 }}
+                    style={{ left: `${p}%`, transform: "translateX(-50%)", opacity: 0 }}
                 />
             ))}
             {topPerc.map((p, i) => (
@@ -79,7 +79,7 @@ const CustomNode = ({ data, selected }) => {
                     id={`in-top-${i + 1}`}
                     type="target"
                     position={Position.Top}
-                    style={{ left: `${p}%`, transform: "translateX(-50%)", opacity: 1 }}
+                    style={{ left: `${p}%`, transform: "translateX(-50%)", opacity: 0 }}
                 />
             ))}
 
@@ -90,7 +90,7 @@ const CustomNode = ({ data, selected }) => {
                     id={`in-bottom-${i + 1}`}
                     type="target"
                     position={Position.Bottom}
-                    style={{ left: `${p}%`, transform: "translateX(-50%)", opacity: 1 }}
+                    style={{ left: `${p}%`, transform: "translateX(-50%)", opacity: 0 }}
                 />
             ))}
 
@@ -101,7 +101,7 @@ const CustomNode = ({ data, selected }) => {
                     id={`out-bottom-${i + 1}`}
                     type="source"
                     position={Position.Bottom}
-                    style={{ left: `${p}%`, transform: "translateX(-50%)", opacity: 1 }}
+                    style={{ left: `${p}%`, transform: "translateX(-50%)", opacity: 0 }}
                 />
             ))}
 
