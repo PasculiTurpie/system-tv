@@ -145,6 +145,10 @@ const sanitizeEdgePayload = (edge) => {
     target,
     data,
   };
+
+  const animated =
+    edge.animated !== undefined ? Boolean(edge.animated) : true;
+  payload.animated = animated;
   if (style) payload.style = style;
 
   const sanitizedSourceHandle = normalizeHandleId(edge.sourceHandle);

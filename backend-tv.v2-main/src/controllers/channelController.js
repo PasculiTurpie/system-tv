@@ -56,6 +56,7 @@ function sanitizeEdge(edge) {
       direction,
     },
     style,
+    animated: edge.animated !== undefined ? Boolean(edge.animated) : true,
   };
 }
 
