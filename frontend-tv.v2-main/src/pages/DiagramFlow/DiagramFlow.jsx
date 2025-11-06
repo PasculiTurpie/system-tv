@@ -52,6 +52,15 @@ const MOCK_FLOW = {
 };
 
 // Tipos de nodo/edge registrados en React Flow
+const EQUIPO_TYPE_IMAGE_MAP = {
+    router: "https://i.ibb.co/5WS77nQB/router.jpg",
+    switch: "https://i.ibb.co/fGMRq8Fz/switch.jpg",
+    ird: "https://i.ibb.co/fGM5NTcX/ird.jpg",
+    titan: "https://i.ibb.co/wrJZLrqR/titan.jpg",
+    satelite: "https://i.ibb.co/23VpLD2N/satelite.jpg",
+    rtes: "https://i.ibb.co/VcfxF9hz/rtes.jpg",
+};
+
 const nodeTypes = {
     imageNode: CustomNode,
 };
@@ -79,6 +88,43 @@ const EDGE_TYPE_ALIAS = {
 };
 
 // --- Helpers de normalización seguros ---
+const stripDiacritics = (value = "") =>
+    String(value)
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim()
+        .toLowerCase();
+
+const inferEquipoTipo = (node = {}) => {
+    const rawTipo =
+        node?.equipo?.tipoNombre?.tipoNombre ??
+        node?.equipo?.tipoNombre ??
+        node?.equipo?.tipoNombre?.nombre ??
+        node?.equipo?.tipoNombre?.name ??
+        node?.data?.equipo?.tipoNombre?.tipoNombre ??
+        node?.data?.equipo?.tipoNombre ??
+        node?.data?.equipo?.tipoNombre?.nombre ??
+        node?.data?.equipo?.tipoNombre?.name ??
+        node?.data?.equipoTipo ??
+        node?.data?.tipo ??
+        node?.data?.tipoNombre ??
+        node?.type;
+
+    if (!rawTipo) return "";
+    return stripDiacritics(rawTipo);
+};
+
+const maybeWithImage = (node, currentData) => {
+    if (currentData?.image) return currentData;
+
+    const tipoKey = inferEquipoTipo(node);
+    const imageUrl = EQUIPO_TYPE_IMAGE_MAP[tipoKey];
+
+    if (!imageUrl) return currentData;
+
+    return { ...currentData, image: imageUrl };
+};
+
 const normalizeNodes = (arr = []) =>
     (Array.isArray(arr) ? arr : []).map((n) => {
         const rawType = n?.type ?? DEFAULT_NODE_TYPE;
@@ -94,13 +140,19 @@ const normalizeNodes = (arr = []) =>
             );
         }
 
+        const existingData =
+            n?.data && typeof n.data === "object" ? { ...n.data } : {};
+        const label = existingData.label ?? n?.label ?? n?.id ?? "Nodo";
+        const dataWithLabel = maybeWithImage(n, { ...existingData, label });
+
+        const position = n?.position ?? { x: 0, y: 0 };
+
         return {
             id: n?.id ?? crypto.randomUUID(),
-            type: finalType,
-            position: n?.position ?? { x: 0, y: 0 },
-            data: n?.data ?? { label: n?.id ?? "Nodo" },
             ...n,
-            type: finalType, // asegurar el type final
+            type: finalType,
+            data: dataWithLabel,
+            position,
         };
     });
 
