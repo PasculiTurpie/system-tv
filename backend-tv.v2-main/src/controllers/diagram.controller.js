@@ -38,7 +38,11 @@ const sanitizeEdgeUpdate = (edge, payload = {}) => {
   if (payload.sourceHandle !== undefined) result.sourceHandle = payload.sourceHandle;
   if (payload.targetHandle !== undefined) result.targetHandle = payload.targetHandle;
   if (payload.style !== undefined) result.style = payload.style || {};
-  if (payload.animated !== undefined) result.animated = Boolean(payload.animated);
+  if (payload.animated !== undefined) {
+    result.animated = Boolean(payload.animated);
+  } else if (result.animated === undefined) {
+    result.animated = true;
+  }
   if (payload.markerStart !== undefined) result.markerStart = payload.markerStart;
   if (payload.markerEnd !== undefined) result.markerEnd = payload.markerEnd;
   if (payload.data !== undefined) {
@@ -155,9 +159,15 @@ exports.createEdge = async (req, res) => {
   }
 
   try {
+    const edgePayload = {
+      ...payload,
+      animated:
+        payload.animated !== undefined ? Boolean(payload.animated) : true,
+    };
+
     const update = await Channel.findByIdAndUpdate(
       id,
-      { $push: { edges: payload } },
+      { $push: { edges: edgePayload } },
       { new: true, runValidators: true, select: projectEdges }
     )
       .lean()
