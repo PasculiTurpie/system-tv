@@ -18,6 +18,7 @@ import "./DiagramFlow.css";
 // Componentes personalizados
 import CustomNode from "./CustomNode";
 import DraggableDirectionalEdge from "./DraggableDirectionalEdge";
+import { getDirectionColor } from "./directionColors";
 
 // --- Config: alterna entre API real y MOCK local ---
 const USE_MOCK = false; // pon en true si quieres probar con MOCK
@@ -166,6 +167,15 @@ const normalizeEdges = (arr = []) =>
             ? mappedType
             : DEFAULT_EDGE_TYPE;
 
+        const direction = e?.data?.direction ?? e?.direction ?? "ida";
+        const markerEnd = {
+            ...(typeof e?.markerEnd === "object" && e.markerEnd !== null
+                ? e.markerEnd
+                : {}),
+            type: MarkerType.ArrowClosed,
+            color: getDirectionColor(direction),
+        };
+
         if (finalType !== rawType) {
             console.warn(
                 `[normalizeEdges] Remapeado type "${rawType}" → "${finalType}" para el edge`,
@@ -184,9 +194,7 @@ const normalizeEdges = (arr = []) =>
             data: e?.data ?? {},
             ...e,
             type: finalType, // asegurar el type final
-            markerEnd: e?.markerEnd ?? {
-                type: MarkerType.ArrowClosed,
-            },
+            markerEnd,
         };
     });
 
@@ -290,6 +298,7 @@ export const DiagramFlow = () => {
             type: DEFAULT_EDGE_TYPE,
             markerEnd: {
                 type: MarkerType.ArrowClosed,
+                color: getDirectionColor(),
             },
         }),
         []
