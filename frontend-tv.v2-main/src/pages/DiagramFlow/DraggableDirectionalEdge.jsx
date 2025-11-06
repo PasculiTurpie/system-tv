@@ -2,6 +2,8 @@
 import { BaseEdge, getSmoothStepPath } from "@xyflow/react";
 import { useMemo, useState, useRef, useEffect } from "react";
 
+import "./DraggableDirectionalEdge.css";
+
 import { getDirectionColor } from "./directionColors";
 
 export default function DraggableDirectionalEdge(props) {
