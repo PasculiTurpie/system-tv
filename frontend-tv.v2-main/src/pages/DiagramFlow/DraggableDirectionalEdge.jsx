@@ -2,6 +2,8 @@
 import { BaseEdge, getSmoothStepPath } from "@xyflow/react";
 import { useMemo, useState, useRef, useEffect } from "react";
 
+import { getDirectionColor } from "./directionColors";
+
 export default function DraggableDirectionalEdge(props) {
   const {
     id,
@@ -80,8 +82,7 @@ export default function DraggableDirectionalEdge(props) {
 
   /* --------------------------- Estilos --------------------------- */
   const direction = data?.direction ?? "ida";
-  const strokeColor =
-    direction === "vuelta" ? "#2e7d32" : direction === "bi" ? "#1565c0" : "#c62828";
+  const strokeColor = getDirectionColor(direction);
 
   const animatedStyle = {
     stroke: strokeColor,
