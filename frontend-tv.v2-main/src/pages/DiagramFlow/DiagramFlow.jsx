@@ -1,5 +1,5 @@
 // src/pages/ChannelDiagram/DiagramFlow.jsx
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
     ReactFlow,
@@ -8,6 +8,8 @@ import {
     applyNodeChanges,
     applyEdgeChanges,
     addEdge,
+    MarkerType,
+    ConnectionLineType,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import api from "../../utils/api";
@@ -177,12 +179,14 @@ const normalizeEdges = (arr = []) =>
                 `e-${e?.source ?? "unk"}-${e?.target ?? "unk"}-${Math.random()
                     .toString(36)
                     .slice(2)}`,
-            type: finalType,
             source: e?.source,
             target: e?.target,
             data: e?.data ?? {},
             ...e,
             type: finalType, // asegurar el type final
+            markerEnd: e?.markerEnd ?? {
+                type: MarkerType.ArrowClosed,
+            },
         };
     });
 
@@ -281,12 +285,42 @@ export const DiagramFlow = () => {
         setEdges((prev) => applyEdgeChanges(changes, prev));
     }, []);
 
+    const defaultEdgeOptions = useMemo(
+        () => ({
+            type: DEFAULT_EDGE_TYPE,
+            markerEnd: {
+                type: MarkerType.ArrowClosed,
+            },
+        }),
+        []
+    );
+
     // Crea edges con el tipo correcto por defecto
-    const onConnect = useCallback((params) => {
-        setEdges((prev) =>
-            addEdge({ ...params, type: DEFAULT_EDGE_TYPE }, prev)
-        );
-    }, []);
+    const onConnect = useCallback(
+        (params) => {
+            setEdges((prev) => addEdge({ ...defaultEdgeOptions, ...params }, prev));
+        },
+        [defaultEdgeOptions]
+    );
+
+    const onEdgeUpdate = useCallback(
+        (oldEdge, newConnection) => {
+            setEdges((prev) =>
+                prev.map((edge) =>
+                    edge.id === oldEdge.id
+                        ? {
+                              ...edge,
+                              ...newConnection,
+                              type: defaultEdgeOptions.type,
+                              markerEnd:
+                                  newConnection?.markerEnd ?? defaultEdgeOptions.markerEnd,
+                          }
+                        : edge
+                )
+            );
+        },
+        [defaultEdgeOptions]
+    );
 
     const handleBackSubmit = () => navigate(-1);
 
@@ -318,6 +352,10 @@ export const DiagramFlow = () => {
                             onNodesChange={onNodesChange}
                             onEdgesChange={onEdgesChange}
                             onConnect={onConnect}
+                            onEdgeUpdate={onEdgeUpdate}
+                            defaultEdgeOptions={defaultEdgeOptions}
+                            connectionLineType={ConnectionLineType.SmoothStep}
+                            edgesUpdatable
                             fitView
                         >
                             <Background />
