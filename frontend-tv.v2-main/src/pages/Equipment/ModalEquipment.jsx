@@ -38,6 +38,8 @@ const ModalEquipment = ({
 
   if (!dataEquipos) return null;
 
+  console.log(dataEquipos.tipoNombre.tipoNombre.toUpperCase())
+
   return (
     <Formik
       enableReinitialize
@@ -45,7 +47,7 @@ const ModalEquipment = ({
         nombre: dataEquipos.nombre || "",
         marca: dataEquipos.marca || "",
         modelo: dataEquipos.modelo || "",
-        tipoNombre: dataEquipos?.tipoNombre?._id || dataEquipos.tipoNombre || "",
+        tipoNombre: dataEquipos.tipoNombre.tipoNombre.toUpperCase() || "",
         ip_gestion: dataEquipos.ip_gestion || "",
       }}
       validationSchema={UpdateSchemaEquipo}
@@ -111,7 +113,7 @@ const ModalEquipment = ({
                       <option value="">Seleccione tipo</option>
                       {tiposEquipo.map((tipo) => (
                         <option key={tipo._id} value={tipo._id}>
-                          {tipo.tipoNombre}
+                          {tipo.tipoNombre.toUpperCase()}
                         </option>
                       ))}
                     </Field>
