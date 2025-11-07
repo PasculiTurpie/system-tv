@@ -23,10 +23,7 @@ import { getDirectionColor } from "./directionColors";
 // --- Config ---
 const USE_MOCK = false;
 
-/** Si quieres forzar la cantidad “máxima” de handles por lado al autocompletar.
- *  Debe coincidir con lo que renderizas en tus nodos (CustomNode.jsx).
- *  (En tu CustomNode actual: 4 por lado en vertical, 4 top, 4 bottom)
- */
+/** Cantidad máxima de handles por lado (debe coincidir con CustomNode.jsx) */
 const MAX_HANDLES_PER_SIDE = {
   left: 4,
   right: 4,
@@ -34,7 +31,7 @@ const MAX_HANDLES_PER_SIDE = {
   bottom: 4,
 };
 
-// Tipos de nodo/edge registrados en React Flow
+// Mapeo de imágenes por tipo inferido
 const EQUIPO_TYPE_IMAGE_MAP = {
   router: "https://i.ibb.co/5WS77nQB/router.jpg",
   switch: "https://i.ibb.co/fGMRq8Fz/switch.jpg",
@@ -47,7 +44,6 @@ const EQUIPO_TYPE_IMAGE_MAP = {
 const nodeTypes = { imageNode: CustomNode };
 const edgeTypes = { draggableDirectional: DraggableDirectionalEdge };
 
-// Defaults/alias para normalizar lo que venga del backend
 const DEFAULT_NODE_TYPE = "imageNode";
 const DEFAULT_EDGE_TYPE = "draggableDirectional";
 const KNOWN_NODE_TYPES = new Set(Object.keys(nodeTypes));
@@ -55,7 +51,7 @@ const KNOWN_EDGE_TYPES = new Set(Object.keys(edgeTypes));
 const NODE_TYPE_ALIAS = { custom: DEFAULT_NODE_TYPE };
 const EDGE_TYPE_ALIAS = { customDirectional: DEFAULT_EDGE_TYPE };
 
-// --- Helpers de normalización seguros ---
+/* -------------------- Helpers de normalización -------------------- */
 const stripDiacritics = (value = "") =>
   String(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
 
@@ -131,8 +127,7 @@ const normalizeEdges = (arr = []) =>
     };
   });
 
-/* ========================  NUEVO: Auto-handles libres  ======================== */
-
+/* --------------------- Auto-asignación de handles --------------------- */
 const HANDLE_ID_REGEX = /^(in|out)-(left|right|top|bottom)-([1-9]\d*)$/;
 
 const parseHandle = (id = "") => {
@@ -141,32 +136,24 @@ const parseHandle = (id = "") => {
   return { kind: m[1], side: m[2], idx: Number(m[3]) };
 };
 
-// Lado sugerido en función de la geometría de nodes (aproximado)
-// - para target: lado opuesto al que mira hacia el source (para entradas)
+// lado sugerido (TARGET): lado opuesto al que mira hacia el source
 const guessSideForTarget = (sourceNode, targetNode) => {
   if (!sourceNode || !targetNode) return "left";
   const dx = targetNode.position.x - sourceNode.position.x;
   const dy = targetNode.position.y - sourceNode.position.y;
-  if (Math.abs(dx) >= Math.abs(dy)) {
-    // horizontal domina
-    return dx >= 0 ? "left" : "right";
-  }
-  // vertical domina
+  if (Math.abs(dx) >= Math.abs(dy)) return dx >= 0 ? "left" : "right";
   return dy >= 0 ? "top" : "bottom";
 };
 
-// - para source: lado que mira hacia el target (para salidas)
+// lado sugerido (SOURCE): lado que mira hacia el target
 const guessSideForSource = (sourceNode, targetNode) => {
   if (!sourceNode || !targetNode) return "right";
   const dx = targetNode.position.x - sourceNode.position.x;
   const dy = targetNode.position.y - sourceNode.position.y;
-  if (Math.abs(dx) >= Math.abs(dy)) {
-    return dx >= 0 ? "right" : "left";
-  }
+  if (Math.abs(dx) >= Math.abs(dy)) return dx >= 0 ? "right" : "left";
   return dy >= 0 ? "bottom" : "top";
 };
 
-// Set de handles ya usados en un nodo por tipo (source/target) -> evitamos duplicados
 const usedHandlesByNode = (allEdges, nodeId, endpoint = "target") => {
   const key = endpoint === "source" ? "sourceHandle" : "targetHandle";
   return new Set(
@@ -188,20 +175,14 @@ const firstFreeHandle = (occupiedSet, kind, side, maxPerSide) => {
   return null;
 };
 
-/* ============================================================================ */
-
+/* ============================== Componente ============================== */
 export const DiagramFlow = () => {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  // Arrays para React Flow
   const [nodes, setNodes] = useState([]);
   const [edges, setEdges] = useState([]);
-
-  // Datos del canal (encabezado)
   const [dataChannel, setDataChannel] = useState(null);
-
-  // Estados UI
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -211,24 +192,69 @@ export const DiagramFlow = () => {
     return m;
   }, [nodes]);
 
-  // persistencia “debounced” para no saturar backend si mueves seguido
-  const persistTimer = useRef(null);
-  const schedulePersist = useCallback(
-    (nextNodes, nextEdges) => {
-      if (persistTimer.current) clearTimeout(persistTimer.current);
-      persistTimer.current = setTimeout(async () => {
+  // --- Persistencia por edge (PATCH) con debounce por id ---
+  const patchTimersRef = useRef(new Map());
+
+  const patchEdgeDebounced = useCallback(
+    (edge) => {
+      if (!edge?.id) return;
+      const key = edge.id;
+
+      const doPatch = async () => {
         try {
-          await api.updateChannelFlow(id, {
-            nodes: nextNodes ?? nodes,
-            edges: nextEdges ?? edges,
+          await api.patchChannelEdge(id, key, {
+            source: edge.source,
+            target: edge.target,
+            sourceHandle: edge.sourceHandle ?? null,
+            targetHandle: edge.targetHandle ?? null,
+            type: edge.type,
+            animated: Boolean(edge.animated),
+            markerEnd: edge.markerEnd,
+            data: edge.data && typeof edge.data === "object" ? edge.data : {},
           });
         } catch (e) {
-          console.error("Persistencia fallida:", e);
+          console.error("PATCH edge error:", e);
         }
-      }, 350); // pequeño debounce
+      };
+
+      const timers = patchTimersRef.current;
+      if (timers.has(key)) clearTimeout(timers.get(key));
+      const t = setTimeout(doPatch, 250);
+      timers.set(key, t);
     },
-    [id, nodes, edges]
+    [id]
   );
+
+  // Persistencia de label positions (PATCH /label-positions) desde edge draggable label
+  useEffect(() => {
+    const pending = new Map(); // edgeId -> { x, y }
+    let t = null;
+
+    const handler = (e) => {
+      const { id: edgeId, x, y } = e.detail || {};
+      if (!edgeId) return;
+      pending.set(edgeId, { x, y });
+
+      if (t) clearTimeout(t);
+      t = setTimeout(async () => {
+        try {
+          const edgesPayload = {};
+          for (const [edgeId, pos] of pending.entries()) {
+            edgesPayload[edgeId] = { labelPosition: pos };
+          }
+          pending.clear();
+          await api.patchChannelLabelPositions(id, {
+            labelPositions: { edges: edgesPayload },
+          });
+        } catch (err) {
+          console.error("PATCH label-positions error:", err);
+        }
+      }, 250);
+    };
+
+    window.addEventListener("rf-edge-label-move", handler);
+    return () => window.removeEventListener("rf-edge-label-move", handler);
+  }, [id]);
 
   // --- Carga desde API ---
   const fetchDataFlow = useCallback(async () => {
@@ -265,7 +291,6 @@ export const DiagramFlow = () => {
     }
   }, [id]);
 
-  // --- Efecto inicial ---
   useEffect(() => {
     if (USE_MOCK) {
       setLoading(false);
@@ -274,22 +299,14 @@ export const DiagramFlow = () => {
     }
   }, [fetchDataFlow]);
 
-  // --- Handlers de React Flow ---
+  // --- Handlers React Flow ---
   const onNodesChange = useCallback((changes) => {
-    setNodes((prev) => {
-      const next = applyNodeChanges(changes, prev);
-      schedulePersist(next, edges);
-      return next;
-    });
-  }, [edges, schedulePersist]);
+    setNodes((prev) => applyNodeChanges(changes, prev));
+  }, []);
 
   const onEdgesChange = useCallback((changes) => {
-    setEdges((prev) => {
-      const next = applyEdgeChanges(changes, prev);
-      schedulePersist(nodes, next);
-      return next;
-    });
-  }, [nodes, schedulePersist]);
+    setEdges((prev) => applyEdgeChanges(changes, prev));
+  }, []);
 
   const defaultEdgeOptions = useMemo(
     () => ({
@@ -300,7 +317,7 @@ export const DiagramFlow = () => {
     []
   );
 
-  /* ===================  onConnect con auto-handle libre  =================== */
+  /* ------------------- onConnect: crear edge + persistir ------------------- */
   const onConnect = useCallback(
     (params) => {
       let {
@@ -309,19 +326,17 @@ export const DiagramFlow = () => {
         sourceHandle: rawSourceHandle,
         targetHandle: rawTargetHandle,
       } = params || {};
-
       if (!source || !target) return;
 
       const sNode = nodeMap.get(source);
       const tNode = nodeMap.get(target);
 
-      // SOURCE: si no viene handle o viene ocupado → asigna el primer libre del lado sugerido
+      // SOURCE: auto libre si no viene o está ocupado
       const srcUsed = usedHandlesByNode(edges, source, "source");
       let sourceHandle = rawSourceHandle;
       if (!sourceHandle || srcUsed.has(sourceHandle)) {
         const side = guessSideForSource(sNode, tNode);
         sourceHandle = firstFreeHandle(srcUsed, "out", side, MAX_HANDLES_PER_SIDE[side]);
-        // fallback a otro lado si ese lado está lleno
         if (!sourceHandle) {
           const sides = ["right", "left", "top", "bottom"].filter((x) => x !== side);
           for (const alt of sides) {
@@ -331,7 +346,7 @@ export const DiagramFlow = () => {
         }
       }
 
-      // TARGET: si no viene handle o viene ocupado → asigna el primer libre del lado sugerido
+      // TARGET: auto libre si no viene o está ocupado
       const tgtUsed = usedHandlesByNode(edges, target, "target");
       let targetHandle = rawTargetHandle;
       if (!targetHandle || tgtUsed.has(targetHandle)) {
@@ -346,7 +361,6 @@ export const DiagramFlow = () => {
         }
       }
 
-      // si aún no hay handle libre en alguno de los extremos, cancela
       if (!sourceHandle || !targetHandle) {
         console.warn("No hay handles libres disponibles para conectar");
         return;
@@ -354,6 +368,7 @@ export const DiagramFlow = () => {
 
       const newEdge = {
         ...defaultEdgeOptions,
+        id: `e-${source}-${target}-${Math.random().toString(36).slice(2)}`,
         source,
         target,
         sourceHandle,
@@ -363,26 +378,27 @@ export const DiagramFlow = () => {
 
       setEdges((prev) => {
         const next = addEdge(newEdge, prev);
-        schedulePersist(nodes, next);
+        // Persistimos la creación con updateChannelFlow (payload completo)
+        api.updateChannelFlow(id, { nodes, edges: next }).catch((e) =>
+          console.error("Persist create edge (updateChannelFlow) error:", e)
+        );
         return next;
       });
     },
-    [edges, nodeMap, nodes, defaultEdgeOptions, schedulePersist]
+    [edges, nodeMap, nodes, defaultEdgeOptions, id]
   );
 
-  /* ===========  onEdgeUpdate: respeta colisiones y reasigna libre  =========== */
+  /* --------------- onEdgeUpdate: reasigna libre + PATCH por edge --------------- */
   const onEdgeUpdate = useCallback(
     (oldEdge, newConnection) => {
       setEdges((prev) => {
+        let updatedEdgeForPatch = null;
+
         const next = prev.map((edge) => {
           if (edge.id !== oldEdge.id) return edge;
 
-          // ¿estamos moviendo el source o el target?
-          const movingSource = newConnection.source && newConnection.source !== edge.source;
-          const movingTarget = newConnection.target && newConnection.target !== edge.target;
-
-          let source = newConnection.source ?? edge.source;
-          let target = newConnection.target ?? edge.target;
+          const source = newConnection.source ?? edge.source;
+          const target = newConnection.target ?? edge.target;
 
           let sourceHandle = newConnection.sourceHandle ?? edge.sourceHandle;
           let targetHandle = newConnection.targetHandle ?? edge.targetHandle;
@@ -390,39 +406,39 @@ export const DiagramFlow = () => {
           const sNode = nodeMap.get(source);
           const tNode = nodeMap.get(target);
 
-          // Si el handle de source está ocupado por otro edge → reasigna
-          if (source) {
-            const usedSrc = usedHandlesByNode(prev.filter((e) => e.id !== edge.id), source, "source");
+          // Evitar colisión en source
+          {
+            const others = prev.filter((e) => e.id !== edge.id);
+            const usedSrc = usedHandlesByNode(others, source, "source");
             if (!sourceHandle || usedSrc.has(sourceHandle)) {
               const side = guessSideForSource(sNode, tNode);
-              sourceHandle = firstFreeHandle(usedSrc, "out", side, MAX_HANDLES_PER_SIDE[side]);
-              if (!sourceHandle) {
-                const sides = ["right", "left", "top", "bottom"].filter((x) => x !== side);
-                for (const alt of sides) {
-                  sourceHandle = firstFreeHandle(usedSrc, "out", alt, MAX_HANDLES_PER_SIDE[alt]);
-                  if (sourceHandle) break;
-                }
-              }
+              sourceHandle =
+                firstFreeHandle(usedSrc, "out", side, MAX_HANDLES_PER_SIDE[side]) ||
+                ["right", "left", "top", "bottom"]
+                  .filter((x) => x !== side)
+                  .map((alt) => firstFreeHandle(usedSrc, "out", alt, MAX_HANDLES_PER_SIDE[alt]))
+                  .find(Boolean) ||
+                null;
             }
           }
 
-          // Si el handle de target está ocupado por otro edge → reasigna
-          if (target) {
-            const usedTgt = usedHandlesByNode(prev.filter((e) => e.id !== edge.id), target, "target");
+          // Evitar colisión en target
+          {
+            const others = prev.filter((e) => e.id !== edge.id);
+            const usedTgt = usedHandlesByNode(others, target, "target");
             if (!targetHandle || usedTgt.has(targetHandle)) {
               const side = guessSideForTarget(sNode, tNode);
-              targetHandle = firstFreeHandle(usedTgt, "in", side, MAX_HANDLES_PER_SIDE[side]);
-              if (!targetHandle) {
-                const sides = ["left", "right", "top", "bottom"].filter((x) => x !== side);
-                for (const alt of sides) {
-                  targetHandle = firstFreeHandle(usedTgt, "in", alt, MAX_HANDLES_PER_SIDE[alt]);
-                  if (targetHandle) break;
-                }
-              }
+              targetHandle =
+                firstFreeHandle(usedTgt, "in", side, MAX_HANDLES_PER_SIDE[side]) ||
+                ["left", "right", "top", "bottom"]
+                  .filter((x) => x !== side)
+                  .map((alt) => firstFreeHandle(usedTgt, "in", alt, MAX_HANDLES_PER_SIDE[alt]))
+                  .find(Boolean) ||
+                null;
             }
           }
 
-          return {
+          const patched = {
             ...edge,
             ...newConnection,
             source,
@@ -432,13 +448,19 @@ export const DiagramFlow = () => {
             type: edge.type || DEFAULT_EDGE_TYPE,
             markerEnd: newConnection?.markerEnd ?? edge.markerEnd ?? defaultEdgeOptions.markerEnd,
           };
+
+          updatedEdgeForPatch = patched;
+          return patched;
         });
 
-        schedulePersist(nodes, next);
+        if (updatedEdgeForPatch?.id) {
+          patchEdgeDebounced(updatedEdgeForPatch);
+        }
+
         return next;
       });
     },
-    [nodeMap, nodes, defaultEdgeOptions, schedulePersist]
+    [nodeMap, defaultEdgeOptions, patchEdgeDebounced]
   );
 
   const handleBackSubmit = () => navigate(-1);

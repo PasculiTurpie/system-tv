@@ -21,7 +21,7 @@ const CustomNode = ({ data, selected }) => {
         boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
       }}
     >
-      {/* LEFT (realmente a la izquierda) */}
+      {/* LEFT */}
       {leftPerc.map((p, i) => (
         <Handle
           key={`in-left-${i + 1}`}
