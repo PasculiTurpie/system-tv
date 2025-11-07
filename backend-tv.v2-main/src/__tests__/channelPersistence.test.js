@@ -66,7 +66,9 @@ const applyUpdate = (update) => {
   Object.entries($set).forEach(([path, value]) => {
     if (path.startsWith("nodes.$.")) {
       const key = path.replace("nodes.$.", "");
-      const node = channelState.nodes.find((n) => n.id === channelState._lastNodeId);
+      const node = channelState.nodes.find(
+        (n) => String(n.id) === String(channelState._lastNodeId)
+      );
       if (!node) return;
       if (key.startsWith("position.")) {
         const coord = key.replace("position.", "");
@@ -79,7 +81,9 @@ const applyUpdate = (update) => {
     }
     if (path.startsWith("edges.$.")) {
       const key = path.replace("edges.$.", "");
-      const edge = channelState.edges.find((e) => e.id === channelState._lastEdgeId);
+      const edge = channelState.edges.find(
+        (e) => String(e.id) === String(channelState._lastEdgeId)
+      );
       if (!edge) return;
       if (key.startsWith("data.")) {
         const dataKey = key.replace("data.", "");
@@ -93,7 +97,9 @@ const applyUpdate = (update) => {
   Object.entries($unset).forEach(([path]) => {
     if (path.startsWith("nodes.$.")) {
       const key = path.replace("nodes.$.", "");
-      const node = channelState.nodes.find((n) => n.id === channelState._lastNodeId);
+      const node = channelState.nodes.find(
+        (n) => String(n.id) === String(channelState._lastNodeId)
+      );
       if (!node) return;
       if (key.startsWith("data.")) {
         const dataKey = key.replace("data.", "");
@@ -102,7 +108,9 @@ const applyUpdate = (update) => {
     }
     if (path.startsWith("edges.$.")) {
       const key = path.replace("edges.$.", "");
-      const edge = channelState.edges.find((e) => e.id === channelState._lastEdgeId);
+      const edge = channelState.edges.find(
+        (e) => String(e.id) === String(channelState._lastEdgeId)
+      );
       if (!edge) return;
       if (key.startsWith("data.")) {
         const dataKey = key.replace("data.", "");
@@ -256,6 +264,20 @@ test("PATCH node position rechaza payload inválido", async () => {
   assert.equal(response.body.ok, false);
 });
 
+test("PATCH node position soporta IDs numéricos", async () => {
+  channelState.nodes[0].id = 101;
+  channelState.edges[0].source = 101;
+
+  const response = await patch(
+    `${baseUrl}/channels/${TEST_CHANNEL_ID}/node/101/position`,
+    { position: { x: 45, y: 55 } }
+  );
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.ok, true);
+  assert.deepEqual(channelState.nodes[0].position, { x: 45, y: 55 });
+});
+
 test("PATCH edge reconnect valida handles y persiste", async () => {
   const response = await patch(
     `${baseUrl}/channels/${TEST_CHANNEL_ID}/edge/edge-1/reconnect`,
@@ -278,6 +300,24 @@ test("PATCH edge reconnect falla con handle inválido", async () => {
 
   assert.equal(response.status, 409);
   assert.equal(response.body.ok, false);
+});
+
+test("PATCH edge reconnect soporta IDs numéricos y normaliza nodos", async () => {
+  channelState.nodes[0].id = 101;
+  channelState.nodes[1].id = 202;
+  channelState.edges[0].id = 303;
+  channelState.edges[0].source = 101;
+  channelState.edges[0].target = 202;
+
+  const response = await patch(
+    `${baseUrl}/channels/${TEST_CHANNEL_ID}/edge/303/reconnect`,
+    { target: 202, targetHandle: "in-left-1" }
+  );
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.ok, true);
+  assert.equal(channelState.edges[0].target, "202");
+  assert.equal(channelState.edges[0].targetHandle, "in-left-1");
 });
 
 test("PATCH edge tooltip actualiza texto", async () => {

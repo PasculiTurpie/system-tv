@@ -11,6 +11,12 @@ const isValidObjectId = (value) => {
   }
 };
 
+const normalizeId = (value) => {
+  if (value === undefined || value === null) return null;
+  const str = String(value).trim();
+  return str.length ? str : null;
+};
+
 const sanitizePosition = (position) => {
   if (!position || typeof position !== "object") return null;
   const { x, y } = position;
@@ -95,6 +101,10 @@ async function updateNodePosition({ channelId, nodeId, position, userId }) {
   if (!isValidObjectId(channelId)) {
     return { ok: false, status: 400, message: "Canal inválido" };
   }
+  const normalizedNodeId = normalizeId(nodeId);
+  if (!normalizedNodeId) {
+    return { ok: false, status: 400, message: "Nodo inválido" };
+  }
   const sanitizedPosition = sanitizePosition(position);
   if (!sanitizedPosition) {
     return { ok: false, status: 400, message: "Posición inválida" };
@@ -114,7 +124,9 @@ async function updateNodePosition({ channelId, nodeId, position, userId }) {
       return { ok: false, status: 404, message: "Channel no encontrado" };
     }
 
-    const node = (channel.nodes || []).find((n) => n?.id === nodeId);
+    const node = (channel.nodes || []).find(
+      (n) => normalizeId(n?.id) === normalizedNodeId
+    );
     if (!node) {
       await session.abortTransaction();
       session.endSession();
@@ -124,7 +136,7 @@ async function updateNodePosition({ channelId, nodeId, position, userId }) {
     const before = { position: { x: node.position?.x ?? 0, y: node.position?.y ?? 0 } };
 
     await Channel.updateOne(
-      { _id: channelId, "nodes.id": nodeId },
+      { _id: channelId, "nodes.id": normalizedNodeId },
       {
         $set: {
           "nodes.$.position.x": sanitizedPosition.x,
@@ -139,7 +151,7 @@ async function updateNodePosition({ channelId, nodeId, position, userId }) {
     const audit = await createAudit({
       session,
       entityType: "node",
-      entityId: nodeId,
+      entityId: normalizedNodeId,
       channelId,
       action: "move",
       before,
@@ -152,7 +164,7 @@ async function updateNodePosition({ channelId, nodeId, position, userId }) {
 
     return {
       ok: true,
-      node: { id: nodeId, position: sanitizedPosition },
+      node: { id: normalizedNodeId, position: sanitizedPosition },
       auditId: audit?._id?.toString() || null,
     };
   } catch (error) {
@@ -166,7 +178,8 @@ async function reconnectEdge({ channelId, edgeId, patch = {}, userId }) {
   if (!isValidObjectId(channelId)) {
     return { ok: false, status: 400, message: "Canal inválido" };
   }
-  if (!edgeId) {
+  const normalizedEdgeId = normalizeId(edgeId);
+  if (!normalizedEdgeId) {
     return { ok: false, status: 400, message: "Edge inválido" };
   }
   const allowedKeys = ["source", "sourceHandle", "target", "targetHandle"];
@@ -190,25 +203,35 @@ async function reconnectEdge({ channelId, edgeId, patch = {}, userId }) {
       return { ok: false, status: 404, message: "Channel no encontrado" };
     }
 
-    const edge = (channel.edges || []).find((e) => e?.id === edgeId);
+    const edge = (channel.edges || []).find(
+      (e) => normalizeId(e?.id) === normalizedEdgeId
+    );
     if (!edge) {
       await session.abortTransaction();
       session.endSession();
       return { ok: false, status: 404, message: "Edge no encontrado" };
     }
 
-    const nodes = new Map((channel.nodes || []).map((n) => [n.id, n]));
+    const nodes = new Map(
+      (channel.nodes || [])
+        .map((n) => [normalizeId(n?.id), n])
+        .filter(([key]) => Boolean(key))
+    );
     const before = {
-      source: edge.source,
-      target: edge.target,
+      source: normalizeId(edge.source) ?? edge.source,
+      target: normalizeId(edge.target) ?? edge.target,
       sourceHandle: edge.sourceHandle || null,
       targetHandle: edge.targetHandle || null,
     };
 
-    const next = { ...before };
+    const next = {
+      ...before,
+      source: normalizeId(before.source) ?? before.source,
+      target: normalizeId(before.target) ?? before.target,
+    };
 
     if (patch.source !== undefined) {
-      const newSource = String(patch.source ?? "").trim();
+      const newSource = normalizeId(patch.source);
       if (!newSource) {
         await session.abortTransaction();
         session.endSession();
@@ -223,7 +246,7 @@ async function reconnectEdge({ channelId, edgeId, patch = {}, userId }) {
     }
 
     if (patch.target !== undefined) {
-      const newTarget = String(patch.target ?? "").trim();
+      const newTarget = normalizeId(patch.target);
       if (!newTarget) {
         await session.abortTransaction();
         session.endSession();
@@ -237,8 +260,8 @@ async function reconnectEdge({ channelId, edgeId, patch = {}, userId }) {
       next.target = newTarget;
     }
 
-    const sourceNode = nodes.get(next.source);
-    const targetNode = nodes.get(next.target);
+    const sourceNode = nodes.get(normalizeId(next.source));
+    const targetNode = nodes.get(normalizeId(next.target));
 
     if (patch.sourceHandle !== undefined) {
       const check = ensureHandle(sourceNode, patch.sourceHandle, "source");
@@ -277,7 +300,7 @@ async function reconnectEdge({ channelId, edgeId, patch = {}, userId }) {
     }
 
     await Channel.updateOne(
-      { _id: channelId, "edges.id": edgeId },
+      { _id: channelId, "edges.id": normalizedEdgeId },
       {
         $set: {
           "edges.$.source": next.source,
@@ -292,7 +315,7 @@ async function reconnectEdge({ channelId, edgeId, patch = {}, userId }) {
     const audit = await createAudit({
       session,
       entityType: "edge",
-      entityId: edgeId,
+      entityId: normalizedEdgeId,
       channelId,
       action: "reconnect",
       before,
@@ -306,7 +329,7 @@ async function reconnectEdge({ channelId, edgeId, patch = {}, userId }) {
     return {
       ok: true,
       edge: {
-        id: edgeId,
+        id: normalizedEdgeId,
         source: next.source,
         target: next.target,
         sourceHandle: next.sourceHandle ?? null,
@@ -325,7 +348,8 @@ async function updateEdgeTooltip({ channelId, edgeId, tooltipTitle, tooltip, use
   if (!isValidObjectId(channelId)) {
     return { ok: false, status: 400, message: "Canal inválido" };
   }
-  if (!edgeId) {
+  const normalizedEdgeId = normalizeId(edgeId);
+  if (!normalizedEdgeId) {
     return { ok: false, status: 400, message: "Edge inválido" };
   }
 
@@ -344,7 +368,9 @@ async function updateEdgeTooltip({ channelId, edgeId, tooltipTitle, tooltip, use
       return { ok: false, status: 404, message: "Channel no encontrado" };
     }
 
-    const edge = (channel.edges || []).find((e) => e?.id === edgeId);
+    const edge = (channel.edges || []).find(
+      (e) => normalizeId(e?.id) === normalizedEdgeId
+    );
     if (!edge) {
       await session.abortTransaction();
       session.endSession();
@@ -367,7 +393,7 @@ async function updateEdgeTooltip({ channelId, edgeId, tooltipTitle, tooltip, use
     }
 
     await Channel.updateOne(
-      { _id: channelId, "edges.id": edgeId },
+      { _id: channelId, "edges.id": normalizedEdgeId },
       {
         $set: {
           ...(tooltipTitle !== undefined
@@ -390,7 +416,7 @@ async function updateEdgeTooltip({ channelId, edgeId, tooltipTitle, tooltip, use
     const audit = await createAudit({
       session,
       entityType: "edge",
-      entityId: edgeId,
+      entityId: normalizedEdgeId,
       channelId,
       action: "edit",
       before,
@@ -403,7 +429,7 @@ async function updateEdgeTooltip({ channelId, edgeId, tooltipTitle, tooltip, use
 
     return {
       ok: true,
-      edge: { id: edgeId, data: after },
+      edge: { id: normalizedEdgeId, data: after },
       auditId: audit?._id?.toString() || null,
     };
   } catch (error) {
