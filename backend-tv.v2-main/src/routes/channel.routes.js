@@ -23,10 +23,22 @@ router
   .put(ChannelDiagramController.updateDiagram);
 router.patch("/channels/:id/node/:nodeId", ChannelController.patchNode);
 router.patch(
+  "/channels/:id/node/:nodeId/position",
+  ChannelController.patchNodePosition
+);
+router.patch(
   "/channels/:id/node/:nodeId/handles",
   ChannelController.patchNodeHandles
 );
 router.patch("/channels/:id/edge/:edgeId", ChannelController.patchEdge);
+router.patch(
+  "/channels/:id/edge/:edgeId/reconnect",
+  ChannelController.patchEdgeReconnect
+);
+router.patch(
+  "/channels/:id/edge/:edgeId/tooltip",
+  ChannelController.patchEdgeTooltip
+);
 router.patch(
   "/channels/:id/label-positions",
   ChannelController.patchLabelPositions

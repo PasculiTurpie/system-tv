@@ -2,11 +2,12 @@
 import { Handle, Position } from "@xyflow/react";
 import "./CustomNode.css";
 
-const CustomNode = ({ data, selected }) => {
+const CustomNode = ({ data = {}, selected }) => {
   const leftPerc = [10, 35, 60, 85];
   const rightPerc = [10, 35, 60, 85];
   const topPerc = [10, 40, 70, 90];
   const bottomPerc = [10, 40, 70, 90];
+  const isSaving = Boolean(data.savingPosition);
 
   return (
     <div
@@ -19,8 +20,23 @@ const CustomNode = ({ data, selected }) => {
         textAlign: "center",
         backgroundColor: "#fff",
         boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+        position: "relative",
       }}
     >
+      {isSaving && (
+        <div
+          style={{
+            position: "absolute",
+            top: 4,
+            right: 4,
+            fontSize: 10,
+            color: "#0d6efd",
+            fontWeight: 600,
+          }}
+        >
+          Guardando…
+        </div>
+      )}
       {/* LEFT */}
       {leftPerc.map((p, i) => (
         <Handle
