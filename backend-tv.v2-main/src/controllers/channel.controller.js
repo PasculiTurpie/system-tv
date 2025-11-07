@@ -14,6 +14,11 @@ const {
   sanitizeDiagramPayload,
 } = require("../services/diagramSanitizer");
 const { sanitizeHandles, normalizeHandleId } = require("../services/handleSanitizer");
+const {
+  updateNodePosition,
+  reconnectEdge,
+  updateEdgeTooltip,
+} = require("../services/channelPersistence.service");
 
 const sanitizeHandleId = (value) => {
   if (value === undefined) return undefined;
@@ -665,6 +670,109 @@ exports.patchEdge = async (req, res) => {
     console.error("patchEdge error", error);
     return res.status(500).json({ error: error.message });
   }
+};
+
+exports.patchNodePosition = async (req, res) => {
+  const { id: channelId, nodeId } = req.params;
+  const position = req.body?.position;
+
+  const result = await updateNodePosition({
+    channelId,
+    nodeId,
+    position,
+    userId: req.user?._id || req.user?.id || null,
+  });
+
+  if (!result.ok) {
+    return res
+      .status(result.status || 500)
+      .json({ ok: false, message: result.message || "Error interno" });
+  }
+
+  res.locals.auditContext = {
+    action: "update",
+    resource: "channels",
+    resourceId: channelId,
+    channelId,
+    operation: "diagram",
+    summaryDiff: {
+      entityType: "node",
+      entityId: nodeId,
+      action: "move",
+      position: result.node?.position || null,
+    },
+  };
+
+  return res.json({ ok: true, node: result.node, auditId: result.auditId });
+};
+
+exports.patchEdgeReconnect = async (req, res) => {
+  const { id: channelId, edgeId } = req.params;
+  const patch = req.body || {};
+
+  const result = await reconnectEdge({
+    channelId,
+    edgeId,
+    patch,
+    userId: req.user?._id || req.user?.id || null,
+  });
+
+  if (!result.ok) {
+    return res
+      .status(result.status || 500)
+      .json({ ok: false, message: result.message || "Error interno" });
+  }
+
+  res.locals.auditContext = {
+    action: "update",
+    resource: "channels",
+    resourceId: channelId,
+    channelId,
+    operation: "diagram",
+    summaryDiff: {
+      entityType: "edge",
+      entityId: edgeId,
+      action: "reconnect",
+      next: result.edge,
+    },
+  };
+
+  return res.json({ ok: true, edge: result.edge, auditId: result.auditId });
+};
+
+exports.patchEdgeTooltip = async (req, res) => {
+  const { id: channelId, edgeId } = req.params;
+  const { tooltipTitle, tooltip } = req.body || {};
+
+  const result = await updateEdgeTooltip({
+    channelId,
+    edgeId,
+    tooltipTitle,
+    tooltip,
+    userId: req.user?._id || req.user?.id || null,
+  });
+
+  if (!result.ok) {
+    return res
+      .status(result.status || 500)
+      .json({ ok: false, message: result.message || "Error interno" });
+  }
+
+  res.locals.auditContext = {
+    action: "update",
+    resource: "channels",
+    resourceId: channelId,
+    channelId,
+    operation: "diagram",
+    summaryDiff: {
+      entityType: "edge",
+      entityId: edgeId,
+      action: "edit",
+      tooltip: result.edge?.data || null,
+    },
+  };
+
+  return res.json({ ok: true, edge: result.edge, auditId: result.auditId });
 };
 
 module.exports.patchLabelPositions = async (req, res) => {

@@ -1,6 +1,6 @@
 // src/pages/ChannelDiagram/DiagramFlow.jsx
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import {
   ReactFlow,
   Background,
@@ -14,6 +14,12 @@ import {
 import "@xyflow/react/dist/style.css";
 import api from "../../utils/api";
 import "./DiagramFlow.css";
+import Swal from "sweetalert2";
+import {
+  createKeyedDebounce,
+  withRetry,
+  prepareOptimisticUpdate,
+} from "../../utils/asyncUtils";
 
 // Componentes personalizados
 import CustomNode from "./CustomNode";
@@ -178,7 +184,6 @@ const firstFreeHandle = (occupiedSet, kind, side, maxPerSide) => {
 /* ============================== Componente ============================== */
 export const DiagramFlow = () => {
   const { id } = useParams();
-  const navigate = useNavigate();
 
   const [nodes, setNodes] = useState([]);
   const [edges, setEdges] = useState([]);
@@ -186,43 +191,149 @@ export const DiagramFlow = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  const nodeOriginalPositionRef = useRef(new Map());
+  const nodeSavingRef = useRef(new Set());
+  const nodeRollbackRef = useRef(new Map());
+  const edgeLocksRef = useRef(new Map());
+  const edgeRollbackRef = useRef(new Map());
+
+  const notify = useCallback((options) => {
+    Swal.fire({
+      toast: true,
+      position: "bottom-end",
+      timer: options?.timer ?? 1600,
+      timerProgressBar: true,
+      showConfirmButton: false,
+      ...options,
+    });
+  }, []);
+
   const nodeMap = useMemo(() => {
     const m = new Map();
     nodes.forEach((n) => m.set(n.id, n));
     return m;
   }, [nodes]);
 
-  // --- Persistencia por edge (PATCH) con debounce por id ---
-  const patchTimersRef = useRef(new Map());
-
-  const patchEdgeDebounced = useCallback(
-    (edge) => {
-      if (!edge?.id) return;
-      const key = edge.id;
-
-      const doPatch = async () => {
-        try {
-          await api.patchChannelEdge(id, key, {
-            source: edge.source,
-            target: edge.target,
-            sourceHandle: edge.sourceHandle ?? null,
-            targetHandle: edge.targetHandle ?? null,
-            type: edge.type,
-            animated: Boolean(edge.animated),
-            markerEnd: edge.markerEnd,
-            data: edge.data && typeof edge.data === "object" ? edge.data : {},
-          });
-        } catch (e) {
-          console.error("PATCH edge error:", e);
-        }
-      };
-
-      const timers = patchTimersRef.current;
-      if (timers.has(key)) clearTimeout(timers.get(key));
-      const t = setTimeout(doPatch, 250);
-      timers.set(key, t);
-    },
+  const patchNodePositionRetry = useMemo(
+    () =>
+      withRetry(
+        (nodeId, position) =>
+          api.patchChannelNodePosition(id, nodeId, position),
+        { retries: 2, baseDelay: 180 }
+      ),
     [id]
+  );
+
+  const patchEdgeReconnectRetry = useMemo(
+    () =>
+      withRetry(
+        (edgeId, payload) =>
+          api.patchChannelEdgeReconnect(id, edgeId, payload),
+        { retries: 2, baseDelay: 200 }
+      ),
+    [id]
+  );
+
+  const patchEdgeTooltipRetry = useMemo(
+    () =>
+      withRetry(
+        (edgeId, payload) =>
+          api.patchChannelEdgeTooltip(id, edgeId, payload),
+        { retries: 2, baseDelay: 200 }
+      ),
+    [id]
+  );
+
+  const nodePositionDebounce = useMemo(
+    () =>
+      createKeyedDebounce(async (nodeId, position) => {
+        if (!position) return;
+        const rollbackFn = nodeRollbackRef.current.get(nodeId);
+        try {
+          await patchNodePositionRetry(nodeId, position);
+          nodeSavingRef.current.delete(nodeId);
+          nodeOriginalPositionRef.current.delete(nodeId);
+          nodeRollbackRef.current.delete(nodeId);
+          setNodes((prev) =>
+            prev.map((node) =>
+              node.id === nodeId
+                ? {
+                    ...node,
+                    data: { ...(node.data || {}), savingPosition: false },
+                  }
+                : node
+            )
+          );
+          notify({ icon: "success", title: "Posición guardada" });
+        } catch (error) {
+          nodeSavingRef.current.delete(nodeId);
+          const original = nodeOriginalPositionRef.current.get(nodeId);
+          nodeOriginalPositionRef.current.delete(nodeId);
+          nodeRollbackRef.current.delete(nodeId);
+          if (rollbackFn) {
+            setNodes((prev) => rollbackFn(prev));
+          } else if (original) {
+            setNodes((prev) =>
+              prev.map((node) =>
+                node.id === nodeId
+                  ? {
+                      ...node,
+                      position: { ...original },
+                      data: { ...(node.data || {}), savingPosition: false },
+                    }
+                  : node
+              )
+            );
+          }
+          notify({ icon: "error", title: "No se pudo guardar posición", timer: 2600 });
+        }
+      }, 320),
+    [patchNodePositionRetry, notify]
+  );
+
+  useEffect(() => {
+    return () => {
+      nodePositionDebounce.clearAll();
+    };
+  }, [nodePositionDebounce]);
+
+  const scheduleEdgePersist = useCallback(
+    (edgeId, payload, tooltipPayload) => {
+      const rollback = edgeRollbackRef.current.get(edgeId);
+      (async () => {
+        try {
+          await patchEdgeReconnectRetry(edgeId, payload);
+          if (tooltipPayload) {
+            await patchEdgeTooltipRetry(edgeId, tooltipPayload);
+          }
+          edgeLocksRef.current.delete(edgeId);
+          edgeRollbackRef.current.delete(edgeId);
+          setEdges((prev) =>
+            prev.map((edge) =>
+              edge.id === edgeId
+                ? {
+                    ...edge,
+                    data: {
+                      ...(edge.data || {}),
+                      isSaving: false,
+                      ...(tooltipPayload || {}),
+                    },
+                  }
+                : edge
+            )
+          );
+          notify({ icon: "success", title: "Enlace actualizado" });
+        } catch (error) {
+          edgeLocksRef.current.delete(edgeId);
+          edgeRollbackRef.current.delete(edgeId);
+          if (rollback) {
+            setEdges((prev) => rollback(prev));
+          }
+          notify({ icon: "error", title: "No se pudo reconectar el enlace", timer: 2600 });
+        }
+      })();
+    },
+    [patchEdgeReconnectRetry, patchEdgeTooltipRetry, notify]
   );
 
   // Persistencia de label positions (PATCH /label-positions) desde edge draggable label
@@ -300,13 +411,83 @@ export const DiagramFlow = () => {
   }, [fetchDataFlow]);
 
   // --- Handlers React Flow ---
-  const onNodesChange = useCallback((changes) => {
-    setNodes((prev) => applyNodeChanges(changes, prev));
-  }, []);
+  const onNodesChange = useCallback(
+    (changes) => {
+      setNodes((prev) => {
+        changes.forEach((change) => {
+          if (change.type === "position" && !nodeOriginalPositionRef.current.has(change.id)) {
+            const originalNode = prev.find((node) => node.id === change.id);
+            if (originalNode) {
+              nodeOriginalPositionRef.current.set(change.id, {
+                x: originalNode.position?.x ?? 0,
+                y: originalNode.position?.y ?? 0,
+              });
+            }
+          }
+        });
+
+        const next = applyNodeChanges(changes, prev);
+
+        changes.forEach((change) => {
+          if (change.type === "position" && change.position) {
+            const snapshot = {
+              x: change.position.x,
+              y: change.position.y,
+            };
+            nodeRollbackRef.current.set(change.id, (current) =>
+              current.map((node) =>
+                node.id === change.id
+                  ? {
+                      ...node,
+                      position: {
+                        x: nodeOriginalPositionRef.current.get(change.id)?.x ?? node.position.x,
+                        y: nodeOriginalPositionRef.current.get(change.id)?.y ?? node.position.y,
+                      },
+                      data: { ...(node.data || {}), savingPosition: false },
+                    }
+                  : node
+              )
+            );
+            nodePositionDebounce(change.id, snapshot);
+          }
+        });
+
+        return next.map((node) => {
+          const shouldFlag = nodeSavingRef.current.has(node.id);
+          const currentFlag = Boolean(node.data?.savingPosition);
+          if (shouldFlag === currentFlag) return node;
+          return {
+            ...node,
+            data: { ...(node.data || {}), savingPosition: shouldFlag },
+          };
+        });
+      });
+    },
+    [nodePositionDebounce]
+  );
 
   const onEdgesChange = useCallback((changes) => {
     setEdges((prev) => applyEdgeChanges(changes, prev));
   }, []);
+
+  const onNodeDragStop = useCallback(
+    (_event, node) => {
+      if (!node?.id) return;
+      nodeSavingRef.current.add(node.id);
+      setNodes((prev) =>
+        prev.map((entry) =>
+          entry.id === node.id
+            ? {
+                ...entry,
+                data: { ...(entry.data || {}), savingPosition: true },
+              }
+            : entry
+        )
+      );
+      nodePositionDebounce.flush(node.id);
+    },
+    [nodePositionDebounce]
+  );
 
   const defaultEdgeOptions = useMemo(
     () => ({
@@ -366,6 +547,9 @@ export const DiagramFlow = () => {
         return;
       }
 
+      const sourceLabel = sNode?.data?.label ?? source;
+      const targetLabel = tNode?.data?.label ?? target;
+
       const newEdge = {
         ...defaultEdgeOptions,
         id: `e-${source}-${target}-${Math.random().toString(36).slice(2)}`,
@@ -373,7 +557,13 @@ export const DiagramFlow = () => {
         target,
         sourceHandle,
         targetHandle,
-        data: { direction: "ida" },
+        data: {
+          direction: "ida",
+          labelStart: sourceLabel,
+          labelEnd: targetLabel,
+          tooltipTitle: "Etiqueta centro",
+          tooltip: `${sourceLabel} to ${targetLabel}`,
+        },
       };
 
       setEdges((prev) => {
@@ -391,89 +581,118 @@ export const DiagramFlow = () => {
   /* --------------- onEdgeUpdate: reasigna libre + PATCH por edge --------------- */
   const onEdgeUpdate = useCallback(
     (oldEdge, newConnection) => {
+      if (!oldEdge?.id) return;
+      if (edgeLocksRef.current.get(oldEdge.id)) {
+        notify({ icon: "info", title: "Guardando enlace...", timer: 1800 });
+        return;
+      }
+
       setEdges((prev) => {
-        let updatedEdgeForPatch = null;
+        let patchPayload = null;
+        let tooltipPayload = null;
+        let aborted = false;
 
-        const next = prev.map((edge) => {
-          if (edge.id !== oldEdge.id) return edge;
-
+        const { next, rollback } = prepareOptimisticUpdate(prev, oldEdge.id, (edge) => {
           const source = newConnection.source ?? edge.source;
           const target = newConnection.target ?? edge.target;
 
+          if (!source || !target) {
+            aborted = true;
+            notify({ icon: "warning", title: "Conexión incompleta" });
+            return edge;
+          }
+
+          const sourceNode = nodeMap.get(source);
+          const targetNode = nodeMap.get(target);
+          const others = prev.filter((entry) => entry.id !== edge.id);
+
           let sourceHandle = newConnection.sourceHandle ?? edge.sourceHandle;
+          const usedSource = usedHandlesByNode(others, source, "source");
+          if (!sourceHandle || usedSource.has(sourceHandle)) {
+            const preferred = guessSideForSource(sourceNode, targetNode);
+            sourceHandle =
+              firstFreeHandle(usedSource, "out", preferred, MAX_HANDLES_PER_SIDE[preferred]) ||
+              ["right", "left", "top", "bottom"]
+                .filter((side) => side !== preferred)
+                .map((alt) => firstFreeHandle(usedSource, "out", alt, MAX_HANDLES_PER_SIDE[alt]))
+                .find(Boolean) ||
+              null;
+          }
+
           let targetHandle = newConnection.targetHandle ?? edge.targetHandle;
-
-          const sNode = nodeMap.get(source);
-          const tNode = nodeMap.get(target);
-
-          // Evitar colisión en source
-          {
-            const others = prev.filter((e) => e.id !== edge.id);
-            const usedSrc = usedHandlesByNode(others, source, "source");
-            if (!sourceHandle || usedSrc.has(sourceHandle)) {
-              const side = guessSideForSource(sNode, tNode);
-              sourceHandle =
-                firstFreeHandle(usedSrc, "out", side, MAX_HANDLES_PER_SIDE[side]) ||
-                ["right", "left", "top", "bottom"]
-                  .filter((x) => x !== side)
-                  .map((alt) => firstFreeHandle(usedSrc, "out", alt, MAX_HANDLES_PER_SIDE[alt]))
-                  .find(Boolean) ||
-                null;
-            }
+          const usedTarget = usedHandlesByNode(others, target, "target");
+          if (!targetHandle || usedTarget.has(targetHandle)) {
+            const preferred = guessSideForTarget(sourceNode, targetNode);
+            targetHandle =
+              firstFreeHandle(usedTarget, "in", preferred, MAX_HANDLES_PER_SIDE[preferred]) ||
+              ["left", "right", "top", "bottom"]
+                .filter((side) => side !== preferred)
+                .map((alt) => firstFreeHandle(usedTarget, "in", alt, MAX_HANDLES_PER_SIDE[alt]))
+                .find(Boolean) ||
+              null;
           }
 
-          // Evitar colisión en target
-          {
-            const others = prev.filter((e) => e.id !== edge.id);
-            const usedTgt = usedHandlesByNode(others, target, "target");
-            if (!targetHandle || usedTgt.has(targetHandle)) {
-              const side = guessSideForTarget(sNode, tNode);
-              targetHandle =
-                firstFreeHandle(usedTgt, "in", side, MAX_HANDLES_PER_SIDE[side]) ||
-                ["left", "right", "top", "bottom"]
-                  .filter((x) => x !== side)
-                  .map((alt) => firstFreeHandle(usedTgt, "in", alt, MAX_HANDLES_PER_SIDE[alt]))
-                  .find(Boolean) ||
-                null;
-            }
+          if (!sourceHandle || !targetHandle) {
+            aborted = true;
+            notify({ icon: "warning", title: "No hay handles libres disponibles" });
+            return edge;
           }
 
-          const patched = {
-            ...edge,
-            ...newConnection,
+          if (!HANDLE_ID_REGEX.test(sourceHandle) || !HANDLE_ID_REGEX.test(targetHandle)) {
+            aborted = true;
+            notify({ icon: "error", title: "Handle inválido" });
+            return edge;
+          }
+
+          const sourceLabel = sourceNode?.data?.label ?? source;
+          const targetLabel = targetNode?.data?.label ?? target;
+
+          patchPayload = {
             source,
             target,
             sourceHandle,
             targetHandle,
-            type: edge.type || DEFAULT_EDGE_TYPE,
-            markerEnd: newConnection?.markerEnd ?? edge.markerEnd ?? defaultEdgeOptions.markerEnd,
           };
 
-          updatedEdgeForPatch = patched;
-          return patched;
+          tooltipPayload = {
+            tooltipTitle: "Etiqueta centro",
+            tooltip: `${sourceLabel} to ${targetLabel}`,
+          };
+
+          return {
+            ...edge,
+            source,
+            target,
+            sourceHandle,
+            targetHandle,
+            data: {
+              ...(edge.data || {}),
+              direction: edge.data?.direction ?? "ida",
+              tooltipTitle: tooltipPayload.tooltipTitle,
+              tooltip: tooltipPayload.tooltip,
+              isSaving: true,
+            },
+            markerEnd:
+              newConnection?.markerEnd ?? edge.markerEnd ?? defaultEdgeOptions.markerEnd,
+          };
         });
 
-        if (updatedEdgeForPatch?.id) {
-          patchEdgeDebounced(updatedEdgeForPatch);
+        if (!patchPayload || aborted) {
+          return prev;
         }
 
+        edgeRollbackRef.current.set(oldEdge.id, rollback);
+        edgeLocksRef.current.set(oldEdge.id, true);
+        scheduleEdgePersist(oldEdge.id, patchPayload, tooltipPayload);
         return next;
       });
     },
-    [nodeMap, defaultEdgeOptions, patchEdgeDebounced]
+    [nodeMap, defaultEdgeOptions, scheduleEdgePersist, notify]
   );
-
-  const handleBackSubmit = () => navigate(-1);
 
   // --- Render ---
   if (loading) return <p>Cargando diagrama...</p>;
   if (error) return <p>{error}</p>;
-
-  const titulo =
-    (dataChannel?.nameChannel || "Canal sin nombre") +
-    (dataChannel?.tipoTecnologia ? ` - ${dataChannel.tipoTecnologia}` : "");
-
-  const logoSrc = dataChannel?.logoChannel || "https://via.placeholder.com/120x72?text=LOGO";
 
   return (
     <>
@@ -486,6 +705,7 @@ export const DiagramFlow = () => {
               nodeTypes={nodeTypes}
               edgeTypes={edgeTypes}
               onNodesChange={onNodesChange}
+              onNodeDragStop={onNodeDragStop}
               onEdgesChange={onEdgesChange}
               onConnect={onConnect}
               onEdgeUpdate={onEdgeUpdate}
