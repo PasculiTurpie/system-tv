@@ -51,6 +51,15 @@ export function toPayload(nodes = [], edges = [], viewport = null) {
         ? edge.data.direction
         : "ida";
 
+    // 🔹 Tomamos tooltipTitle/tooltip si ya existen; si no, los recomponemos
+    const labelStart = edge?.data?.labelStart || "";
+    const labelEnd = edge?.data?.labelEnd || "";
+    const tooltipTitle =
+      edge?.data?.tooltipTitle ?? (edge?.data?.label || edge?.label || edge?.id || "");
+    const tooltip =
+      edge?.data?.tooltip ??
+      [labelStart, labelEnd].filter(Boolean).join(" to ");
+
     return {
       id: edge.id,
       source: edge.source,
@@ -60,9 +69,11 @@ export function toPayload(nodes = [], edges = [], viewport = null) {
       type: "customDirectional",
       label: edge.label || "",
       data: {
-        labelStart: edge?.data?.labelStart || "",
-        labelEnd: edge?.data?.labelEnd || "",
+        labelStart,
+        labelEnd,
         direction,
+        tooltipTitle,
+        tooltip,
       },
       style: edge.style || {},
     };
@@ -1424,6 +1435,10 @@ const ChannelForm = () => {
                     const labelStart = values.edgeLabelStart?.trim();
                     const labelEnd = values.edgeLabelEnd?.trim();
 
+                    // 🔹 NUEVO: tooltipTitle desde Etiqueta (centro) y tooltip fusionando inicio/fin con " to "
+                    const tooltipTitle = trimmedLabel || id;
+                    const tooltip = [labelStart, labelEnd].filter(Boolean).join(" to ");
+
                     const endpointLabels = {};
                     if (labelStart) endpointLabels.source = labelStart;
                     if (labelEnd) endpointLabels.target = labelEnd;
@@ -1441,8 +1456,10 @@ const ChannelForm = () => {
                       data: {
                         direction: dir,
                         label: trimmedLabel || id,
-                        ...(labelStart ? { labelStart } : {}),
-                        ...(labelEnd ? { labelEnd } : {}),
+                        labelStart: labelStart || "",
+                        labelEnd: labelEnd || "",
+                        tooltipTitle, // ✅ Etiqueta (centro)
+                        tooltip,      // ✅ "inicio to fin"
                         ...(Object.keys(endpointLabels).length
                           ? { endpointLabels }
                           : {}),

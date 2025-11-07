@@ -116,7 +116,7 @@ export default function DraggableDirectionalEdge(props) {
       />
 
       {/* Label arrastrable */}
-      <foreignObject
+      {/* <foreignObject
         x={(currentLabelX ?? labelX) - 60}
         y={(currentLabelY ?? labelY) - 16}
         width={120}
@@ -139,7 +139,7 @@ export default function DraggableDirectionalEdge(props) {
         >
           {data?.label ?? "label"}
         </div>
-      </foreignObject>
+      </foreignObject> */}
 
       {/* Tooltip al hover */}
       {hover && (data?.tooltip || data?.multicast) && (
