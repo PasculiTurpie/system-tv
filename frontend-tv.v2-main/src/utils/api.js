@@ -421,6 +421,14 @@ class Api {
             .then((r) => r.data);
     }
 
+    patchChannelNodePosition(channelId, nodeId, position) {
+        return this._axios
+            .patch(`/channels/${channelId}/node/${nodeId}/position`, {
+                position,
+            })
+            .then((r) => r.data);
+    }
+
     patchChannelNodeHandles(channelId, nodeId, payload) {
         return this._axios
             .patch(`/channels/${channelId}/node/${nodeId}/handles`, payload)
@@ -430,6 +438,18 @@ class Api {
     patchChannelEdge(channelId, edgeId, payload) {
         return this._axios
             .patch(`/channels/${channelId}/edge/${edgeId}`, payload)
+            .then((r) => r.data);
+    }
+
+    patchChannelEdgeReconnect(channelId, edgeId, payload) {
+        return this._axios
+            .patch(`/channels/${channelId}/edge/${edgeId}/reconnect`, payload)
+            .then((r) => r.data);
+    }
+
+    patchChannelEdgeTooltip(channelId, edgeId, payload) {
+        return this._axios
+            .patch(`/channels/${channelId}/edge/${edgeId}/tooltip`, payload)
             .then((r) => r.data);
     }
 

@@ -1,6 +1,6 @@
 // src/pages/ChannelDiagram/edges/DraggableDirectionalEdge.jsx
 import { BaseEdge, getSmoothStepPath } from "@xyflow/react";
-import { useMemo, useState, useRef, useEffect } from "react";
+import { useMemo, useState } from "react";
 
 import "./DraggableDirectionalEdge.css";
 
@@ -16,6 +16,8 @@ export default function DraggableDirectionalEdge(props) {
     style,
     data = {},
   } = props;
+
+  const isSaving = Boolean(data?.isSaving);
 
   // path con curva suave tipo "SmoothStep"
   const [edgePath, labelX, labelY] = useMemo(() => {
@@ -34,43 +36,8 @@ export default function DraggableDirectionalEdge(props) {
   const currentLabelX = data?.labelPosition?.x ?? labelX;
   const currentLabelY = data?.labelPosition?.y ?? labelY;
 
-  const dragRef = useRef(null);
-  const [dragging, setDragging] = useState(false);
-
-  const onLabelMouseDown = (e) => {
-    e.stopPropagation();
-    dragRef.current = {
-      startX: e.clientX,
-      startY: e.clientY,
-      origX: currentLabelX,
-      origY: currentLabelY,
-    };
-    setDragging(true);
-  };
-
-  const dispatchLabelPos = (x, y) => {
-    window.dispatchEvent(new CustomEvent("rf-edge-label-move", {
-      detail: { id, x, y },
-    }));
-  };
-
-  useEffect(() => {
-    if (!dragging) return;
-    const onMove = (e) => {
-      const dx = e.clientX - dragRef.current.startX;
-      const dy = e.clientY - dragRef.current.startY;
-      const nx = dragRef.current.origX + dx;
-      const ny = dragRef.current.origY + dy;
-      dispatchLabelPos(nx, ny);
-    };
-    const onUp = () => setDragging(false);
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-    return () => {
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
-    };
-  }, [dragging, id]);
+  const tooltipTitle = data?.tooltipTitle ?? "Etiqueta centro";
+  const tooltipBody = data?.tooltip ?? "";
 
   /* --------------------------- Tooltip --------------------------- */
   const [hover, setHover] = useState(false);
@@ -142,7 +109,32 @@ export default function DraggableDirectionalEdge(props) {
       </foreignObject> */}
 
       {/* Tooltip al hover */}
-      {hover && (data?.tooltip || data?.multicast) && (
+      {isSaving && (
+        <foreignObject
+          x={(currentLabelX ?? labelX) - 40}
+          y={(currentLabelY ?? labelY) - 50}
+          width={90}
+          height={24}
+          requiredExtensions="http://www.w3.org/1999/xhtml"
+        >
+          <div
+            xmlns="http://www.w3.org/1999/xhtml"
+            style={{
+              padding: "4px 6px",
+              borderRadius: 6,
+              background: "rgba(13,110,253,0.85)",
+              color: "#fff",
+              fontSize: 11,
+              fontWeight: 600,
+              pointerEvents: "none",
+            }}
+          >
+            Guardando…
+          </div>
+        </foreignObject>
+      )}
+
+      {hover && (tooltipBody || data?.multicast) && (
         <foreignObject
           x={(mouse.x ?? labelX) + 10}
           y={(mouse.y ?? labelY) + 10}
@@ -165,9 +157,9 @@ export default function DraggableDirectionalEdge(props) {
             }}
           >
             <div style={{ fontWeight: 700, marginBottom: 4 }}>
-              {data?.tooltipTitle ?? "Detalle de enlace"}
+              {tooltipTitle}
             </div>
-            <div>{data?.tooltip ?? "Sin descripción"}</div>
+            <div>{tooltipBody || "Sin descripción"}</div>
             {data?.multicast && (
               <div style={{ marginTop: 6, opacity: .9 }}>
                 Multicast: {data.multicast}
