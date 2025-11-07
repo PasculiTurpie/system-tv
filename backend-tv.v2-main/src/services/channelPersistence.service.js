@@ -26,6 +26,10 @@ const sanitizePosition = (position) => {
   return { x: parsedX, y: parsedY };
 };
 
+const HANDLE_ID_REGEX = /^(in|out)-(left|right|top|bottom)-([1-9]\d*)$/;
+const HANDLE_KIND_TO_TYPE = { in: "target", out: "source" };
+const FALLBACK_MAX_HANDLE_INDEX = 4;
+
 const collectHandles = (node) => {
   if (!node) return [];
   const handles = [];
@@ -58,25 +62,49 @@ const ensureHandle = (node, handleId, expectedType) => {
     return { ok: true, handleId: null };
   }
   const available = collectHandles(node);
+  const validateFallback = () => {
+    const match = normalized.match(HANDLE_ID_REGEX);
+    if (!match) {
+      return {
+        ok: false,
+        error: `Handle ${normalized} no está definido en el nodo ${node?.id || ""}`,
+        code: "handle_missing",
+      };
+    }
+    const [, kind, , indexRaw] = match;
+    const inferredType = HANDLE_KIND_TO_TYPE[kind] || null;
+    const targetType = expectedType ? String(expectedType).trim().toLowerCase() : null;
+    if (targetType && inferredType && inferredType !== targetType) {
+      return {
+        ok: false,
+        error: `Handle ${normalized} en nodo ${node?.id || ""} es tipo ${inferredType} y se esperaba ${targetType}`,
+        code: "handle_type_mismatch",
+      };
+    }
+    const index = Number(indexRaw);
+    if (!Number.isFinite(index) || index < 1 || index > FALLBACK_MAX_HANDLE_INDEX) {
+      return {
+        ok: false,
+        error: `Handle ${normalized} no existe en el nodo ${node?.id || ""}`,
+        code: "handle_invalid",
+      };
+    }
+    return { ok: true, handleId: normalized };
+  };
+
   if (available.length === 0) {
-    return {
-      ok: false,
-      error: `Handle ${normalized} no está definido en el nodo ${node?.id || ""}`,
-      code: "handle_missing",
-    };
+    return validateFallback();
   }
   const found = available.find((h) => h.id === normalized);
   if (!found) {
-    return {
-      ok: false,
-      error: `Handle ${normalized} no existe en el nodo ${node?.id || ""}`,
-      code: "handle_invalid",
-    };
+    return validateFallback();
   }
-  if (expectedType && found.type !== expectedType) {
+  const foundType = found.type ? String(found.type).trim().toLowerCase() : null;
+  const targetType = expectedType ? String(expectedType).trim().toLowerCase() : null;
+  if (targetType && foundType && foundType !== targetType) {
     return {
       ok: false,
-      error: `Handle ${normalized} en nodo ${node?.id || ""} es tipo ${found.type} y se esperaba ${expectedType}`,
+      error: `Handle ${normalized} en nodo ${node?.id || ""} es tipo ${foundType} y se esperaba ${targetType}`,
       code: "handle_type_mismatch",
     };
   }

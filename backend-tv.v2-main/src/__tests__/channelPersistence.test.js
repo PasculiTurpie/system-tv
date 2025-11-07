@@ -302,6 +302,37 @@ test("PATCH edge reconnect falla con handle inválido", async () => {
   assert.equal(response.body.ok, false);
 });
 
+test("PATCH edge reconnect permite handles implícitos cuando no hay definición en nodo", async () => {
+  channelState.nodes.forEach((node) => {
+    if (node.data) delete node.data.handles;
+    delete node.handles;
+  });
+
+  const response = await patch(
+    `${baseUrl}/channels/${TEST_CHANNEL_ID}/edge/edge-1/reconnect`,
+    { target: "node-2", targetHandle: "in-left-2" }
+  );
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.ok, true);
+  assert.equal(channelState.edges[0].targetHandle, "in-left-2");
+});
+
+test("PATCH edge reconnect rechaza handles implícitos con tipo incorrecto", async () => {
+  channelState.nodes.forEach((node) => {
+    if (node.data) delete node.data.handles;
+    delete node.handles;
+  });
+
+  const response = await patch(
+    `${baseUrl}/channels/${TEST_CHANNEL_ID}/edge/edge-1/reconnect`,
+    { targetHandle: "out-right-1" }
+  );
+
+  assert.equal(response.status, 409);
+  assert.equal(response.body.ok, false);
+});
+
 test("PATCH edge reconnect soporta IDs numéricos y normaliza nodos", async () => {
   channelState.nodes[0].id = 101;
   channelState.nodes[1].id = 202;
