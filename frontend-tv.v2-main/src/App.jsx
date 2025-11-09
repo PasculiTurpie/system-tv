@@ -50,6 +50,7 @@ import ServicesMultiHost from "./components/ServicesMultiHost/ServicesMultiHost"
 import TipoEquipoForm from "./pages/Tipo-Equipo/TipoEquipoForm";
 import TipoEquipoList from "./pages/Tipo-Equipo/TipoEquipoList";
 import { DiagramFlow } from "./pages/DiagramFlow/DiagramFlow";
+import FlowBuilder from "./pages/FlowBuilder/FlowBuilder.jsx";
 
 
 const App = () => {
@@ -102,6 +103,7 @@ const App = () => {
 
                         <Route path="/audit-logs" element={<AuditLogPage />} />
                         <Route path="/massive-loading" element={<BulkIrdUploader />} />
+                        <Route path="/flows/workspace" element={<FlowBuilder />} />
                     </Route>
                     <Route path="/channels/:id" element={<DiagramFlow />} />
                 </Route>

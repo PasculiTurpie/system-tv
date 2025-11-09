@@ -34,6 +34,7 @@ const AuditRoutes = require("./routes/audit.routes");
 const BulkIrdRoutes = require("./routes/bulkIrd.routes");
 const TitanRoutes = require("./routes/titans.routes");
 const DiagramRoutes = require("./routes/diagram.routes");
+const FlowRoutes = require("./routes/flow.routes");
 
 const API_PREFIX = "/api/v2";
 
@@ -137,7 +138,8 @@ app.use(
   EquipoRoutes,
   TipoEquipoRoutes,
   AuditRoutes,
-  BulkIrdRoutes
+  BulkIrdRoutes,
+  FlowRoutes
 );
 
 app.use((req, res, next) => {
