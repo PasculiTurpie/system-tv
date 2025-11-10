@@ -11,6 +11,49 @@ const isValidObjectId = (value) => {
   }
 };
 
+/**
+ * Maneja errores de Mongoose y retorna un objeto de respuesta apropiado
+ * @param {Error} error - Error de Mongoose
+ * @returns {object} { ok: false, status: number, message: string }
+ */
+const handleMongooseError = (error) => {
+  // Errores de validación
+  if (error.name === "ValidationError") {
+    const messages = Object.values(error.errors || {}).map((err) => err.message);
+    return {
+      ok: false,
+      status: 400,
+      message: messages.join(", ") || "Error de validación",
+    };
+  }
+
+  // Errores de clave duplicada
+  if (error.code === 11000) {
+    const field = Object.keys(error.keyPattern || {})[0] || "campo";
+    return {
+      ok: false,
+      status: 409,
+      message: `Ya existe un registro con ese ${field}`,
+    };
+  }
+
+  // Errores de cast (por ejemplo, ObjectId inválido)
+  if (error.name === "CastError") {
+    return {
+      ok: false,
+      status: 400,
+      message: `Valor inválido para ${error.path}: ${error.value}`,
+    };
+  }
+
+  // Error genérico del servidor
+  return {
+    ok: false,
+    status: 500,
+    message: error.message || "Error interno del servidor",
+  };
+};
+
 const normalizeId = (value) => {
   if (value === undefined || value === null) return null;
   const str = String(value).trim();
@@ -198,7 +241,7 @@ async function updateNodePosition({ channelId, nodeId, position, userId }) {
   } catch (error) {
     await session.abortTransaction();
     session.endSession();
-    return { ok: false, status: 500, message: error.message };
+    return handleMongooseError(error);
   }
 }
 
@@ -368,7 +411,7 @@ async function reconnectEdge({ channelId, edgeId, patch = {}, userId }) {
   } catch (error) {
     await session.abortTransaction();
     session.endSession();
-    return { ok: false, status: 500, message: error.message };
+    return handleMongooseError(error);
   }
 }
 
@@ -463,7 +506,147 @@ async function updateEdgeTooltip({ channelId, edgeId, tooltipTitle, tooltip, use
   } catch (error) {
     await session.abortTransaction();
     session.endSession();
-    return { ok: false, status: 500, message: error.message };
+    return handleMongooseError(error);
+  }
+}
+
+/**
+ * Crea un nuevo edge en un channel
+ * @param {object} params - Parámetros para crear el edge
+ * @param {string} params.channelId - ID del channel
+ * @param {object} params.edge - Datos del edge a crear
+ * @param {string} params.userId - ID del usuario (opcional)
+ * @returns {object} { ok: boolean, edge?: object, auditId?: string }
+ */
+async function createEdge({ channelId, edge, userId }) {
+  if (!isValidObjectId(channelId)) {
+    return { ok: false, status: 400, message: "Canal inválido" };
+  }
+
+  const normalizedEdgeId = normalizeId(edge?.id);
+  if (!normalizedEdgeId) {
+    return { ok: false, status: 400, message: "Edge ID inválido" };
+  }
+
+  const source = normalizeId(edge?.source);
+  const target = normalizeId(edge?.target);
+
+  if (!source || !target) {
+    return { ok: false, status: 400, message: "Source y target son requeridos" };
+  }
+
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const channel = await Channel.findById(channelId)
+      .session(session)
+      .select({ nodes: 1, edges: 1 })
+      .lean({ getters: true, virtuals: true });
+
+    if (!channel) {
+      await session.abortTransaction();
+      session.endSession();
+      return { ok: false, status: 404, message: "Channel no encontrado" };
+    }
+
+    // Verificar que no exista un edge con el mismo ID
+    const existingEdge = (channel.edges || []).find(
+      (e) => normalizeId(e?.id) === normalizedEdgeId
+    );
+    if (existingEdge) {
+      await session.abortTransaction();
+      session.endSession();
+      return { ok: false, status: 409, message: "Ya existe un edge con ese ID" };
+    }
+
+    // Verificar que los nodos existan
+    const nodes = new Map(
+      (channel.nodes || [])
+        .map((n) => [normalizeId(n?.id), n])
+        .filter(([key]) => Boolean(key))
+    );
+
+    if (!nodes.has(source)) {
+      await session.abortTransaction();
+      session.endSession();
+      return { ok: false, status: 404, message: `Nodo source ${source} inexistente` };
+    }
+
+    if (!nodes.has(target)) {
+      await session.abortTransaction();
+      session.endSession();
+      return { ok: false, status: 404, message: `Nodo target ${target} inexistente` };
+    }
+
+    // Validar handles si están definidos
+    const sourceNode = nodes.get(source);
+    const targetNode = nodes.get(target);
+
+    if (edge.sourceHandle) {
+      const check = ensureHandle(sourceNode, edge.sourceHandle, "source");
+      if (!check.ok) {
+        await session.abortTransaction();
+        session.endSession();
+        return { ok: false, status: 409, message: check.error };
+      }
+    }
+
+    if (edge.targetHandle) {
+      const check = ensureHandle(targetNode, edge.targetHandle, "target");
+      if (!check.ok) {
+        await session.abortTransaction();
+        session.endSession();
+        return { ok: false, status: 409, message: check.error };
+      }
+    }
+
+    // Construir el nuevo edge
+    const newEdge = {
+      id: normalizedEdgeId,
+      source,
+      target,
+      sourceHandle: edge.sourceHandle || null,
+      targetHandle: edge.targetHandle || null,
+      type: edge.type || "smoothstep",
+      animated: edge.animated !== undefined ? edge.animated : true,
+      data: edge.data || {},
+      style: edge.style || {},
+      markerEnd: edge.markerEnd || undefined,
+      markerStart: edge.markerStart || undefined,
+    };
+
+    // Agregar el edge al channel
+    await Channel.updateOne(
+      { _id: channelId },
+      { $push: { edges: newEdge } },
+      { session, runValidators: true }
+    );
+
+    // Crear auditoría
+    const audit = await createAudit({
+      session,
+      entityType: "edge",
+      entityId: normalizedEdgeId,
+      channelId,
+      action: "create",
+      before: null,
+      after: newEdge,
+      userId,
+    });
+
+    await session.commitTransaction();
+    session.endSession();
+
+    return {
+      ok: true,
+      edge: newEdge,
+      auditId: audit?._id?.toString() || null,
+    };
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+    return handleMongooseError(error);
   }
 }
 
@@ -471,4 +654,5 @@ module.exports = {
   updateNodePosition,
   reconnectEdge,
   updateEdgeTooltip,
+  createEdge,
 };

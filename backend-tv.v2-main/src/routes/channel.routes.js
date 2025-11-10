@@ -21,6 +21,11 @@ router
   .route("/channels/:id/diagram")
   .get(ChannelDiagramController.getChannel)
   .put(ChannelDiagramController.updateDiagram);
+
+// Endpoints de edges
+router.post("/channels/:id/edges", ChannelController.createEdge);
+
+// Endpoints de nodos
 router.patch("/channels/:id/node/:nodeId", ChannelController.patchNode);
 router.patch(
   "/channels/:id/node/:nodeId/position",
