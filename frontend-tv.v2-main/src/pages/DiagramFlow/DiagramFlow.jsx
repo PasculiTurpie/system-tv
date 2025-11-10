@@ -20,6 +20,8 @@ import {
   withRetry,
   prepareOptimisticUpdate,
 } from "../../utils/asyncUtils";
+import ErrorBoundary from "../../components/ErrorBoundary";
+import { HANDLE_CONFIG, makeHandleId, parseHandleId } from "../../config/handles.config";
 
 // Componentes personalizados
 import CustomNode from "./CustomNode";
@@ -29,13 +31,8 @@ import { getDirectionColor } from "./directionColors";
 // --- Config ---
 const USE_MOCK = false;
 
-/** Cantidad máxima de handles por lado (debe coincidir con CustomNode.jsx) */
-const MAX_HANDLES_PER_SIDE = {
-  left: 4,
-  right: 4,
-  top: 4,
-  bottom: 4,
-};
+/** Cantidad máxima de handles por lado (importado de configuración centralizada) */
+const MAX_HANDLES_PER_SIDE = HANDLE_CONFIG.MAX_HANDLES_PER_SIDE;
 
 // Mapeo de imágenes por tipo inferido
 const EQUIPO_TYPE_IMAGE_MAP = {
@@ -134,13 +131,7 @@ const normalizeEdges = (arr = []) =>
   });
 
 /* --------------------- Auto-asignación de handles --------------------- */
-const HANDLE_ID_REGEX = /^(in|out)-(left|right|top|bottom)-([1-9]\d*)$/;
-
-const parseHandle = (id = "") => {
-  const m = String(id).match(HANDLE_ID_REGEX);
-  if (!m) return null;
-  return { kind: m[1], side: m[2], idx: Number(m[3]) };
-};
+const HANDLE_ID_REGEX = HANDLE_CONFIG.HANDLE_ID_REGEX;
 
 // lado sugerido (TARGET): lado opuesto al que mira hacia el source
 const guessSideForTarget = (sourceNode, targetNode) => {
@@ -169,8 +160,6 @@ const usedHandlesByNode = (allEdges, nodeId, endpoint = "target") => {
       .filter(Boolean)
   );
 };
-
-const makeHandleId = (kind, side, idx) => `${kind}-${side}-${idx}`;
 
 const firstFreeHandle = (occupiedSet, kind, side, maxPerSide) => {
   const max = Math.max(1, Number(maxPerSide || 0));
@@ -336,14 +325,54 @@ export const DiagramFlow = () => {
     [patchEdgeReconnectRetry, patchEdgeTooltipRetry, notify]
   );
 
-  // Persistencia de label positions (PATCH /label-positions) desde edge draggable label
+  // Persistencia de label positions (PATCH /label-positions) con optimistic updates
   useEffect(() => {
     const pending = new Map(); // edgeId -> { x, y }
+    const rollbacks = new Map(); // edgeId -> rollback function
     let t = null;
 
     const handler = (e) => {
       const { id: edgeId, x, y } = e.detail || {};
       if (!edgeId) return;
+
+      // Optimistic update: actualizar el estado local inmediatamente
+      setEdges((prev) => {
+        const edgeIndex = prev.findIndex((edge) => edge.id === edgeId);
+        if (edgeIndex === -1) return prev;
+
+        const edge = prev[edgeIndex];
+        const originalLabelPosition = edge.data?.labelPosition || null;
+
+        // Guardar rollback
+        rollbacks.set(edgeId, () => {
+          setEdges((current) =>
+            current.map((e) =>
+              e.id === edgeId
+                ? {
+                    ...e,
+                    data: {
+                      ...(e.data || {}),
+                      labelPosition: originalLabelPosition,
+                      isSavingLabel: false,
+                    },
+                  }
+                : e
+            )
+          );
+        });
+
+        const next = [...prev];
+        next[edgeIndex] = {
+          ...edge,
+          data: {
+            ...(edge.data || {}),
+            labelPosition: { x, y },
+            isSavingLabel: true,
+          },
+        };
+        return next;
+      });
+
       pending.set(edgeId, { x, y });
 
       if (t) clearTimeout(t);
@@ -353,19 +382,52 @@ export const DiagramFlow = () => {
           for (const [edgeId, pos] of pending.entries()) {
             edgesPayload[edgeId] = { labelPosition: pos };
           }
+
+          const edgeIds = Array.from(pending.keys());
           pending.clear();
+
           await api.patchChannelLabelPositions(id, {
             labelPositions: { edges: edgesPayload },
           });
+
+          // Success: remover indicador de guardado
+          setEdges((prev) =>
+            prev.map((edge) =>
+              edgeIds.includes(edge.id)
+                ? {
+                    ...edge,
+                    data: {
+                      ...(edge.data || {}),
+                      isSavingLabel: false,
+                    },
+                  }
+                : edge
+            )
+          );
+
+          // Limpiar rollbacks exitosos
+          edgeIds.forEach((edgeId) => rollbacks.delete(edgeId));
+
+          notify({ icon: "success", title: "Posiciones de etiquetas guardadas" });
         } catch (err) {
           console.error("PATCH label-positions error:", err);
+
+          // Rollback en caso de error
+          rollbacks.forEach((rollbackFn) => rollbackFn());
+          rollbacks.clear();
+
+          notify({ icon: "error", title: "No se pudo guardar las posiciones", timer: 2600 });
         }
       }, 250);
     };
 
     window.addEventListener("rf-edge-label-move", handler);
-    return () => window.removeEventListener("rf-edge-label-move", handler);
-  }, [id]);
+    return () => {
+      window.removeEventListener("rf-edge-label-move", handler);
+      if (t) clearTimeout(t);
+      rollbacks.clear();
+    };
+  }, [id, notify]);
 
   // --- Carga desde API ---
   const fetchDataFlow = useCallback(async () => {
@@ -415,6 +477,7 @@ export const DiagramFlow = () => {
     (changes) => {
       setNodes((prev) => {
         changes.forEach((change) => {
+          // Guardar posición original cuando empieza el drag
           if (change.type === "position" && !nodeOriginalPositionRef.current.has(change.id)) {
             const originalNode = prev.find((node) => node.id === change.id);
             if (originalNode) {
@@ -423,6 +486,14 @@ export const DiagramFlow = () => {
                 y: originalNode.position?.y ?? 0,
               });
             }
+          }
+
+          // Cleanup de refs cuando se eliminan nodos
+          if (change.type === "remove") {
+            nodeOriginalPositionRef.current.delete(change.id);
+            nodeSavingRef.current.delete(change.id);
+            nodeRollbackRef.current.delete(change.id);
+            nodePositionDebounce.cancel(change.id);
           }
         });
 
@@ -467,7 +538,16 @@ export const DiagramFlow = () => {
   );
 
   const onEdgesChange = useCallback((changes) => {
-    setEdges((prev) => applyEdgeChanges(changes, prev));
+    setEdges((prev) => {
+      // Cleanup de refs cuando se eliminan edges
+      changes.forEach((change) => {
+        if (change.type === "remove") {
+          edgeLocksRef.current.delete(change.id);
+          edgeRollbackRef.current.delete(change.id);
+        }
+      });
+      return applyEdgeChanges(changes, prev);
+    });
   }, []);
 
   const onNodeDragStop = useCallback(
@@ -566,16 +646,32 @@ export const DiagramFlow = () => {
         },
       };
 
-      setEdges((prev) => {
-        const next = addEdge(newEdge, prev);
-        // Persistimos la creación con updateChannelFlow (payload completo)
-        api.updateChannelFlow(id, { nodes, edges: next }).catch((e) =>
-          console.error("Persist create edge (updateChannelFlow) error:", e)
-        );
-        return next;
-      });
+      // Optimistic update: agregar edge al estado local inmediatamente
+      setEdges((prev) => addEdge(newEdge, prev));
+
+      // Persistir usando el nuevo endpoint POST
+      api
+        .createChannelEdge(id, newEdge)
+        .then((result) => {
+          if (result.ok) {
+            notify({ icon: "success", title: "Enlace creado" });
+          } else {
+            throw new Error(result.message || "Error al crear enlace");
+          }
+        })
+        .catch((error) => {
+          console.error("Error creando edge:", error);
+          // Rollback: remover el edge del estado local
+          setEdges((prev) => prev.filter((e) => e.id !== newEdge.id));
+          notify({
+            icon: "error",
+            title: "No se pudo crear el enlace",
+            text: error.message || "Error desconocido",
+            timer: 2600,
+          });
+        });
     },
-    [edges, nodeMap, nodes, defaultEdgeOptions, id]
+    [edges, nodeMap, defaultEdgeOptions, id, notify]
   );
 
   /* --------------- onEdgeUpdate: reasigna libre + PATCH por edge --------------- */
@@ -695,7 +791,12 @@ export const DiagramFlow = () => {
   if (error) return <p>{error}</p>;
 
   return (
-    <>
+    <ErrorBoundary
+      showDetails={process.env.NODE_ENV === "development"}
+      onError={(error, errorInfo) => {
+        console.error("Error en DiagramFlow:", error, errorInfo);
+      }}
+    >
       <div className="outlet-main">
         <div className="dashboard_flow">
           <div className="container__flow">
@@ -720,7 +821,7 @@ export const DiagramFlow = () => {
           </div>
         </div>
       </div>
-    </>
+    </ErrorBoundary>
   );
 };
 

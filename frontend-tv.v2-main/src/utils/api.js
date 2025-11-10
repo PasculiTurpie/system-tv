@@ -459,6 +459,18 @@ class Api {
             .then((r) => r.data);
     }
 
+    /**
+     * Crea un nuevo edge en el channel
+     * @param {string} channelId - ID del channel
+     * @param {object} edge - Datos del edge a crear
+     * @returns {Promise<object>} { ok, edge, auditId }
+     */
+    createChannelEdge(channelId, edge) {
+        return this._axios
+            .post(`/channels/${channelId}/edges`, edge)
+            .then((r) => r.data);
+    }
+
     // ====== TITANS ======
     async getTitanServices(host, pathOrOptions = undefined) {
         if (!host) {

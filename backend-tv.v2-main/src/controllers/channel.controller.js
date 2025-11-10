@@ -18,6 +18,7 @@ const {
   updateNodePosition,
   reconnectEdge,
   updateEdgeTooltip,
+  createEdge,
 } = require("../services/channelPersistence.service");
 
 const sanitizeHandleId = (value) => {
@@ -773,6 +774,51 @@ exports.patchEdgeTooltip = async (req, res) => {
   };
 
   return res.json({ ok: true, edge: result.edge, auditId: result.auditId });
+};
+
+/**
+ * POST /channels/:id/edges
+ * Crea un nuevo edge en el channel
+ */
+exports.createEdge = async (req, res) => {
+  const { id: channelId } = req.params;
+  const edge = req.body || {};
+
+  if (!edge.id) {
+    return res.status(400).json({ ok: false, message: "Edge ID es requerido" });
+  }
+
+  if (!edge.source || !edge.target) {
+    return res.status(400).json({ ok: false, message: "Source y target son requeridos" });
+  }
+
+  const result = await createEdge({
+    channelId,
+    edge,
+    userId: req.user?._id || req.user?.id || null,
+  });
+
+  if (!result.ok) {
+    return res
+      .status(result.status || 500)
+      .json({ ok: false, message: result.message || "Error interno" });
+  }
+
+  res.locals.auditContext = {
+    action: "create",
+    resource: "channels",
+    resourceId: channelId,
+    channelId,
+    operation: "diagram",
+    summaryDiff: {
+      entityType: "edge",
+      entityId: edge.id,
+      action: "create",
+      edge: result.edge,
+    },
+  };
+
+  return res.status(201).json({ ok: true, edge: result.edge, auditId: result.auditId });
 };
 
 module.exports.patchLabelPositions = async (req, res) => {
