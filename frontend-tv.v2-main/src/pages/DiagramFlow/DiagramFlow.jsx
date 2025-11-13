@@ -182,6 +182,7 @@ export const DiagramFlow = () => {
   const [dataChannel, setDataChannel] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [isReadOnly, setIsReadOnly] = useState(false);
 
   const nodeOriginalPositionRef = useRef(new Map());
   const nodeSavingRef = useRef(new Set());
@@ -289,6 +290,40 @@ export const DiagramFlow = () => {
           );
           notify({ icon: "success", title: "Posición guardada" });
         } catch (error) {
+          const errorCode = error?.response?.data?.error;
+          const errorMessage = error?.response?.data?.message;
+
+          // Si no está autenticado, cambiar a modo solo lectura
+          if (errorCode === 'no_token' || errorCode === 'invalid_token') {
+            setIsReadOnly(true);
+            nodeSavingRef.current.delete(nodeId);
+            const original = nodeOriginalPositionRef.current.get(nodeId);
+            nodeOriginalPositionRef.current.delete(nodeId);
+            nodeRollbackRef.current.delete(nodeId);
+            if (rollbackFn) {
+              setNodes((prev) => rollbackFn(prev));
+            } else if (original) {
+              setNodes((prev) =>
+                prev.map((node) =>
+                  node.id === nodeId
+                    ? {
+                        ...node,
+                        position: { ...original },
+                        data: { ...(node.data || {}), savingPosition: false },
+                      }
+                    : node
+                )
+              );
+            }
+            notify({
+              icon: "warning",
+              title: "Modo de solo lectura",
+              text: errorMessage || "Inicia sesión para editar el diagrama",
+              timer: 4000
+            });
+            return;
+          }
+
           // Si el error es de red, agregar a la cola
           if (error.message?.includes('Network') || error.code === 'ERR_NETWORK') {
             enqueue({
@@ -553,6 +588,36 @@ export const DiagramFlow = () => {
       rollbacks.clear();
     };
   }, [id, notify]);
+
+  // Verificar autenticación al cargar
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        await api.profile({ signal: new AbortController().signal });
+        setIsReadOnly(false);
+      } catch (error) {
+        const errorCode = error?.response?.data?.error;
+        if (errorCode === 'no_token' || errorCode === 'invalid_token') {
+          setIsReadOnly(true);
+        }
+      }
+    };
+
+    checkAuth();
+
+    // Listener para cuando el usuario inicia sesión
+    const handleAuthChange = () => {
+      checkAuth();
+    };
+
+    window.addEventListener('auth:login', handleAuthChange);
+    window.addEventListener('auth:refreshed', handleAuthChange);
+
+    return () => {
+      window.removeEventListener('auth:login', handleAuthChange);
+      window.removeEventListener('auth:refreshed', handleAuthChange);
+    };
+  }, []);
 
   // --- Carga desde API ---
   const fetchDataFlow = useCallback(async () => {
@@ -927,6 +992,24 @@ export const DiagramFlow = () => {
         wasOffline={wasOffline}
         queueSize={queueSize}
       />
+      {isReadOnly && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 9998,
+          backgroundColor: '#ff6b6b',
+          color: '#ffffff',
+          padding: '12px 16px',
+          textAlign: 'center',
+          fontSize: '14px',
+          fontWeight: 500,
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)'
+        }}>
+          🔒 Modo de solo lectura - Inicia sesión para editar el diagrama
+        </div>
+      )}
       <div className="outlet-main">
         <div className="dashboard_flow">
           <div className="container__flow">
@@ -938,11 +1021,14 @@ export const DiagramFlow = () => {
               onNodesChange={onNodesChange}
               onNodeDragStop={onNodeDragStop}
               onEdgesChange={onEdgesChange}
-              onConnect={onConnect}
-              onReconnect={onEdgeUpdate}
+              onConnect={isReadOnly ? undefined : onConnect}
+              onReconnect={isReadOnly ? undefined : onEdgeUpdate}
               defaultEdgeOptions={defaultEdgeOptions}
               connectionLineType={ConnectionLineType.SmoothStep}
               reconnectRadius={20}
+              nodesDraggable={!isReadOnly}
+              nodesConnectable={!isReadOnly}
+              elementsSelectable={!isReadOnly}
               fitView
             >
               <Background />
