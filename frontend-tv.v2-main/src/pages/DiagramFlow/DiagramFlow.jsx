@@ -27,6 +27,9 @@ import { HANDLE_CONFIG, makeHandleId, parseHandleId } from "../../config/handles
 import CustomNode from "./CustomNode";
 import DraggableDirectionalEdge from "./DraggableDirectionalEdge";
 import { getDirectionColor } from "./directionColors";
+import { useOnlineStatus } from "../../hooks/useOnlineStatus";
+import { useOfflineQueue } from "../../hooks/useOfflineQueue";
+import { ConnectionBanner } from "../../components/ConnectionBanner";
 
 // --- Config ---
 const USE_MOCK = false;
@@ -186,6 +189,10 @@ export const DiagramFlow = () => {
   const edgeLocksRef = useRef(new Map());
   const edgeRollbackRef = useRef(new Map());
 
+  // Estado de conexión y cola offline
+  const { isOnline, wasOffline } = useOnlineStatus();
+  const { enqueue, queueSize, isProcessing, clearQueue } = useOfflineQueue(isOnline);
+
   const notify = useCallback((options) => {
     Swal.fire({
       toast: true,
@@ -238,6 +245,33 @@ export const DiagramFlow = () => {
       createKeyedDebounce(async (nodeId, position) => {
         if (!position) return;
         const rollbackFn = nodeRollbackRef.current.get(nodeId);
+
+        // Si no hay conexión, agregar a la cola
+        if (!isOnline) {
+          enqueue({
+            type: 'node-position',
+            entityId: nodeId,
+            execute: async () => {
+              await patchNodePositionRetry(nodeId, position);
+              nodeSavingRef.current.delete(nodeId);
+              nodeOriginalPositionRef.current.delete(nodeId);
+              nodeRollbackRef.current.delete(nodeId);
+              setNodes((prev) =>
+                prev.map((node) =>
+                  node.id === nodeId
+                    ? {
+                        ...node,
+                        data: { ...(node.data || {}), savingPosition: false },
+                      }
+                    : node
+                )
+              );
+            },
+          });
+          notify({ icon: "info", title: "Sin conexión - Cambio en cola", timer: 1500 });
+          return;
+        }
+
         try {
           await patchNodePositionRetry(nodeId, position);
           nodeSavingRef.current.delete(nodeId);
@@ -255,29 +289,55 @@ export const DiagramFlow = () => {
           );
           notify({ icon: "success", title: "Posición guardada" });
         } catch (error) {
-          nodeSavingRef.current.delete(nodeId);
-          const original = nodeOriginalPositionRef.current.get(nodeId);
-          nodeOriginalPositionRef.current.delete(nodeId);
-          nodeRollbackRef.current.delete(nodeId);
-          if (rollbackFn) {
-            setNodes((prev) => rollbackFn(prev));
-          } else if (original) {
-            setNodes((prev) =>
-              prev.map((node) =>
-                node.id === nodeId
-                  ? {
-                      ...node,
-                      position: { ...original },
-                      data: { ...(node.data || {}), savingPosition: false },
-                    }
-                  : node
-              )
-            );
+          // Si el error es de red, agregar a la cola
+          if (error.message?.includes('Network') || error.code === 'ERR_NETWORK') {
+            enqueue({
+              type: 'node-position',
+              entityId: nodeId,
+              execute: async () => {
+                await patchNodePositionRetry(nodeId, position);
+                nodeSavingRef.current.delete(nodeId);
+                nodeOriginalPositionRef.current.delete(nodeId);
+                nodeRollbackRef.current.delete(nodeId);
+                setNodes((prev) =>
+                  prev.map((node) =>
+                    node.id === nodeId
+                      ? {
+                          ...node,
+                          data: { ...(node.data || {}), savingPosition: false },
+                        }
+                      : node
+                  )
+                );
+              },
+            });
+            notify({ icon: "warning", title: "Error de red - Cambio en cola", timer: 1800 });
+          } else {
+            // Error no relacionado con red, hacer rollback
+            nodeSavingRef.current.delete(nodeId);
+            const original = nodeOriginalPositionRef.current.get(nodeId);
+            nodeOriginalPositionRef.current.delete(nodeId);
+            nodeRollbackRef.current.delete(nodeId);
+            if (rollbackFn) {
+              setNodes((prev) => rollbackFn(prev));
+            } else if (original) {
+              setNodes((prev) =>
+                prev.map((node) =>
+                  node.id === nodeId
+                    ? {
+                        ...node,
+                        position: { ...original },
+                        data: { ...(node.data || {}), savingPosition: false },
+                      }
+                    : node
+                )
+              );
+            }
+            notify({ icon: "error", title: "No se pudo guardar posición", timer: 2600 });
           }
-          notify({ icon: "error", title: "No se pudo guardar posición", timer: 2600 });
         }
       }, 320),
-    [patchNodePositionRetry, notify]
+    [patchNodePositionRetry, notify, isOnline, enqueue]
   );
 
   useEffect(() => {
@@ -289,6 +349,39 @@ export const DiagramFlow = () => {
   const scheduleEdgePersist = useCallback(
     (edgeId, payload, tooltipPayload) => {
       const rollback = edgeRollbackRef.current.get(edgeId);
+
+      // Si no hay conexión, agregar a la cola
+      if (!isOnline) {
+        enqueue({
+          type: 'edge-reconnect',
+          entityId: edgeId,
+          execute: async () => {
+            await patchEdgeReconnectRetry(edgeId, payload);
+            if (tooltipPayload) {
+              await patchEdgeTooltipRetry(edgeId, tooltipPayload);
+            }
+            edgeLocksRef.current.delete(edgeId);
+            edgeRollbackRef.current.delete(edgeId);
+            setEdges((prev) =>
+              prev.map((edge) =>
+                edge.id === edgeId
+                  ? {
+                      ...edge,
+                      data: {
+                        ...(edge.data || {}),
+                        isSaving: false,
+                        ...(tooltipPayload || {}),
+                      },
+                    }
+                  : edge
+              )
+            );
+          },
+        });
+        notify({ icon: "info", title: "Sin conexión - Cambio en cola", timer: 1500 });
+        return;
+      }
+
       (async () => {
         try {
           await patchEdgeReconnectRetry(edgeId, payload);
@@ -313,16 +406,48 @@ export const DiagramFlow = () => {
           );
           notify({ icon: "success", title: "Enlace actualizado" });
         } catch (error) {
-          edgeLocksRef.current.delete(edgeId);
-          edgeRollbackRef.current.delete(edgeId);
-          if (rollback) {
-            setEdges((prev) => rollback(prev));
+          // Si el error es de red, agregar a la cola
+          if (error.message?.includes('Network') || error.code === 'ERR_NETWORK') {
+            enqueue({
+              type: 'edge-reconnect',
+              entityId: edgeId,
+              execute: async () => {
+                await patchEdgeReconnectRetry(edgeId, payload);
+                if (tooltipPayload) {
+                  await patchEdgeTooltipRetry(edgeId, tooltipPayload);
+                }
+                edgeLocksRef.current.delete(edgeId);
+                edgeRollbackRef.current.delete(edgeId);
+                setEdges((prev) =>
+                  prev.map((edge) =>
+                    edge.id === edgeId
+                      ? {
+                          ...edge,
+                          data: {
+                            ...(edge.data || {}),
+                            isSaving: false,
+                            ...(tooltipPayload || {}),
+                          },
+                        }
+                      : edge
+                  )
+                );
+              },
+            });
+            notify({ icon: "warning", title: "Error de red - Cambio en cola", timer: 1800 });
+          } else {
+            // Error no relacionado con red, hacer rollback
+            edgeLocksRef.current.delete(edgeId);
+            edgeRollbackRef.current.delete(edgeId);
+            if (rollback) {
+              setEdges((prev) => rollback(prev));
+            }
+            notify({ icon: "error", title: "No se pudo reconectar el enlace", timer: 2600 });
           }
-          notify({ icon: "error", title: "No se pudo reconectar el enlace", timer: 2600 });
         }
       })();
     },
-    [patchEdgeReconnectRetry, patchEdgeTooltipRetry, notify]
+    [patchEdgeReconnectRetry, patchEdgeTooltipRetry, notify, isOnline, enqueue]
   );
 
   // Persistencia de label positions (PATCH /label-positions) con optimistic updates
@@ -797,6 +922,11 @@ export const DiagramFlow = () => {
         console.error("Error en DiagramFlow:", error, errorInfo);
       }}
     >
+      <ConnectionBanner
+        isOnline={isOnline}
+        wasOffline={wasOffline}
+        queueSize={queueSize}
+      />
       <div className="outlet-main">
         <div className="dashboard_flow">
           <div className="container__flow">
