@@ -184,6 +184,7 @@ export const DiagramFlow = () => {
   const [dataChannel, setDataChannel] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [selectedNodeId, setSelectedNodeId] = useState(null);
 
   const nodeOriginalPositionRef = useRef(new Map());
   const nodeSavingRef = useRef(new Set());
@@ -211,6 +212,118 @@ export const DiagramFlow = () => {
     nodes.forEach((n) => m.set(n.id, n));
     return m;
   }, [nodes]);
+
+  useEffect(() => {
+    if (selectedNodeId && !nodeMap.has(selectedNodeId)) {
+      setSelectedNodeId(null);
+    }
+  }, [nodeMap, selectedNodeId]);
+
+  const selectedNode = useMemo(() => {
+    if (!selectedNodeId) return null;
+    return nodeMap.get(selectedNodeId) ?? null;
+  }, [nodeMap, selectedNodeId]);
+
+  const selectedNodeDetail = useMemo(() => {
+    if (!selectedNode) return null;
+
+    const equipo = selectedNode?.data?.equipo ?? selectedNode?.equipo ?? {};
+    const fallbackLabel =
+      equipo?.nombre ??
+      selectedNode?.data?.label ??
+      selectedNode?.label ??
+      selectedNode?.id ??
+      "Equipo";
+
+    const tipo =
+      equipo?.tipoNombre?.tipoNombre ??
+      equipo?.tipoNombre?.nombre ??
+      equipo?.tipoNombre?.name ??
+      equipo?.tipoNombre ??
+      inferEquipoTipo(selectedNode);
+
+    const normalizeValue = (value) => {
+      if (value === null || value === undefined) return "";
+      if (typeof value === "string") return value.trim();
+      return String(value);
+    };
+
+    const details = [];
+
+    details.push({ label: "ID del nodo", value: selectedNode.id });
+
+    [
+      { label: "Nombre", value: equipo?.nombre ?? fallbackLabel },
+      { label: "Tipo de equipo", value: tipo },
+      { label: "IP de gestión", value: equipo?.ip_gestion ?? equipo?.ipGestion ?? equipo?.ip },
+      { label: "Marca", value: equipo?.marca ?? equipo?.brand },
+      { label: "Modelo", value: equipo?.modelo ?? equipo?.model },
+      { label: "N° de serie", value: equipo?.serie ?? equipo?.serial },
+      { label: "Ubicación", value: equipo?.ubicacion ?? equipo?.location },
+      { label: "Estado", value: equipo?.estado ?? equipo?.status },
+      { label: "Descripción", value: equipo?.descripcion ?? equipo?.description },
+    ].forEach((item) => {
+      const normalized = normalizeValue(item.value);
+      if (normalized) {
+        details.push({ label: item.label, value: normalized });
+      }
+    });
+
+    const parametros = equipo?.parametros ?? equipo?.parameters ?? null;
+
+    if (Array.isArray(parametros)) {
+      parametros
+        .filter((param) => param && (param.nombre || param.name) && (param.valor ?? param.value))
+        .forEach((param) => {
+          details.push({
+            label: param.nombre ?? param.name,
+            value: normalizeValue(param.valor ?? param.value),
+          });
+        });
+    } else if (parametros && typeof parametros === "object") {
+      Object.entries(parametros).forEach(([key, value]) => {
+        const normalized = normalizeValue(value);
+        if (!normalized) return;
+        const formattedKey = key
+          .replace(/_/g, " ")
+          .replace(/([a-z])([A-Z])/g, "$1 $2")
+          .replace(/^./, (char) => char.toUpperCase());
+        details.push({ label: formattedKey, value: normalized });
+      });
+    }
+
+    if (
+      selectedNode?.position &&
+      (typeof selectedNode.position.x === "number" || typeof selectedNode.position.y === "number")
+    ) {
+      const x = Number.isFinite(selectedNode.position.x)
+        ? Math.round(selectedNode.position.x)
+        : selectedNode.position.x;
+      const y = Number.isFinite(selectedNode.position.y)
+        ? Math.round(selectedNode.position.y)
+        : selectedNode.position.y;
+      details.push({ label: "Posición", value: `${x}, ${y}` });
+    }
+
+    const filteredDetails = details
+      .map((item) => ({ ...item, value: normalizeValue(item.value) }))
+      .filter((item) => item.value);
+
+    return {
+      title: fallbackLabel,
+      image: selectedNode?.data?.image ?? null,
+      details: filteredDetails,
+    };
+  }, [selectedNode]);
+
+  const handleNodeClick = useCallback((_, node) => {
+    if (!node || !node.id) return;
+    setSelectedNodeId((prev) => (prev === node.id ? null : node.id));
+  }, []);
+
+  const handlePaneClick = useCallback(() => {
+    setSelectedNodeId(null);
+  }, []);
 
   const patchNodePositionRetry = useMemo(
     () =>
@@ -917,6 +1030,8 @@ export const DiagramFlow = () => {
   if (loading) return <p>Cargando diagrama...</p>;
   if (error) return <p>{error}</p>;
 
+  const wrapperClassName = `diagram-flow-wrapper${selectedNode ? " diagram-flow-wrapper--with-sidebar" : ""}`;
+
   return (
     <ErrorBoundary
       showDetails={process.env.NODE_ENV === "development"}
@@ -929,7 +1044,7 @@ export const DiagramFlow = () => {
         wasOffline={wasOffline}
         queueSize={queueSize}
       />
-      <div className="diagram-flow-wrapper">
+      <div className={wrapperClassName}>
         {!isAuth && (
           <div className="read-only-banner" role="status" aria-live="polite">
             Modo lectura: inicia sesión para editar el diagrama.
@@ -945,9 +1060,11 @@ export const DiagramFlow = () => {
                 edgeTypes={edgeTypes}
                 onNodesChange={onNodesChange}
                 onNodeDragStop={onNodeDragStop}
+                onNodeClick={handleNodeClick}
                 onEdgesChange={onEdgesChange}
                 onConnect={onConnect}
                 onReconnect={onEdgeUpdate}
+                onPaneClick={handlePaneClick}
                 defaultEdgeOptions={defaultEdgeOptions}
                 connectionLineType={ConnectionLineType.SmoothStep}
                 reconnectRadius={20}
@@ -957,6 +1074,53 @@ export const DiagramFlow = () => {
                 <Controls position="top-left" />
               </ReactFlow>
             </div>
+            <aside
+              className={`diagram-sidebar${selectedNode ? " is-open" : ""}`}
+              aria-label="Detalle del equipo seleccionado"
+            >
+              {selectedNodeDetail ? (
+                <div className="diagram-sidebar__content">
+                  <div className="diagram-sidebar__header">
+                    <h2 className="diagram-sidebar__title">{selectedNodeDetail.title}</h2>
+                    <button
+                      type="button"
+                      className="diagram-sidebar__close"
+                      onClick={() => setSelectedNodeId(null)}
+                      aria-label="Cerrar panel de detalles"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  {selectedNodeDetail.image ? (
+                    <div className="diagram-sidebar__image">
+                      <img
+                        src={selectedNodeDetail.image}
+                        alt={`Imagen del equipo ${selectedNodeDetail.title}`}
+                      />
+                    </div>
+                  ) : null}
+                  {selectedNodeDetail.details.length > 0 ? (
+                    <dl className="diagram-sidebar__list">
+                      {selectedNodeDetail.details.map((item, index) => (
+                        <div key={`${item.label}-${index}`} className="diagram-sidebar__list-item">
+                          <dt>{item.label}</dt>
+                          <dd>{item.value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  ) : (
+                    <p className="diagram-sidebar__empty-section">
+                      No hay parámetros adicionales para este equipo.
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="diagram-sidebar__empty">
+                  <h2>Panel de parámetros</h2>
+                  <p>Selecciona un equipo del diagrama para ver sus detalles.</p>
+                </div>
+              )}
+            </aside>
           </div>
         </div>
       </div>
