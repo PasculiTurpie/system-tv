@@ -11,12 +11,53 @@ const isValidObjectId = (value) => {
   }
 };
 
+const isTransactionNotSupportedError = (error) => {
+  if (!error) return false;
+  const message = String(error.message || "");
+  return (
+    error.code === 20 ||
+    error.code === 251 ||
+    message.includes("Transaction numbers are only allowed on a replica set member or mongos") ||
+    message.includes("Transactions are not allowed while connected to a standalone mongod")
+  );
+};
+
+const executeWithOptionalTransaction = async (handler) => {
+  const session = await mongoose.startSession();
+  let transactionStarted = false;
+  try {
+    session.startTransaction();
+    transactionStarted = true;
+    const result = await handler(session);
+    if (!result?.ok) {
+      await session.abortTransaction().catch(() => {});
+      return result;
+    }
+    await session.commitTransaction();
+    return result;
+  } catch (error) {
+    if (transactionStarted) {
+      await session.abortTransaction().catch(() => {});
+    }
+    if (isTransactionNotSupportedError(error)) {
+      try {
+        return await handler(null);
+      } catch (fallbackError) {
+        return handleMongooseError(fallbackError);
+      }
+    }
+    return handleMongooseError(error);
+  } finally {
+    session.endSession();
+  }
+};
+
 /**
  * Maneja errores de Mongoose y retorna un objeto de respuesta apropiado
  * @param {Error} error - Error de Mongoose
  * @returns {object} { ok: false, status: number, message: string }
  */
-const handleMongooseError = (error) => {
+function handleMongooseError(error) {
   // Errores de validación
   if (error.name === "ValidationError") {
     const messages = Object.values(error.errors || {}).map((err) => err.message);
@@ -52,7 +93,7 @@ const handleMongooseError = (error) => {
     status: 500,
     message: error.message || "Error interno del servidor",
   };
-};
+}
 
 const normalizeId = (value) => {
   if (value === undefined || value === null) return null;
@@ -164,7 +205,8 @@ const createAudit = async ({ session, entityType, entityId, channelId, action, b
     after: after ? JSON.parse(JSON.stringify(after)) : null,
     userId: userId && isValidObjectId(userId) ? userId : undefined,
   };
-  const audit = await DiagramAudit.create([payload], { session });
+  const options = session ? { session } : {};
+  const audit = await DiagramAudit.create([payload], options);
   return audit[0];
 };
 
@@ -181,17 +223,14 @@ async function updateNodePosition({ channelId, nodeId, position, userId }) {
     return { ok: false, status: 400, message: "Posición inválida" };
   }
 
-  const session = await mongoose.startSession();
-  session.startTransaction();
-  try {
-    const channel = await Channel.findById(channelId)
-      .session(session)
-      .select({ nodes: 1 })
-      .lean({ getters: true, virtuals: true });
+  const process = async (session) => {
+    const query = Channel.findById(channelId).select({ nodes: 1 });
+    if (session) {
+      query.session(session);
+    }
+    const channel = await query.lean({ getters: true, virtuals: true });
 
     if (!channel) {
-      await session.abortTransaction();
-      session.endSession();
       return { ok: false, status: 404, message: "Channel no encontrado" };
     }
 
@@ -199,12 +238,15 @@ async function updateNodePosition({ channelId, nodeId, position, userId }) {
       (n) => normalizeId(n?.id) === normalizedNodeId
     );
     if (!node) {
-      await session.abortTransaction();
-      session.endSession();
       return { ok: false, status: 404, message: "Nodo no encontrado" };
     }
 
     const before = { position: { x: node.position?.x ?? 0, y: node.position?.y ?? 0 } };
+
+    const updateOptions = { runValidators: true };
+    if (session) {
+      updateOptions.session = session;
+    }
 
     await Channel.updateOne(
       { _id: channelId, "nodes.id": normalizedNodeId },
@@ -214,7 +256,7 @@ async function updateNodePosition({ channelId, nodeId, position, userId }) {
           "nodes.$.position.y": sanitizedPosition.y,
         },
       },
-      { session, runValidators: true }
+      updateOptions
     );
 
     const after = { position: sanitizedPosition };
@@ -230,19 +272,14 @@ async function updateNodePosition({ channelId, nodeId, position, userId }) {
       userId,
     });
 
-    await session.commitTransaction();
-    session.endSession();
-
     return {
       ok: true,
       node: { id: normalizedNodeId, position: sanitizedPosition },
       auditId: audit?._id?.toString() || null,
     };
-  } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
-    return handleMongooseError(error);
-  }
+  };
+
+  return executeWithOptionalTransaction(process);
 }
 
 async function reconnectEdge({ channelId, edgeId, patch = {}, userId }) {
@@ -259,18 +296,14 @@ async function reconnectEdge({ channelId, edgeId, patch = {}, userId }) {
     return { ok: false, status: 400, message: "Sin cambios para aplicar" };
   }
 
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
-  try {
-    const channel = await Channel.findById(channelId)
-      .session(session)
-      .select({ nodes: 1, edges: 1 })
-      .lean({ getters: true, virtuals: true });
+  const process = async (session) => {
+    const query = Channel.findById(channelId).select({ nodes: 1, edges: 1 });
+    if (session) {
+      query.session(session);
+    }
+    const channel = await query.lean({ getters: true, virtuals: true });
 
     if (!channel) {
-      await session.abortTransaction();
-      session.endSession();
       return { ok: false, status: 404, message: "Channel no encontrado" };
     }
 
@@ -278,8 +311,6 @@ async function reconnectEdge({ channelId, edgeId, patch = {}, userId }) {
       (e) => normalizeId(e?.id) === normalizedEdgeId
     );
     if (!edge) {
-      await session.abortTransaction();
-      session.endSession();
       return { ok: false, status: 404, message: "Edge no encontrado" };
     }
 
@@ -288,6 +319,7 @@ async function reconnectEdge({ channelId, edgeId, patch = {}, userId }) {
         .map((n) => [normalizeId(n?.id), n])
         .filter(([key]) => Boolean(key))
     );
+
     const before = {
       source: normalizeId(edge.source) ?? edge.source,
       target: normalizeId(edge.target) ?? edge.target,
@@ -304,13 +336,9 @@ async function reconnectEdge({ channelId, edgeId, patch = {}, userId }) {
     if (patch.source !== undefined) {
       const newSource = normalizeId(patch.source);
       if (!newSource) {
-        await session.abortTransaction();
-        session.endSession();
         return { ok: false, status: 400, message: "Source inválido" };
       }
       if (!nodes.has(newSource)) {
-        await session.abortTransaction();
-        session.endSession();
         return { ok: false, status: 404, message: `Nodo source ${newSource} inexistente` };
       }
       next.source = newSource;
@@ -319,13 +347,9 @@ async function reconnectEdge({ channelId, edgeId, patch = {}, userId }) {
     if (patch.target !== undefined) {
       const newTarget = normalizeId(patch.target);
       if (!newTarget) {
-        await session.abortTransaction();
-        session.endSession();
         return { ok: false, status: 400, message: "Target inválido" };
       }
       if (!nodes.has(newTarget)) {
-        await session.abortTransaction();
-        session.endSession();
         return { ok: false, status: 404, message: `Nodo target ${newTarget} inexistente` };
       }
       next.target = newTarget;
@@ -337,16 +361,12 @@ async function reconnectEdge({ channelId, edgeId, patch = {}, userId }) {
     if (patch.sourceHandle !== undefined) {
       const check = ensureHandle(sourceNode, patch.sourceHandle, "source");
       if (!check.ok) {
-        await session.abortTransaction();
-        session.endSession();
         return { ok: false, status: 409, message: check.error };
       }
       next.sourceHandle = check.handleId ?? null;
     } else if (next.source !== before.source) {
       const check = ensureHandle(sourceNode, before.sourceHandle, "source");
       if (!check.ok) {
-        await session.abortTransaction();
-        session.endSession();
         return { ok: false, status: 409, message: check.error };
       }
       next.sourceHandle = check.handleId ?? null;
@@ -355,19 +375,20 @@ async function reconnectEdge({ channelId, edgeId, patch = {}, userId }) {
     if (patch.targetHandle !== undefined) {
       const check = ensureHandle(targetNode, patch.targetHandle, "target");
       if (!check.ok) {
-        await session.abortTransaction();
-        session.endSession();
         return { ok: false, status: 409, message: check.error };
       }
       next.targetHandle = check.handleId ?? null;
     } else if (next.target !== before.target) {
       const check = ensureHandle(targetNode, before.targetHandle, "target");
       if (!check.ok) {
-        await session.abortTransaction();
-        session.endSession();
         return { ok: false, status: 409, message: check.error };
       }
       next.targetHandle = check.handleId ?? null;
+    }
+
+    const updateOptions = { runValidators: true };
+    if (session) {
+      updateOptions.session = session;
     }
 
     await Channel.updateOne(
@@ -380,7 +401,7 @@ async function reconnectEdge({ channelId, edgeId, patch = {}, userId }) {
           "edges.$.targetHandle": next.targetHandle ?? null,
         },
       },
-      { session, runValidators: true }
+      updateOptions
     );
 
     const audit = await createAudit({
@@ -394,9 +415,6 @@ async function reconnectEdge({ channelId, edgeId, patch = {}, userId }) {
       userId,
     });
 
-    await session.commitTransaction();
-    session.endSession();
-
     return {
       ok: true,
       edge: {
@@ -408,11 +426,9 @@ async function reconnectEdge({ channelId, edgeId, patch = {}, userId }) {
       },
       auditId: audit?._id?.toString() || null,
     };
-  } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
-    return handleMongooseError(error);
-  }
+  };
+
+  return executeWithOptionalTransaction(process);
 }
 
 async function updateEdgeTooltip({ channelId, edgeId, tooltipTitle, tooltip, userId }) {
@@ -424,18 +440,14 @@ async function updateEdgeTooltip({ channelId, edgeId, tooltipTitle, tooltip, use
     return { ok: false, status: 400, message: "Edge inválido" };
   }
 
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
-  try {
-    const channel = await Channel.findById(channelId)
-      .session(session)
-      .select({ edges: 1 })
-      .lean({ getters: true, virtuals: true });
+  const process = async (session) => {
+    const query = Channel.findById(channelId).select({ edges: 1 });
+    if (session) {
+      query.session(session);
+    }
+    const channel = await query.lean({ getters: true, virtuals: true });
 
     if (!channel) {
-      await session.abortTransaction();
-      session.endSession();
       return { ok: false, status: 404, message: "Channel no encontrado" };
     }
 
@@ -443,8 +455,6 @@ async function updateEdgeTooltip({ channelId, edgeId, tooltipTitle, tooltip, use
       (e) => normalizeId(e?.id) === normalizedEdgeId
     );
     if (!edge) {
-      await session.abortTransaction();
-      session.endSession();
       return { ok: false, status: 404, message: "Edge no encontrado" };
     }
 
@@ -463,6 +473,11 @@ async function updateEdgeTooltip({ channelId, edgeId, tooltipTitle, tooltip, use
       sanitized.tooltip = body || null;
     }
 
+    const updateOptions = { runValidators: true };
+    if (session) {
+      updateOptions.session = session;
+    }
+
     await Channel.updateOne(
       { _id: channelId, "edges.id": normalizedEdgeId },
       {
@@ -475,7 +490,7 @@ async function updateEdgeTooltip({ channelId, edgeId, tooltipTitle, tooltip, use
             : {}),
         },
       },
-      { session, runValidators: true }
+      updateOptions
     );
 
     const after = {
@@ -495,19 +510,14 @@ async function updateEdgeTooltip({ channelId, edgeId, tooltipTitle, tooltip, use
       userId,
     });
 
-    await session.commitTransaction();
-    session.endSession();
-
     return {
       ok: true,
       edge: { id: normalizedEdgeId, data: after },
       auditId: audit?._id?.toString() || null,
     };
-  } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
-    return handleMongooseError(error);
-  }
+  };
+
+  return executeWithOptionalTransaction(process);
 }
 
 /**
@@ -535,32 +545,24 @@ async function createEdge({ channelId, edge, userId }) {
     return { ok: false, status: 400, message: "Source y target son requeridos" };
   }
 
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
-  try {
-    const channel = await Channel.findById(channelId)
-      .session(session)
-      .select({ nodes: 1, edges: 1 })
-      .lean({ getters: true, virtuals: true });
+  const process = async (session) => {
+    const query = Channel.findById(channelId).select({ nodes: 1, edges: 1 });
+    if (session) {
+      query.session(session);
+    }
+    const channel = await query.lean({ getters: true, virtuals: true });
 
     if (!channel) {
-      await session.abortTransaction();
-      session.endSession();
       return { ok: false, status: 404, message: "Channel no encontrado" };
     }
 
-    // Verificar que no exista un edge con el mismo ID
     const existingEdge = (channel.edges || []).find(
       (e) => normalizeId(e?.id) === normalizedEdgeId
     );
     if (existingEdge) {
-      await session.abortTransaction();
-      session.endSession();
       return { ok: false, status: 409, message: "Ya existe un edge con ese ID" };
     }
 
-    // Verificar que los nodos existan
     const nodes = new Map(
       (channel.nodes || [])
         .map((n) => [normalizeId(n?.id), n])
@@ -568,26 +570,19 @@ async function createEdge({ channelId, edge, userId }) {
     );
 
     if (!nodes.has(source)) {
-      await session.abortTransaction();
-      session.endSession();
       return { ok: false, status: 404, message: `Nodo source ${source} inexistente` };
     }
 
     if (!nodes.has(target)) {
-      await session.abortTransaction();
-      session.endSession();
       return { ok: false, status: 404, message: `Nodo target ${target} inexistente` };
     }
 
-    // Validar handles si están definidos
     const sourceNode = nodes.get(source);
     const targetNode = nodes.get(target);
 
     if (edge.sourceHandle) {
       const check = ensureHandle(sourceNode, edge.sourceHandle, "source");
       if (!check.ok) {
-        await session.abortTransaction();
-        session.endSession();
         return { ok: false, status: 409, message: check.error };
       }
     }
@@ -595,13 +590,10 @@ async function createEdge({ channelId, edge, userId }) {
     if (edge.targetHandle) {
       const check = ensureHandle(targetNode, edge.targetHandle, "target");
       if (!check.ok) {
-        await session.abortTransaction();
-        session.endSession();
         return { ok: false, status: 409, message: check.error };
       }
     }
 
-    // Construir el nuevo edge
     const newEdge = {
       id: normalizedEdgeId,
       source,
@@ -616,14 +608,17 @@ async function createEdge({ channelId, edge, userId }) {
       markerStart: edge.markerStart || undefined,
     };
 
-    // Agregar el edge al channel
+    const updateOptions = { runValidators: true };
+    if (session) {
+      updateOptions.session = session;
+    }
+
     await Channel.updateOne(
       { _id: channelId },
       { $push: { edges: newEdge } },
-      { session, runValidators: true }
+      updateOptions
     );
 
-    // Crear auditoría
     const audit = await createAudit({
       session,
       entityType: "edge",
@@ -635,19 +630,14 @@ async function createEdge({ channelId, edge, userId }) {
       userId,
     });
 
-    await session.commitTransaction();
-    session.endSession();
-
     return {
       ok: true,
       edge: newEdge,
       auditId: audit?._id?.toString() || null,
     };
-  } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
-    return handleMongooseError(error);
-  }
+  };
+
+  return executeWithOptionalTransaction(process);
 }
 
 module.exports = {
