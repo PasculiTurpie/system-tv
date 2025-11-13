@@ -939,10 +939,10 @@ export const DiagramFlow = () => {
               onNodeDragStop={onNodeDragStop}
               onEdgesChange={onEdgesChange}
               onConnect={onConnect}
-              onEdgeUpdate={onEdgeUpdate}
+              onReconnect={onEdgeUpdate}
               defaultEdgeOptions={defaultEdgeOptions}
               connectionLineType={ConnectionLineType.SmoothStep}
-              edgesUpdatable
+              reconnectRadius={20}
               fitView
             >
               <Background />
