@@ -292,6 +292,16 @@ export const DiagramFlow = () => {
         } catch (error) {
           const errorCode = error?.response?.data?.error;
           const errorMessage = error?.response?.data?.message;
+          const errorStatus = error?.response?.status;
+
+          console.error('Error guardando posición de nodo:', {
+            nodeId,
+            position,
+            status: errorStatus,
+            code: errorCode,
+            message: errorMessage,
+            fullError: error?.response?.data
+          });
 
           // Si no está autenticado, cambiar a modo solo lectura
           if (errorCode === 'no_token' || errorCode === 'invalid_token') {
@@ -1028,7 +1038,7 @@ export const DiagramFlow = () => {
               reconnectRadius={20}
               nodesDraggable={!isReadOnly}
               nodesConnectable={!isReadOnly}
-              elementsSelectable={!isReadOnly}
+              elementsSelectable={true}
               fitView
             >
               <Background />
