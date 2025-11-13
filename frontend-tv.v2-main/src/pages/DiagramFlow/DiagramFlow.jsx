@@ -137,6 +137,286 @@ const normalizeEdges = (arr = []) =>
 /* --------------------- Auto-asignación de handles --------------------- */
 const HANDLE_ID_REGEX = HANDLE_CONFIG.HANDLE_ID_REGEX;
 
+const EQUIPO_ID_PATHS = [
+  ["data", "equipoId"],
+  ["data", "equipo", "equipoId"],
+  ["data", "equipo", "id"],
+  ["data", "equipo", "_id"],
+  ["data", "equipo", "equipo"],
+  ["data", "equipo", "equipoRef"],
+  ["equipoId"],
+  ["equipo", "_id"],
+  ["equipo", "id"],
+  ["equipo", "equipoId"],
+  ["equipo"],
+];
+
+const IRD_ID_PATHS = [
+  ["data", "irdId"],
+  ["data", "ird", "_id"],
+  ["data", "ird", "id"],
+  ["data", "ird", "irdId"],
+  ["data", "ird", "irdRef"],
+  ["data", "equipo", "irdId"],
+  ["data", "equipo", "irdRef"],
+  ["data", "equipo", "ird", "_id"],
+  ["data", "equipo", "ird", "id"],
+  ["data", "equipo", "ird"],
+  ["irdId"],
+  ["ird", "_id"],
+  ["ird", "id"],
+  ["ird"],
+];
+
+const EQUIPO_ID_KEYS = [
+  "_id",
+  "id",
+  "equipoId",
+  "equipoID",
+  "equipo",
+  "idEquipo",
+  "id_equipo",
+  "value",
+  "key",
+];
+
+const IRD_ID_KEYS = [
+  "_id",
+  "id",
+  "irdId",
+  "irdID",
+  "ird",
+  "idIrd",
+  "id_ird",
+  "irdRef",
+  "value",
+  "key",
+];
+
+const getValueAtPath = (source, path = []) => {
+  if (!source || typeof source !== "object") return undefined;
+  return path.reduce((acc, key) => {
+    if (acc === undefined || acc === null) return undefined;
+    return acc?.[key];
+  }, source);
+};
+
+const extractIdentifier = (value, priorityKeys = []) => {
+  if (value === null || value === undefined) return null;
+
+  if (typeof value === "string" || typeof value === "number" || typeof value === "bigint") {
+    const normalized = String(value).trim();
+    return normalized ? normalized : null;
+  }
+
+  if (typeof value === "boolean") {
+    return value ? "true" : "false";
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const extracted = extractIdentifier(item, priorityKeys);
+      if (extracted) return extracted;
+    }
+    return null;
+  }
+
+  if (typeof value === "object") {
+    const keysToCheck = priorityKeys.length > 0 ? priorityKeys : [
+      "_id",
+      "id",
+      "value",
+      "key",
+      "equipoId",
+      "equipoID",
+      "equipo",
+      "idEquipo",
+      "id_equipo",
+      "irdId",
+      "irdID",
+      "ird",
+      "idIrd",
+      "id_ird",
+      "codigo",
+      "code",
+    ];
+
+    for (const key of keysToCheck) {
+      if (!Object.prototype.hasOwnProperty.call(value, key)) continue;
+      const extracted = extractIdentifier(value[key], priorityKeys);
+      if (extracted) return extracted;
+    }
+
+    for (const nestedValue of Object.values(value)) {
+      const extracted = extractIdentifier(nestedValue, priorityKeys);
+      if (extracted) return extracted;
+    }
+  }
+
+  return null;
+};
+
+const getNodeIdentifier = (node, paths, priorityKeys) => {
+  if (!node || !Array.isArray(paths)) return null;
+  for (const path of paths) {
+    const rawValue = getValueAtPath(node, path);
+    const extracted = extractIdentifier(rawValue, priorityKeys);
+    if (extracted) return extracted;
+  }
+  return null;
+};
+
+const formatKeyLabel = (key) =>
+  String(key)
+    .replace(/_/g, " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/^./, (char) => char.toUpperCase());
+
+const normalizeDetailValue = (value) => {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" || typeof value === "bigint") return String(value);
+  if (typeof value === "boolean") return value ? "Sí" : "No";
+  return String(value);
+};
+
+const IRD_FIELD_MAP = [
+  { key: "nombreIrd", label: "Nombre IRD" },
+  { key: "ipAdminIrd", label: "IP administración" },
+  { key: "marcaIrd", label: "Marca" },
+  { key: "modelIrd", label: "Modelo" },
+  { key: "versionIrd", label: "Versión" },
+  { key: "uaIrd", label: "UA" },
+  { key: "tidReceptor", label: "TID receptor" },
+  { key: "typeReceptor", label: "Tipo receptor" },
+  { key: "feqReceptor", label: "Frecuencia receptor" },
+  { key: "symbolRateIrd", label: "Symbol rate" },
+  { key: "fecReceptorIrd", label: "FEC receptor" },
+  { key: "modulationReceptorIrd", label: "Modulación receptor" },
+  { key: "rellOfReceptor", label: "Roll-off receptor" },
+  { key: "nidReceptor", label: "NID receptor" },
+  { key: "cvirtualReceptor", label: "Canal virtual" },
+  { key: "vctReceptor", label: "VCT receptor" },
+  { key: "outputReceptor", label: "Output receptor" },
+  { key: "multicastReceptor", label: "Multicast receptor" },
+  { key: "ipVideoMulticast", label: "IP video multicast" },
+  { key: "locationRow", label: "Fila ubicación" },
+  { key: "locationCol", label: "Columna ubicación" },
+  { key: "swAdmin", label: "Switch administración" },
+  { key: "portSw", label: "Puerto switch" },
+];
+
+const buildSelectedNodeDetail = (node, apiData, options = {}) => {
+  const isIrd = Boolean(options?.isIrd);
+  const nodeEquipo = node?.data?.equipo && typeof node.data.equipo === "object" ? node.data.equipo : {};
+  const sourceData = apiData && typeof apiData === "object" ? apiData : {};
+  const merged = { ...nodeEquipo, ...sourceData };
+
+  const fallbackLabel =
+    normalizeDetailValue(merged?.nombre) ||
+    normalizeDetailValue(merged?.nombreIrd) ||
+    normalizeDetailValue(node?.data?.label) ||
+    normalizeDetailValue(node?.label) ||
+    node?.id ||
+    "Equipo";
+
+  const image =
+    sourceData?.image ??
+    sourceData?.urlIrd ??
+    merged?.image ??
+    merged?.urlIrd ??
+    node?.data?.image ??
+    null;
+
+  const details = [];
+  const detailDedup = new Set();
+
+  const pushDetail = (label, value) => {
+    const normalizedLabel = typeof label === "string" ? label.trim() : "";
+    if (!normalizedLabel) return;
+    const normalizedValue = normalizeDetailValue(value);
+    if (!normalizedValue) return;
+    const key = `${normalizedLabel}::${normalizedValue}`;
+    if (detailDedup.has(key)) return;
+    detailDedup.add(key);
+    details.push({ label: normalizedLabel, value: normalizedValue });
+  };
+
+  pushDetail("ID del nodo", node?.id);
+
+  if (options?.equipoId) {
+    pushDetail("ID equipo", options.equipoId);
+  }
+
+  if (options?.irdId) {
+    pushDetail("ID IRD", options.irdId);
+  }
+
+  if (isIrd) {
+    const usedKeys = new Set();
+    IRD_FIELD_MAP.forEach(({ key, label }) => {
+      usedKeys.add(key);
+      pushDetail(label, merged?.[key]);
+    });
+
+    Object.entries(sourceData || {}).forEach(([key, value]) => {
+      if (usedKeys.has(key)) return;
+      if (["_id", "createdAt", "updatedAt", "__v"].includes(key)) return;
+      pushDetail(formatKeyLabel(key), value);
+    });
+  } else {
+    const tipo =
+      merged?.tipoNombre?.tipoNombre ??
+      merged?.tipoNombre?.nombre ??
+      merged?.tipoNombre?.name ??
+      merged?.tipoNombre ??
+      node?.data?.tipo ??
+      node?.data?.tipoNombre ??
+      inferEquipoTipo(node);
+
+    pushDetail("Nombre", merged?.nombre ?? fallbackLabel);
+    pushDetail("Tipo de equipo", tipo);
+    pushDetail("IP de gestión", merged?.ip_gestion ?? merged?.ipGestion ?? merged?.ip);
+    pushDetail("Marca", merged?.marca ?? merged?.brand);
+    pushDetail("Modelo", merged?.modelo ?? merged?.model);
+    pushDetail("N° de serie", merged?.serie ?? merged?.serial);
+    pushDetail("Ubicación", merged?.ubicacion ?? merged?.location);
+    pushDetail("Estado", merged?.estado ?? merged?.status);
+    pushDetail("Descripción", merged?.descripcion ?? merged?.description);
+
+    const parametros = merged?.parametros ?? merged?.parameters ?? null;
+
+    if (Array.isArray(parametros)) {
+      parametros
+        .filter((param) => param && (param.nombre || param.name) && (param.valor ?? param.value))
+        .forEach((param) => {
+          const label = param.nombre ?? param.name;
+          const value = param.valor ?? param.value;
+          pushDetail(label, value);
+        });
+    } else if (parametros && typeof parametros === "object") {
+      Object.entries(parametros).forEach(([key, value]) => {
+        pushDetail(formatKeyLabel(key), value);
+      });
+    }
+  }
+
+  if (
+    node?.position &&
+    (typeof node.position.x === "number" || typeof node.position.y === "number")
+  ) {
+    const x = Number.isFinite(node.position.x) ? Math.round(node.position.x) : node.position.x;
+    const y = Number.isFinite(node.position.y) ? Math.round(node.position.y) : node.position.y;
+    pushDetail("Posición", `${x}, ${y}`);
+  }
+
+  return {
+    title: fallbackLabel,
+    image,
+    details,
+  };
+};
+
 // lado sugerido (TARGET): lado opuesto al que mira hacia el source
 const guessSideForTarget = (sourceNode, targetNode) => {
   if (!sourceNode || !targetNode) return "left";
@@ -184,6 +464,10 @@ export const DiagramFlow = () => {
   const [dataChannel, setDataChannel] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [selectedNodeId, setSelectedNodeId] = useState(null);
+  const [selectedNodeDetail, setSelectedNodeDetail] = useState(null);
+  const [selectedNodeDetailLoading, setSelectedNodeDetailLoading] = useState(false);
+  const [selectedNodeDetailMessage, setSelectedNodeDetailMessage] = useState(null);
 
   const nodeOriginalPositionRef = useRef(new Map());
   const nodeSavingRef = useRef(new Set());
@@ -211,6 +495,136 @@ export const DiagramFlow = () => {
     nodes.forEach((n) => m.set(n.id, n));
     return m;
   }, [nodes]);
+
+  useEffect(() => {
+    if (selectedNodeId && !nodeMap.has(selectedNodeId)) {
+      setSelectedNodeId(null);
+    }
+  }, [nodeMap, selectedNodeId]);
+
+  const selectedNode = useMemo(() => {
+    if (!selectedNodeId) return null;
+    return nodeMap.get(selectedNodeId) ?? null;
+  }, [nodeMap, selectedNodeId]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!selectedNode) {
+      setSelectedNodeDetail(null);
+      setSelectedNodeDetailMessage(null);
+      setSelectedNodeDetailLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const isIrdNode = inferEquipoTipo(selectedNode) === "ird";
+    const equipoId = getNodeIdentifier(selectedNode, EQUIPO_ID_PATHS, EQUIPO_ID_KEYS);
+    const irdId = getNodeIdentifier(selectedNode, IRD_ID_PATHS, IRD_ID_KEYS);
+    const idToUse = isIrdNode ? irdId ?? equipoId : equipoId ?? irdId;
+
+    const fallbackDetail = buildSelectedNodeDetail(selectedNode, null, {
+      isIrd: isIrdNode,
+      equipoId,
+      irdId,
+    });
+
+    setSelectedNodeDetail(fallbackDetail);
+    setSelectedNodeDetailMessage(null);
+
+    if (!idToUse) {
+      if (isIrdNode && !irdId) {
+        setSelectedNodeDetailMessage({
+          type: "error",
+          text: "No se encontró un identificador de IRD para este nodo.",
+        });
+      } else if (!isIrdNode && !equipoId) {
+        setSelectedNodeDetailMessage({
+          type: "error",
+          text: "No se encontró un identificador de equipo para este nodo.",
+        });
+      }
+      setSelectedNodeDetailLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setSelectedNodeDetailLoading(true);
+
+    const fetchDetail = async () => {
+      let nextMessage = null;
+
+      try {
+        let data = null;
+
+        if (isIrdNode) {
+          try {
+            const response = await api.getIdIrd(idToUse);
+            data = response?.data ?? null;
+          } catch (irdError) {
+            console.error("Error al obtener IRD:", irdError);
+            if (equipoId && equipoId !== idToUse) {
+              try {
+                const response = await api.getIdEquipo(equipoId);
+                data = response?.data ?? null;
+                nextMessage = {
+                  type: "warning",
+                  text: "No se pudo obtener el detalle del IRD. Se muestran los datos del equipo asociado.",
+                };
+              } catch (equipoError) {
+                console.error("Error al obtener equipo asociado:", equipoError);
+                throw equipoError;
+              }
+            } else {
+              throw irdError;
+            }
+          }
+        } else {
+          const response = await api.getIdEquipo(idToUse);
+          data = response?.data ?? null;
+        }
+
+        if (cancelled) return;
+
+        const detail = buildSelectedNodeDetail(selectedNode, data, {
+          isIrd: isIrdNode,
+          equipoId,
+          irdId,
+        });
+
+        setSelectedNodeDetail(detail);
+        setSelectedNodeDetailMessage(nextMessage);
+      } catch (err) {
+        if (cancelled) return;
+        console.error("Error al obtener detalle del equipo:", err);
+        setSelectedNodeDetailMessage({
+          type: "error",
+          text: "No se pudo cargar la información actualizada.",
+        });
+      } finally {
+        if (!cancelled) {
+          setSelectedNodeDetailLoading(false);
+        }
+      }
+    };
+
+    fetchDetail();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedNode]);
+
+  const handleNodeClick = useCallback((_, node) => {
+    if (!node || !node.id) return;
+    setSelectedNodeId((prev) => (prev === node.id ? null : node.id));
+  }, []);
+
+  const handlePaneClick = useCallback(() => {
+    setSelectedNodeId(null);
+  }, []);
 
   const patchNodePositionRetry = useMemo(
     () =>
@@ -917,6 +1331,13 @@ export const DiagramFlow = () => {
   if (loading) return <p>Cargando diagrama...</p>;
   if (error) return <p>{error}</p>;
 
+  const wrapperClassName = `diagram-flow-wrapper${selectedNode ? " diagram-flow-wrapper--with-sidebar" : ""}`;
+  const sidebarMessageClassName = selectedNodeDetailMessage?.type === "error"
+    ? "diagram-sidebar__status diagram-sidebar__status--error"
+    : selectedNodeDetailMessage?.type === "warning"
+    ? "diagram-sidebar__status diagram-sidebar__status--warning"
+    : "diagram-sidebar__status";
+
   return (
     <ErrorBoundary
       showDetails={process.env.NODE_ENV === "development"}
@@ -929,7 +1350,7 @@ export const DiagramFlow = () => {
         wasOffline={wasOffline}
         queueSize={queueSize}
       />
-      <div className="diagram-flow-wrapper">
+      <div className={wrapperClassName}>
         {!isAuth && (
           <div className="read-only-banner" role="status" aria-live="polite">
             Modo lectura: inicia sesión para editar el diagrama.
@@ -945,9 +1366,11 @@ export const DiagramFlow = () => {
                 edgeTypes={edgeTypes}
                 onNodesChange={onNodesChange}
                 onNodeDragStop={onNodeDragStop}
+                onNodeClick={handleNodeClick}
                 onEdgesChange={onEdgesChange}
                 onConnect={onConnect}
                 onReconnect={onEdgeUpdate}
+                onPaneClick={handlePaneClick}
                 defaultEdgeOptions={defaultEdgeOptions}
                 connectionLineType={ConnectionLineType.SmoothStep}
                 reconnectRadius={20}
@@ -957,6 +1380,67 @@ export const DiagramFlow = () => {
                 <Controls position="top-left" />
               </ReactFlow>
             </div>
+            <aside
+              className={`diagram-sidebar${selectedNode ? " is-open" : ""}`}
+              aria-label="Detalle del equipo seleccionado"
+            >
+              {selectedNode ? (
+                <div className="diagram-sidebar__content">
+                  <div className="diagram-sidebar__header">
+                    <h2 className="diagram-sidebar__title">{selectedNodeDetail?.title ?? "Equipo"}</h2>
+                    <button
+                      type="button"
+                      className="diagram-sidebar__close"
+                      onClick={() => setSelectedNodeId(null)}
+                      aria-label="Cerrar panel de detalles"
+                    >
+                      ×
+                    </button>
+                  </div>
+
+                  {selectedNodeDetailLoading ? (
+                    <p className="diagram-sidebar__status diagram-sidebar__status--loading">
+                      Cargando información...
+                    </p>
+                  ) : null}
+
+                  {selectedNodeDetailMessage ? (
+                    <p className={sidebarMessageClassName}>
+                      {selectedNodeDetailMessage.text}
+                    </p>
+                  ) : null}
+
+                  {selectedNodeDetail?.image ? (
+                    <div className="diagram-sidebar__image">
+                      <img
+                        src={selectedNodeDetail.image}
+                        alt={`Imagen del equipo ${selectedNodeDetail.title}`}
+                      />
+                    </div>
+                  ) : null}
+
+                  {selectedNodeDetail?.details?.length ? (
+                    <dl className="diagram-sidebar__list">
+                      {selectedNodeDetail.details.map((item, index) => (
+                        <div key={`${item.label}-${index}`} className="diagram-sidebar__list-item">
+                          <dt>{item.label}</dt>
+                          <dd>{item.value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  ) : (
+                    <p className="diagram-sidebar__empty-section">
+                      No hay parámetros adicionales para este equipo.
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="diagram-sidebar__empty">
+                  <h2>Panel de parámetros</h2>
+                  <p>Selecciona un equipo del diagrama para ver sus detalles.</p>
+                </div>
+              )}
+            </aside>
           </div>
         </div>
       </div>
