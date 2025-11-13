@@ -929,32 +929,34 @@ export const DiagramFlow = () => {
         wasOffline={wasOffline}
         queueSize={queueSize}
       />
-      {!isAuth && (
-        <div className="read-only-banner" role="status" aria-live="polite">
-          Modo lectura: inicia sesión para editar el diagrama.
-        </div>
-      )}
-      <div className="outlet-main">
-        <div className="dashboard_flow">
-          <div className="container__flow">
-            <ReactFlow
-              nodes={nodes}
-              edges={edges}
-              nodeTypes={nodeTypes}
-              edgeTypes={edgeTypes}
-              onNodesChange={onNodesChange}
-              onNodeDragStop={onNodeDragStop}
-              onEdgesChange={onEdgesChange}
-              onConnect={onConnect}
-              onReconnect={onEdgeUpdate}
-              defaultEdgeOptions={defaultEdgeOptions}
-              connectionLineType={ConnectionLineType.SmoothStep}
-              reconnectRadius={20}
-              fitView
-            >
-              <Background />
-              <Controls position="top-left" />
-            </ReactFlow>
+      <div className="diagram-flow-wrapper">
+        {!isAuth && (
+          <div className="read-only-banner" role="status" aria-live="polite">
+            Modo lectura: inicia sesión para editar el diagrama.
+          </div>
+        )}
+        <div className="outlet-main">
+          <div className="dashboard_flow">
+            <div className="container__flow">
+              <ReactFlow
+                nodes={nodes}
+                edges={edges}
+                nodeTypes={nodeTypes}
+                edgeTypes={edgeTypes}
+                onNodesChange={onNodesChange}
+                onNodeDragStop={onNodeDragStop}
+                onEdgesChange={onEdgesChange}
+                onConnect={onConnect}
+                onReconnect={onEdgeUpdate}
+                defaultEdgeOptions={defaultEdgeOptions}
+                connectionLineType={ConnectionLineType.SmoothStep}
+                reconnectRadius={20}
+                fitView
+              >
+                <Background />
+                <Controls position="top-left" />
+              </ReactFlow>
+            </div>
           </div>
         </div>
       </div>
