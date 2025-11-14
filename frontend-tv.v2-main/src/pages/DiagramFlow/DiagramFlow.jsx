@@ -1410,14 +1410,7 @@ export const DiagramFlow = () => {
                     </p>
                   ) : null}
 
-                  {selectedNodeDetail?.image ? (
-                    <div className="diagram-sidebar__image">
-                      <img
-                        src={selectedNodeDetail.image}
-                        alt={`Imagen del equipo ${selectedNodeDetail.title}`}
-                      />
-                    </div>
-                  ) : null}
+                  
 
                   {selectedNodeDetail?.details?.length ? (
                     <dl className="diagram-sidebar__list">
