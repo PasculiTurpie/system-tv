@@ -152,6 +152,8 @@ const EQUIPO_ID_PATHS = [
 ];
 
 const IRD_ID_PATHS = [
+  ["data", "equipo", "irdRef", "_id"],
+  ["data", "irdRef", "_id"],
   ["data", "irdId"],
   ["data", "ird", "_id"],
   ["data", "ird", "id"],
@@ -266,6 +268,15 @@ const getNodeIdentifier = (node, paths, priorityKeys) => {
   return null;
 };
 
+const getIrdRefIdentifier = (node) => {
+  if (!node) return null;
+  const rawEquipoRef = getValueAtPath(node, ["data", "equipo", "irdRef"]);
+  const fromEquipo = extractIdentifier(rawEquipoRef, ["_id", "id", "irdId", "ird"]);
+  if (fromEquipo) return fromEquipo;
+  const rawNodeRef = getValueAtPath(node, ["data", "irdRef"]);
+  return extractIdentifier(rawNodeRef, ["_id", "id", "irdId", "ird"]);
+};
+
 const formatKeyLabel = (key) =>
   String(key)
     .replace(/_/g, " ")
@@ -310,21 +321,38 @@ const buildSelectedNodeDetail = (node, apiData, options = {}) => {
   const isIrd = Boolean(options?.isIrd);
   const nodeEquipo = node?.data?.equipo && typeof node.data.equipo === "object" ? node.data.equipo : {};
   const sourceData = apiData && typeof apiData === "object" ? apiData : {};
-  const merged = { ...nodeEquipo, ...sourceData };
+
+  const nodeIrd =
+    isIrd && node?.data?.ird && typeof node.data.ird === "object"
+      ? node.data.ird
+      : isIrd && nodeEquipo?.irdRef && typeof nodeEquipo.irdRef === "object"
+      ? nodeEquipo.irdRef
+      : {};
+
+  const apiIrd =
+    isIrd && sourceData?.irdRef && typeof sourceData.irdRef === "object"
+      ? sourceData.irdRef
+      : isIrd
+      ? sourceData
+      : {};
+
+  const mergedEquipo = { ...nodeEquipo, ...sourceData };
+  const mergedIrd = isIrd ? { ...nodeIrd, ...(apiIrd || {}) } : {};
+  const detailSource = isIrd ? mergedIrd : mergedEquipo;
 
   const fallbackLabel =
-    normalizeDetailValue(merged?.nombre) ||
-    normalizeDetailValue(merged?.nombreIrd) ||
+    normalizeDetailValue(detailSource?.nombre) ||
+    normalizeDetailValue(detailSource?.nombreIrd) ||
     normalizeDetailValue(node?.data?.label) ||
     normalizeDetailValue(node?.label) ||
     node?.id ||
     "Equipo";
 
   const image =
-    sourceData?.image ??
-    sourceData?.urlIrd ??
-    merged?.image ??
-    merged?.urlIrd ??
+    detailSource?.image ??
+    detailSource?.urlIrd ??
+    mergedEquipo?.image ??
+    mergedEquipo?.urlIrd ??
     node?.data?.image ??
     null;
 
@@ -356,35 +384,35 @@ const buildSelectedNodeDetail = (node, apiData, options = {}) => {
     const usedKeys = new Set();
     IRD_FIELD_MAP.forEach(({ key, label }) => {
       usedKeys.add(key);
-      pushDetail(label, merged?.[key]);
+      pushDetail(label, detailSource?.[key]);
     });
 
-    Object.entries(sourceData || {}).forEach(([key, value]) => {
+    Object.entries(detailSource || {}).forEach(([key, value]) => {
       if (usedKeys.has(key)) return;
       if (["_id", "createdAt", "updatedAt", "__v"].includes(key)) return;
       pushDetail(formatKeyLabel(key), value);
     });
   } else {
     const tipo =
-      merged?.tipoNombre?.tipoNombre ??
-      merged?.tipoNombre?.nombre ??
-      merged?.tipoNombre?.name ??
-      merged?.tipoNombre ??
+      mergedEquipo?.tipoNombre?.tipoNombre ??
+      mergedEquipo?.tipoNombre?.nombre ??
+      mergedEquipo?.tipoNombre?.name ??
+      mergedEquipo?.tipoNombre ??
       node?.data?.tipo ??
       node?.data?.tipoNombre ??
       inferEquipoTipo(node);
 
-    pushDetail("Nombre", merged?.nombre ?? fallbackLabel);
+    pushDetail("Nombre", mergedEquipo?.nombre ?? fallbackLabel);
     pushDetail("Tipo de equipo", tipo);
-    pushDetail("IP de gestión", merged?.ip_gestion ?? merged?.ipGestion ?? merged?.ip);
-    pushDetail("Marca", merged?.marca ?? merged?.brand);
-    pushDetail("Modelo", merged?.modelo ?? merged?.model);
-    pushDetail("N° de serie", merged?.serie ?? merged?.serial);
-    pushDetail("Ubicación", merged?.ubicacion ?? merged?.location);
-    pushDetail("Estado", merged?.estado ?? merged?.status);
-    pushDetail("Descripción", merged?.descripcion ?? merged?.description);
+    pushDetail("IP de gestión", mergedEquipo?.ip_gestion ?? mergedEquipo?.ipGestion ?? mergedEquipo?.ip);
+    pushDetail("Marca", mergedEquipo?.marca ?? mergedEquipo?.brand);
+    pushDetail("Modelo", mergedEquipo?.modelo ?? mergedEquipo?.model);
+    pushDetail("N° de serie", mergedEquipo?.serie ?? mergedEquipo?.serial);
+    pushDetail("Ubicación", mergedEquipo?.ubicacion ?? mergedEquipo?.location);
+    pushDetail("Estado", mergedEquipo?.estado ?? mergedEquipo?.status);
+    pushDetail("Descripción", mergedEquipo?.descripcion ?? mergedEquipo?.description);
 
-    const parametros = merged?.parametros ?? merged?.parameters ?? null;
+    const parametros = mergedEquipo?.parametros ?? mergedEquipo?.parameters ?? null;
 
     if (Array.isArray(parametros)) {
       parametros
@@ -521,23 +549,25 @@ export const DiagramFlow = () => {
 
     const isIrdNode = inferEquipoTipo(selectedNode) === "ird";
     const equipoId = getNodeIdentifier(selectedNode, EQUIPO_ID_PATHS, EQUIPO_ID_KEYS);
+    const irdRefId = getIrdRefIdentifier(selectedNode);
     const irdId = getNodeIdentifier(selectedNode, IRD_ID_PATHS, IRD_ID_KEYS);
-    const idToUse = isIrdNode ? irdId ?? equipoId : equipoId ?? irdId;
+    const resolvedIrdId = irdRefId ?? irdId;
+    const idToUse = isIrdNode ? resolvedIrdId : equipoId ?? resolvedIrdId;
 
     const fallbackDetail = buildSelectedNodeDetail(selectedNode, null, {
       isIrd: isIrdNode,
       equipoId,
-      irdId,
+      irdId: resolvedIrdId ?? irdId,
     });
 
     setSelectedNodeDetail(fallbackDetail);
     setSelectedNodeDetailMessage(null);
 
     if (!idToUse) {
-      if (isIrdNode && !irdId) {
+      if (isIrdNode && !resolvedIrdId) {
         setSelectedNodeDetailMessage({
           type: "error",
-          text: "No se encontró un identificador de IRD para este nodo.",
+          text: "No se encontró el irdRef._id asociado a este IRD.",
         });
       } else if (!isIrdNode && !equipoId) {
         setSelectedNodeDetailMessage({
@@ -565,7 +595,7 @@ export const DiagramFlow = () => {
             data = response?.data ?? null;
           } catch (irdError) {
             console.error("Error al obtener IRD:", irdError);
-            if (equipoId && equipoId !== idToUse) {
+            if (equipoId) {
               try {
                 const response = await api.getIdEquipo(equipoId);
                 data = response?.data ?? null;
@@ -591,7 +621,7 @@ export const DiagramFlow = () => {
         const detail = buildSelectedNodeDetail(selectedNode, data, {
           isIrd: isIrdNode,
           equipoId,
-          irdId,
+          irdId: resolvedIrdId ?? irdId,
         });
 
         setSelectedNodeDetail(detail);
@@ -1410,7 +1440,14 @@ export const DiagramFlow = () => {
                     </p>
                   ) : null}
 
-                  
+                  {selectedNodeDetail?.image ? (
+                    <div className="diagram-sidebar__image">
+                      <img
+                        src={selectedNodeDetail.image}
+                        alt={`Imagen del equipo ${selectedNodeDetail.title}`}
+                      />
+                    </div>
+                  ) : null}
 
                   {selectedNodeDetail?.details?.length ? (
                     <dl className="diagram-sidebar__list">
