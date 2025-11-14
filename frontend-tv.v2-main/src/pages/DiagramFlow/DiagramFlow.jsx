@@ -77,7 +77,16 @@ const inferEquipoTipo = (node = {}) => {
     node?.data?.tipo ??
     node?.data?.tipoNombre ??
     node?.type;
-  if (!rawTipo) return "";
+  if (!rawTipo) {
+    if (
+      node?.equipo?.irdRef ||
+      node?.data?.equipo?.irdRef ||
+      node?.data?.irdRef
+    ) {
+      return "ird";
+    }
+    return "";
+  }
   return stripDiacritics(rawTipo);
 };
 
@@ -202,6 +211,25 @@ const getValueAtPath = (source, path = []) => {
     if (acc === undefined || acc === null) return undefined;
     return acc?.[key];
   }, source);
+};
+
+const getNodeIrdData = (node) => {
+  if (!node || typeof node !== "object") return null;
+
+  const candidates = [
+    getValueAtPath(node, ["data", "ird"]),
+    getValueAtPath(node, ["data", "equipo", "irdRef"]),
+    getValueAtPath(node, ["data", "irdRef"]),
+    getValueAtPath(node, ["data", "equipo", "ird"]),
+  ];
+
+  for (const candidate of candidates) {
+    if (candidate && typeof candidate === "object") {
+      return candidate;
+    }
+  }
+
+  return null;
 };
 
 const extractIdentifier = (value, priorityKeys = []) => {
@@ -549,6 +577,7 @@ export const DiagramFlow = () => {
     }
 
     const isIrdNode = inferEquipoTipo(selectedNode) === "ird";
+    const localIrdData = isIrdNode ? getNodeIrdData(selectedNode) : null;
     const equipoId = getNodeIdentifier(selectedNode, EQUIPO_ID_PATHS, EQUIPO_ID_KEYS);
     const irdRefId = getIrdRefIdentifier(selectedNode);
     const irdId = getNodeIdentifier(selectedNode, IRD_ID_PATHS, IRD_ID_KEYS);
@@ -565,11 +594,13 @@ export const DiagramFlow = () => {
     setSelectedNodeDetailMessage(null);
 
     if (!idToUse) {
-      if (isIrdNode && !resolvedIrdId) {
-        setSelectedNodeDetailMessage({
-          type: "error",
-          text: "No se encontró el irdRef._id asociado a este IRD.",
-        });
+      if (isIrdNode) {
+        if (!localIrdData) {
+          setSelectedNodeDetailMessage({
+            type: "error",
+            text: "No se encontró el irdRef._id asociado a este IRD.",
+          });
+        }
       } else if (!isIrdNode && !equipoId) {
         setSelectedNodeDetailMessage({
           type: "error",
@@ -630,10 +661,23 @@ export const DiagramFlow = () => {
       } catch (err) {
         if (cancelled) return;
         console.error("Error al obtener detalle del equipo:", err);
-        setSelectedNodeDetailMessage({
-          type: "error",
-          text: "No se pudo cargar la información actualizada.",
-        });
+        if (isIrdNode && localIrdData) {
+          const detail = buildSelectedNodeDetail(selectedNode, localIrdData, {
+            isIrd: true,
+            equipoId,
+            irdId: resolvedIrdId ?? irdId,
+          });
+          setSelectedNodeDetail(detail);
+          setSelectedNodeDetailMessage({
+            type: "warning",
+            text: "No se pudo cargar la información actualizada del IRD. Se muestran los datos asociados al nodo.",
+          });
+        } else {
+          setSelectedNodeDetailMessage({
+            type: "error",
+            text: "No se pudo cargar la información actualizada.",
+          });
+        }
       } finally {
         if (!cancelled) {
           setSelectedNodeDetailLoading(false);
