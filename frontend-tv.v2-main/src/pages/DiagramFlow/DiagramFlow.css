@@ -128,17 +128,13 @@
 }
 
 .diagram-sidebar__image {
-    width: 100%;
+    width: 30%;
     border-radius: 12px;
-    overflow: hidden;
     box-shadow: 0 10px 25px rgba(15, 23, 42, 0.15);
 }
-
 .diagram-sidebar__image img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
+  display: block;
+  object-fit: cover;
 }
 
 .diagram-sidebar__list {
