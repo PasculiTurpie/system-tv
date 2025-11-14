@@ -582,7 +582,7 @@ export const DiagramFlow = () => {
     const irdRefId = getIrdRefIdentifier(selectedNode);
     const irdId = getNodeIdentifier(selectedNode, IRD_ID_PATHS, IRD_ID_KEYS);
     const resolvedIrdId = irdRefId ?? irdId;
-    const idToUse = isIrdNode ? resolvedIrdId : equipoId ?? resolvedIrdId;
+    const nonIrdIdToUse = equipoId ?? resolvedIrdId;
 
     const fallbackDetail = buildSelectedNodeDetail(selectedNode, null, {
       isIrd: isIrdNode,
@@ -593,7 +593,9 @@ export const DiagramFlow = () => {
     setSelectedNodeDetail(fallbackDetail);
     setSelectedNodeDetailMessage(null);
 
-    if (!idToUse) {
+    const hasIdentifiers = isIrdNode ? Boolean(resolvedIrdId || equipoId) : Boolean(nonIrdIdToUse);
+
+    if (!hasIdentifiers) {
       if (isIrdNode) {
         if (!localIrdData) {
           setSelectedNodeDetailMessage({
@@ -601,7 +603,7 @@ export const DiagramFlow = () => {
             text: "No se encontró el irdRef._id asociado a este IRD.",
           });
         }
-      } else if (!isIrdNode && !equipoId) {
+      } else if (!equipoId) {
         setSelectedNodeDetailMessage({
           type: "error",
           text: "No se encontró un identificador de equipo para este nodo.",
@@ -622,29 +624,43 @@ export const DiagramFlow = () => {
         let data = null;
 
         if (isIrdNode) {
-          try {
-            const response = await api.getIdIrd(idToUse);
-            data = response?.data ?? null;
-          } catch (irdError) {
-            console.error("Error al obtener IRD:", irdError);
-            if (equipoId) {
-              try {
-                const response = await api.getIdEquipo(equipoId);
-                data = response?.data ?? null;
-                nextMessage = {
-                  type: "warning",
-                  text: "No se pudo obtener el detalle del IRD. Se muestran los datos del equipo asociado.",
-                };
-              } catch (equipoError) {
-                console.error("Error al obtener equipo asociado:", equipoError);
-                throw equipoError;
+          if (resolvedIrdId) {
+            try {
+              const response = await api.getIdIrd(resolvedIrdId);
+              data = response?.data ?? null;
+            } catch (irdError) {
+              console.error("Error al obtener IRD:", irdError);
+              if (equipoId) {
+                try {
+                  const response = await api.getIdEquipo(equipoId);
+                  data = response?.data ?? null;
+                  nextMessage = {
+                    type: "warning",
+                    text: "No se pudo obtener el detalle del IRD. Se muestran los datos del equipo asociado.",
+                  };
+                } catch (equipoError) {
+                  console.error("Error al obtener equipo asociado:", equipoError);
+                  throw equipoError;
+                }
+              } else {
+                throw irdError;
               }
-            } else {
-              throw irdError;
+            }
+          } else if (equipoId) {
+            try {
+              const response = await api.getIdEquipo(equipoId);
+              data = response?.data ?? null;
+              nextMessage = {
+                type: "warning",
+                text: "No se encontró un identificador de IRD. Se muestran los datos del equipo asociado.",
+              };
+            } catch (equipoError) {
+              console.error("Error al obtener equipo asociado:", equipoError);
+              throw equipoError;
             }
           }
         } else {
-          const response = await api.getIdEquipo(idToUse);
+          const response = await api.getIdEquipo(nonIrdIdToUse);
           data = response?.data ?? null;
         }
 
