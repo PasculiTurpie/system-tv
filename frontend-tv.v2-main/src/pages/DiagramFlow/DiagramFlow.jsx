@@ -404,6 +404,15 @@ const buildSelectedNodeDetail = (node, apiData, options = {}) => {
     details.push({ label: normalizedLabel, value: normalizedValue });
   };
 
+  const pushHeading = (label) => {
+    const normalizedLabel = typeof label === "string" ? label.trim() : "";
+    if (!normalizedLabel) return;
+    const key = `heading::${normalizedLabel}`;
+    if (detailDedup.has(key)) return;
+    detailDedup.add(key);
+    details.push({ label: normalizedLabel, value: "" });
+  };
+
   pushDetail("ID del nodo", node?.id);
 
   if (options?.equipoId) {
@@ -431,7 +440,7 @@ const buildSelectedNodeDetail = (node, apiData, options = {}) => {
     if (equipoFromIrdRef && Object.keys(equipoFromIrdRef).length > 0) {
       // Agregar separador visual
       pushDetail("━━━━━━━━━━━━━━━━━━━━", "━━━━━━━━━━━━━━━━━━━━");
-      pushDetail("DATOS DEL EQUIPO ASOCIADO", "");
+      pushHeading("Datos del equipo asociado");
 
       const tipo =
         equipoFromIrdRef?.tipoNombre?.tipoNombre ??
@@ -626,7 +635,7 @@ export const DiagramFlow = () => {
     const irdRefId = getIrdRefIdentifier(selectedNode);
     const irdId = getNodeIdentifier(selectedNode, IRD_ID_PATHS, IRD_ID_KEYS);
     const resolvedIrdId = irdRefId ?? irdId;
-    const idToUse = isIrdNode ? resolvedIrdId : equipoId ?? resolvedIrdId;
+    const idToUse = isIrdNode ? resolvedIrdId ?? equipoId : equipoId ?? resolvedIrdId;
 
     const fallbackDetail = buildSelectedNodeDetail(selectedNode, null, {
       isIrd: isIrdNode,
@@ -666,29 +675,79 @@ export const DiagramFlow = () => {
         let data = null;
 
         if (isIrdNode) {
+          const resolveEquipoDetailsFromIrd = async (irdData, irdIdentifier) => {
+            if (!irdData || typeof irdData !== "object") return null;
+
+            const candidateObjects = [
+              irdData?.equipoDetails,
+              irdData?.equipo,
+              irdData?.equipoRef,
+              irdData?.equipo?.equipoRef,
+              irdData?.irdRef?.equipo,
+              irdData?.irdRef?.equipoRef,
+            ];
+
+            for (const candidate of candidateObjects) {
+              if (candidate && typeof candidate === "object" && !Array.isArray(candidate)) {
+                return candidate;
+              }
+            }
+
+            const seenIds = new Set();
+            const enqueueCandidateId = (rawValue) => {
+              const extracted = extractIdentifier(rawValue, EQUIPO_ID_KEYS);
+              if (extracted) {
+                seenIds.add(extracted);
+              }
+            };
+
+            enqueueCandidateId(irdData?.equipoDetails);
+            enqueueCandidateId(irdData?.equipo);
+            enqueueCandidateId(irdData?.equipoRef);
+            enqueueCandidateId(irdData?.equipo?.equipoRef);
+            enqueueCandidateId(irdData?.irdRef?.equipo);
+            enqueueCandidateId(irdData?.irdRef?.equipoRef);
+            enqueueCandidateId(irdData?.irdRef);
+
+            if (equipoId) {
+              seenIds.add(equipoId);
+            }
+
+            for (const candidateId of seenIds) {
+              if (irdIdentifier && candidateId === irdIdentifier) {
+                continue;
+              }
+              try {
+                const equipoResponse = await api.getIdEquipo(candidateId);
+                const equipoData = equipoResponse?.data ?? null;
+                if (equipoData) {
+                  return equipoData;
+                }
+              } catch (equipoError) {
+                console.warn(
+                  "No se pudo obtener detalles del equipo desde irdRef:",
+                  candidateId,
+                  equipoError
+                );
+              }
+            }
+
+            return null;
+          };
+
           try {
             const response = await api.getIdIrd(idToUse);
             data = response?.data ?? null;
 
-            // Si el IRD tiene irdRef, intentar obtener también los datos del equipo asociado
-            if (data && data.irdRef) {
-              try {
-                const irdRefEquipoId = extractIdentifier(data.irdRef, EQUIPO_ID_KEYS);
-                if (irdRefEquipoId) {
-                  const equipoResponse = await api.getIdEquipo(irdRefEquipoId);
-                  const equipoData = equipoResponse?.data ?? null;
-
-                  if (equipoData) {
-                    // Combinar datos del equipo con el IRD para tener información completa
-                    data = {
-                      ...data,
-                      equipoDetails: equipoData,
-                    };
-                  }
-                }
-              } catch (equipoError) {
-                console.warn("No se pudo obtener detalles del equipo desde irdRef:", equipoError);
-                // No lanzar error, continuar con los datos del IRD
+            // Si el IRD tiene información de equipo asociada, combinarla para el sidebar.
+            if (data) {
+              const equipoDetails = await resolveEquipoDetailsFromIrd(data, resolvedIrdId ?? irdId ?? null);
+              if (cancelled) return;
+              if (equipoDetails) {
+                data = {
+                  ...data,
+                  equipoDetails,
+                };
               }
             }
           } catch (irdError) {
