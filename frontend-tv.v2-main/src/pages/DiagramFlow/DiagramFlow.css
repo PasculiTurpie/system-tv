@@ -48,9 +48,9 @@
     transition: padding-right 0.25s ease;
 }
 
-.diagram-flow-wrapper--with-sidebar {
+/* .diagram-flow-wrapper--with-sidebar {
     padding-right: min(340px, 100%);
-}
+} */
 
 .dashboard_flow {
     position: relative;
