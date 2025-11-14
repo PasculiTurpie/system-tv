@@ -31,6 +31,7 @@ import { useOnlineStatus } from "../../hooks/useOnlineStatus";
 import { useOfflineQueue } from "../../hooks/useOfflineQueue";
 import { ConnectionBanner } from "../../components/ConnectionBanner";
 import { UserContext } from "../../components/context/UserContext";
+import NodeDetailSidebar from "./NodeDetailSidebar";
 
 // --- Config ---
 const USE_MOCK = false;
@@ -1362,11 +1363,6 @@ export const DiagramFlow = () => {
   if (error) return <p>{error}</p>;
 
   const wrapperClassName = `diagram-flow-wrapper${selectedNode ? " diagram-flow-wrapper--with-sidebar" : ""}`;
-  const sidebarMessageClassName = selectedNodeDetailMessage?.type === "error"
-    ? "diagram-sidebar__status diagram-sidebar__status--error"
-    : selectedNodeDetailMessage?.type === "warning"
-    ? "diagram-sidebar__status diagram-sidebar__status--warning"
-    : "diagram-sidebar__status";
 
   return (
     <ErrorBoundary
@@ -1410,67 +1406,13 @@ export const DiagramFlow = () => {
                 <Controls position="top-left" />
               </ReactFlow>
             </div>
-            <aside
-              className={`diagram-sidebar${selectedNode ? " is-open" : ""}`}
-              aria-label="Detalle del equipo seleccionado"
-            >
-              {selectedNode ? (
-                <div className="diagram-sidebar__content">
-                  <div className="diagram-sidebar__header">
-                    <h2 className="diagram-sidebar__title">{selectedNodeDetail?.title ?? "Equipo"}</h2>
-                    <button
-                      type="button"
-                      className="diagram-sidebar__close"
-                      onClick={() => setSelectedNodeId(null)}
-                      aria-label="Cerrar panel de detalles"
-                    >
-                      ×
-                    </button>
-                  </div>
-
-                  {selectedNodeDetailLoading ? (
-                    <p className="diagram-sidebar__status diagram-sidebar__status--loading">
-                      Cargando información...
-                    </p>
-                  ) : null}
-
-                  {selectedNodeDetailMessage ? (
-                    <p className={sidebarMessageClassName}>
-                      {selectedNodeDetailMessage.text}
-                    </p>
-                  ) : null}
-
-                  {selectedNodeDetail?.image ? (
-                    <div className="diagram-sidebar__image">
-                      <img
-                        src={selectedNodeDetail.image}
-                        alt={`Imagen del equipo ${selectedNodeDetail.title}`}
-                      />
-                    </div>
-                  ) : null}
-
-                  {selectedNodeDetail?.details?.length ? (
-                    <dl className="diagram-sidebar__list">
-                      {selectedNodeDetail.details.map((item, index) => (
-                        <div key={`${item.label}-${index}`} className="diagram-sidebar__list-item">
-                          <dt>{item.label}</dt>
-                          <dd>{item.value}</dd>
-                        </div>
-                      ))}
-                    </dl>
-                  ) : (
-                    <p className="diagram-sidebar__empty-section">
-                      No hay parámetros adicionales para este equipo.
-                    </p>
-                  )}
-                </div>
-              ) : (
-                <div className="diagram-sidebar__empty">
-                  <h2>Panel de parámetros</h2>
-                  <p>Selecciona un equipo del diagrama para ver sus detalles.</p>
-                </div>
-              )}
-            </aside>
+            <NodeDetailSidebar
+              isOpen={Boolean(selectedNode)}
+              detail={selectedNodeDetail}
+              loading={selectedNodeDetailLoading}
+              message={selectedNodeDetailMessage}
+              onClose={() => setSelectedNodeId(null)}
+            />
           </div>
         </div>
       </div>
