@@ -365,7 +365,12 @@ const buildSelectedNodeDetail = (node, apiData, options = {}) => {
       ? sourceData
       : {};
 
-  const mergedEquipo = { ...nodeEquipo, ...sourceData };
+  // Si hay datos del equipo desde irdRef, combinarlos con los datos del nodo
+  const equipoFromIrdRef = sourceData?.equipoDetails && typeof sourceData.equipoDetails === "object"
+    ? sourceData.equipoDetails
+    : {};
+
+  const mergedEquipo = { ...nodeEquipo, ...equipoFromIrdRef, ...sourceData };
   const mergedIrd = isIrd ? { ...nodeIrd, ...(apiIrd || {}) } : {};
   const detailSource = isIrd ? mergedIrd : mergedEquipo;
 
@@ -418,9 +423,48 @@ const buildSelectedNodeDetail = (node, apiData, options = {}) => {
 
     Object.entries(detailSource || {}).forEach(([key, value]) => {
       if (usedKeys.has(key)) return;
-      if (["_id", "createdAt", "updatedAt", "__v"].includes(key)) return;
+      if (["_id", "createdAt", "updatedAt", "__v", "equipoDetails"].includes(key)) return;
       pushDetail(formatKeyLabel(key), value);
     });
+
+    // Si hay datos del equipo asociado desde irdRef, mostrarlos también
+    if (equipoFromIrdRef && Object.keys(equipoFromIrdRef).length > 0) {
+      // Agregar separador visual
+      pushDetail("━━━━━━━━━━━━━━━━━━━━", "━━━━━━━━━━━━━━━━━━━━");
+      pushDetail("DATOS DEL EQUIPO ASOCIADO", "");
+
+      const tipo =
+        equipoFromIrdRef?.tipoNombre?.tipoNombre ??
+        equipoFromIrdRef?.tipoNombre?.nombre ??
+        equipoFromIrdRef?.tipoNombre?.name ??
+        equipoFromIrdRef?.tipoNombre;
+
+      pushDetail("Nombre", equipoFromIrdRef?.nombre);
+      pushDetail("Tipo de equipo", tipo);
+      pushDetail("IP de gestión", equipoFromIrdRef?.ip_gestion ?? equipoFromIrdRef?.ipGestion ?? equipoFromIrdRef?.ip);
+      pushDetail("Marca", equipoFromIrdRef?.marca ?? equipoFromIrdRef?.brand);
+      pushDetail("Modelo", equipoFromIrdRef?.modelo ?? equipoFromIrdRef?.model);
+      pushDetail("N° de serie", equipoFromIrdRef?.serie ?? equipoFromIrdRef?.serial);
+      pushDetail("Ubicación", equipoFromIrdRef?.ubicacion ?? equipoFromIrdRef?.location);
+      pushDetail("Estado", equipoFromIrdRef?.estado ?? equipoFromIrdRef?.status);
+      pushDetail("Descripción", equipoFromIrdRef?.descripcion ?? equipoFromIrdRef?.description);
+
+      const parametros = equipoFromIrdRef?.parametros ?? equipoFromIrdRef?.parameters ?? null;
+
+      if (Array.isArray(parametros)) {
+        parametros
+          .filter((param) => param && (param.nombre || param.name) && (param.valor ?? param.value))
+          .forEach((param) => {
+            const label = param.nombre ?? param.name;
+            const value = param.valor ?? param.value;
+            pushDetail(label, value);
+          });
+      } else if (parametros && typeof parametros === "object") {
+        Object.entries(parametros).forEach(([key, value]) => {
+          pushDetail(formatKeyLabel(key), value);
+        });
+      }
+    }
   } else {
     const tipo =
       mergedEquipo?.tipoNombre?.tipoNombre ??
@@ -625,6 +669,28 @@ export const DiagramFlow = () => {
           try {
             const response = await api.getIdIrd(idToUse);
             data = response?.data ?? null;
+
+            // Si el IRD tiene irdRef, intentar obtener también los datos del equipo asociado
+            if (data && data.irdRef) {
+              try {
+                const irdRefEquipoId = extractIdentifier(data.irdRef, EQUIPO_ID_KEYS);
+                if (irdRefEquipoId) {
+                  const equipoResponse = await api.getIdEquipo(irdRefEquipoId);
+                  const equipoData = equipoResponse?.data ?? null;
+
+                  if (equipoData) {
+                    // Combinar datos del equipo con el IRD para tener información completa
+                    data = {
+                      ...data,
+                      equipoDetails: equipoData,
+                    };
+                  }
+                }
+              } catch (equipoError) {
+                console.warn("No se pudo obtener detalles del equipo desde irdRef:", equipoError);
+                // No lanzar error, continuar con los datos del IRD
+              }
+            }
           } catch (irdError) {
             console.error("Error al obtener IRD:", irdError);
             if (equipoId) {
