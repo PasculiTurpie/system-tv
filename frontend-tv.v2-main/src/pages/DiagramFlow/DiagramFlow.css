@@ -167,6 +167,36 @@
     color: #0f172a;
 }
 
+.diagram-sidebar__status {
+    margin: 0;
+    margin-top: 4px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    font-size: 0.88rem;
+    line-height: 1.4;
+    color: #0f172a;
+    background-color: #e2e8f0;
+}
+
+.diagram-sidebar__status + .diagram-sidebar__status {
+    margin-top: 8px;
+}
+
+.diagram-sidebar__status--loading {
+    background-color: rgba(59, 130, 246, 0.15);
+    color: #1d4ed8;
+}
+
+.diagram-sidebar__status--warning {
+    background-color: rgba(250, 204, 21, 0.2);
+    color: #b45309;
+}
+
+.diagram-sidebar__status--error {
+    background-color: rgba(248, 113, 113, 0.2);
+    color: #b91c1c;
+}
+
 .diagram-sidebar__empty,
 .diagram-sidebar__empty-section {
     display: flex;
