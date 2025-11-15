@@ -20,6 +20,151 @@ const {
   updateEdgeTooltip,
   createEdge,
 } = require("../services/channelPersistence.service");
+const Equipo = require("../models/equipo.model");
+
+const extractEquipoId = (rawValue) => {
+  if (rawValue === undefined || rawValue === null) return null;
+
+  if (typeof rawValue === "string" || typeof rawValue === "number") {
+    const normalized = String(rawValue).trim();
+    return normalized ? normalized : null;
+  }
+
+  if (Array.isArray(rawValue)) {
+    for (const value of rawValue) {
+      const extracted = extractEquipoId(value);
+      if (extracted) return extracted;
+    }
+    return null;
+  }
+
+  if (typeof rawValue === "object") {
+    const candidateKeys = [
+      "_id",
+      "id",
+      "value",
+      "key",
+      "equipoId",
+      "equipoID",
+      "equipo",
+      "idEquipo",
+    ];
+    for (const key of candidateKeys) {
+      if (!Object.prototype.hasOwnProperty.call(rawValue, key)) continue;
+      const extracted = extractEquipoId(rawValue[key]);
+      if (extracted) return extracted;
+    }
+    return null;
+  }
+
+  return null;
+};
+
+const resolveTipoNombre = (equipoDoc) => {
+  if (!equipoDoc) return null;
+  const { tipoNombre } = equipoDoc;
+  if (!tipoNombre) return null;
+  if (typeof tipoNombre === "string") {
+    const trimmed = tipoNombre.trim();
+    return trimmed || null;
+  }
+  if (typeof tipoNombre === "object") {
+    const candidates = ["tipoNombre", "nombre", "name", "value"];
+    for (const key of candidates) {
+      if (!Object.prototype.hasOwnProperty.call(tipoNombre, key)) continue;
+      const value = tipoNombre[key];
+      if (typeof value === "string" && value.trim()) {
+        return value.trim();
+      }
+    }
+  }
+  return null;
+};
+
+const attachEquipoDataToChannels = async (channels) => {
+  const channelArray = Array.isArray(channels) ? channels : [channels].filter(Boolean);
+  if (!channelArray.length) {
+    return Array.isArray(channels) ? [] : null;
+  }
+
+  const equipoIds = new Set();
+
+  channelArray.forEach((channel) => {
+    const nodes = Array.isArray(channel?.nodes) ? channel.nodes : [];
+    nodes.forEach((node) => {
+      const candidateId =
+        extractEquipoId(node?.equipo) ??
+        extractEquipoId(node?.equipoId) ??
+        extractEquipoId(node?.data?.equipoId) ??
+        extractEquipoId(node?.data?.equipo);
+      if (candidateId) {
+        equipoIds.add(String(candidateId));
+      }
+    });
+  });
+
+  if (!equipoIds.size) {
+    return Array.isArray(channels) ? channelArray : channelArray[0];
+  }
+
+  const equipos = await Equipo.find({ _id: { $in: [...equipoIds] } })
+    .populate("tipoNombre")
+    .populate("irdRef")
+    .populate({
+      path: "satelliteRef",
+      populate: [{ path: "satelliteType", select: "typePolarization" }],
+    })
+    .lean({ getters: true, virtuals: true });
+
+  const equipoMap = new Map(
+    equipos.map((equipo) => [String(equipo?._id), equipo])
+  );
+
+  const mapNode = (node) => {
+    const rawId =
+      extractEquipoId(node?.equipo) ??
+      extractEquipoId(node?.equipoId) ??
+      extractEquipoId(node?.data?.equipoId) ??
+      extractEquipoId(node?.data?.equipo);
+    if (!rawId) return node;
+
+    const equipoDoc = equipoMap.get(String(rawId));
+    if (!equipoDoc) return node;
+
+    const data = { ...(node?.data || {}) };
+    data.equipo = equipoDoc;
+    data.equipoId = String(equipoDoc._id);
+    if (equipoDoc?.nombre) {
+      data.equipoNombre = equipoDoc.nombre;
+    }
+    const tipoNombre = resolveTipoNombre(equipoDoc);
+    if (tipoNombre) {
+      data.equipoTipo = tipoNombre;
+    }
+
+    return {
+      ...node,
+      equipo: equipoDoc,
+      data,
+    };
+  };
+
+  const mapChannel = (channel) => {
+    if (!channel) return channel;
+    const nodes = Array.isArray(channel.nodes) ? channel.nodes : [];
+    if (!nodes.length) return channel;
+    return {
+      ...channel,
+      nodes: nodes.map((node) => mapNode(node)),
+    };
+  };
+
+  if (Array.isArray(channels)) {
+    return channelArray.map((channel) => mapChannel(channel));
+  }
+
+  return mapChannel(channelArray[0]);
+};
 
 const sanitizeHandleId = (value) => {
   if (value === undefined) return undefined;
@@ -67,9 +212,9 @@ module.exports.createChannel = async (req, res) => {
   try {
     const channel = new Channel(req.body);
     const saved = await channel.save();
-    const payload = normalizeChannel(
-      saved.toObject({ getters: true, virtuals: true })
-    );
+    const rawChannel = saved.toObject({ getters: true, virtuals: true });
+    const withEquipo = await attachEquipoDataToChannels(rawChannel);
+    const payload = normalizeChannel(withEquipo);
     res.status(201).json(payload);
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -119,7 +264,9 @@ module.exports.getChannel = async (req, res) => {
       };
     });
 
-    res.json(normalizeChannels(enriched));
+    const withEquipo = await attachEquipoDataToChannels(enriched);
+
+    res.json(normalizeChannels(withEquipo));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -140,7 +287,9 @@ exports.updateChannel = async (req, res) => {
       return res.status(404).json({ error: "Channel no encontrado" });
     }
 
-    res.json(normalizeChannel(updated));
+    const withEquipo = await attachEquipoDataToChannels(updated);
+
+    res.json(normalizeChannel(withEquipo));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -170,12 +319,14 @@ module.exports.getChannelId = async (req, res) => {
         .exec();
     }
 
-    res.json(
-      normalizeChannel({
-        ...channel,
-        signal: resolvedSignal || channel.signal,
-      })
-    );
+    const channelWithSignal = {
+      ...channel,
+      signal: resolvedSignal || channel.signal,
+    };
+
+    const withEquipo = await attachEquipoDataToChannels(channelWithSignal);
+
+    res.json(normalizeChannel(withEquipo));
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: error.message });
@@ -229,7 +380,9 @@ exports.updateChannelFlow = async (req, res) => {
       return res.status(404).json({ error: "Channel no encontrado" });
     }
 
-    res.json(normalizeChannel(updatedChannel));
+    const withEquipo = await attachEquipoDataToChannels(updatedChannel);
+
+    res.json(normalizeChannel(withEquipo));
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
