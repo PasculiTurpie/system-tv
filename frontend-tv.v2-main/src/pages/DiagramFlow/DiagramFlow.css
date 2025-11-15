@@ -163,6 +163,17 @@
     color: #0f172a;
 }
 
+.diagram-sidebar__link {
+    color: #2563eb;
+    text-decoration: underline;
+    word-break: break-all;
+}
+
+.diagram-sidebar__link:hover,
+.diagram-sidebar__link:focus {
+    text-decoration: none;
+}
+
 .diagram-sidebar__status {
     margin: 0;
     margin-top: 4px;
