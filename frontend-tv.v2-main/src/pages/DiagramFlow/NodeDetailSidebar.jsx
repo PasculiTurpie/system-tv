@@ -14,6 +14,65 @@ const getStatusClassName = (message) => {
   return "diagram-sidebar__status";
 };
 
+const ipRegex = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
+
+const hasHttpProtocol = (value) => /^https?:\/\//i.test(value);
+
+const shouldRenderAsLink = (label, value) => {
+  if (typeof value !== "string") return false;
+
+  const trimmedValue = value.trim();
+  if (!trimmedValue) return false;
+
+  const labelText = typeof label === "string" ? label : "";
+  const labelMentionsIp = /\bip\b/i.test(labelText);
+  const isIpAddress = ipRegex.test(trimmedValue);
+  const isUrl = hasHttpProtocol(trimmedValue) && labelMentionsIp;
+
+  return isIpAddress || isUrl;
+};
+
+const buildLink = (value) => {
+  const trimmedValue = value.trim();
+  const href = hasHttpProtocol(trimmedValue) ? trimmedValue : `http://${trimmedValue}`;
+
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="diagram-sidebar__link"
+    >
+      {trimmedValue}
+    </a>
+  );
+};
+
+const renderDetailValue = (item) => {
+  if (!item) return "—";
+
+  const { label, value } = item;
+
+  if (value == null || value === "") {
+    return "—";
+  }
+
+  if (typeof value === "string") {
+    const trimmedValue = value.trim();
+    if (!trimmedValue) {
+      return "—";
+    }
+
+    if (shouldRenderAsLink(label, trimmedValue)) {
+      return buildLink(trimmedValue);
+    }
+
+    return trimmedValue;
+  }
+
+  return value;
+};
+
 const NodeDetailSidebar = ({ isOpen, detail, loading, message, onClose }) => {
   const safeMessage = message && typeof message === "object" ? message : null;
   const detailTitle = detail?.title ?? "Equipo";
@@ -62,7 +121,7 @@ const NodeDetailSidebar = ({ isOpen, detail, loading, message, onClose }) => {
               {detailItems.map((item, index) => (
                 <div key={`${item?.label ?? "detalle"}-${index}`} className="diagram-sidebar__list-item">
                   <dt>{item?.label}</dt>
-                  <dd>{item?.value}</dd>
+                  <dd>{renderDetailValue(item)}</dd>
                 </div>
               ))}
             </dl>
@@ -94,6 +153,7 @@ NodeDetailSidebar.propTypes = {
           PropTypes.string,
           PropTypes.number,
           PropTypes.bool,
+          PropTypes.node,
         ]),
       })
     ),
