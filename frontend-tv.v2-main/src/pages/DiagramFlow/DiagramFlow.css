@@ -235,7 +235,7 @@
 .read-only-banner {
     position: absolute;
     top: 30px;
-    left: 50%;
+    left: 20%;
     transform: translateX(-50%);
     z-index: 20;
     max-width: 360px;
