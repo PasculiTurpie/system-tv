@@ -75,6 +75,7 @@
     pointer-events: none;
     display: flex;
     flex-direction: column;
+    margin-bottom:50px;
     overflow-y: auto;
 }
 
@@ -142,6 +143,7 @@
     display: grid;
     gap: 14px;
     margin: 0;
+    padding-bottom: 30px;
 }
 
 .diagram-sidebar__list-item {
