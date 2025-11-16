@@ -46,6 +46,7 @@
     height: 100%;
     padding-right: 0;
     transition: padding-right 0.25s ease;
+    overflow: hidden;
 }
 
 /* .diagram-flow-wrapper--with-sidebar {
