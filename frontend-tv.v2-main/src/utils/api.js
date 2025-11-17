@@ -628,7 +628,7 @@ class Api {
 }
 
 const apiBaseUrl =
-    env.VITE_API_BASE_URL || process.env.VITE_API_BASE_URL || "http://localhost:3000/api/v1";
+    env.VITE_API_BASE_URL || process.env.VITE_API_BASE_URL || "http://localhost:5000/api/v1";
 
 const api = new Api(apiBaseUrl);
 export default api;
