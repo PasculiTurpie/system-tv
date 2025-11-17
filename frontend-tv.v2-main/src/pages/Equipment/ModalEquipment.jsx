@@ -38,8 +38,6 @@ const ModalEquipment = ({
 
   if (!dataEquipos) return null;
 
-  console.log(dataEquipos.tipoNombre.tipoNombre.toUpperCase())
-
   return (
     <Formik
       enableReinitialize
