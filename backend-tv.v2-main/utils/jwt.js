@@ -82,7 +82,7 @@ function setAuthCookies(
     "refresh_token",
     refreshToken,
     cookieOptions({
-      path: "/api/v2/auth/refresh",
+      path: "/api/v1/auth/refresh",
       maxAge: toMaxAge(refreshExpEpoch),
     })
   );
@@ -101,7 +101,7 @@ function clearAuthCookies(res) {
   res.clearCookie("access_token", { ...base, path: "/" });
   res.clearCookie("refresh_token", {
     ...base,
-    path: "/api/v2/auth/refresh",
+    path: "/api/v1/auth/refresh",
   });
   res.clearCookie("at_exp", { ...base, path: "/" });
 }

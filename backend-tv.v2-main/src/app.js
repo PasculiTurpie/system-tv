@@ -36,7 +36,7 @@ const TitanRoutes = require("./routes/titans.routes");
 const DiagramRoutes = require("./routes/diagram.routes");
 const FlowRoutes = require("./routes/flow.routes");
 
-const API_PREFIX = "/api/v2";
+const API_PREFIX = "/api/v1";
 
 const app = express();
 

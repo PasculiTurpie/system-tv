@@ -38,7 +38,7 @@ before(async () => {
   await new Promise((resolve) => {
     server.listen(0, () => {
       const { port } = server.address();
-      baseUrl = `http://127.0.0.1:${port}/api/v2`;
+      baseUrl = `http://127.0.0.1:${port}/api/v1`;
       resolve();
     });
   });
