@@ -1,6 +1,6 @@
 # Backend TV v2 API
 
-API de Node.js + Express + Mongoose para la plataforma TV. Todas las rutas están namespaced bajo `http://localhost:3000/api/v2` y la integración con Titans se realiza mediante endpoints propios del backend (sin proxy en el cliente).
+API de Node.js + Express + Mongoose para la plataforma TV. Todas las rutas están namespaced bajo `http://localhost:3000/api/v1` y la integración con Titans se realiza mediante endpoints propios del backend (sin proxy en el cliente).
 
 ## Requisitos
 
@@ -50,7 +50,7 @@ se intentará automáticamente con `MONGODB_LOCAL_URI` (o `mongodb://127.0.0.1:2
 
 El servidor sólo comienza a escuchar una vez que la conexión a MongoDB se establece correctamente.
 
-## Endpoints principales (`/api/v2`)
+## Endpoints principales (`/api/v1`)
 
 | Recurso        | Endpoint base              |
 |----------------|----------------------------|
@@ -75,19 +75,19 @@ Los endpoints Titans realizan las peticiones a los equipos Titans desde el backe
 ### Obtener servicios de un host
 
 ```bash
-curl "http://localhost:3000/api/v2/titans/services?host=172.19.14.118&path=/api/v1/servicesmngt/services"
+curl "http://localhost:3000/api/v1/titans/services?host=172.19.14.118&path=/api/v1/servicesmngt/services"
 ```
 
 También puedes proporcionar la URL completa del Titan (incluyendo protocolo) mediante el parámetro `url`:
 
 ```bash
-curl "http://localhost:3000/api/v2/titans/services?url=http://172.19.14.118/api/v1/servicesmngt/services"
+curl "http://localhost:3000/api/v1/titans/services?url=http://172.19.14.118/api/v1/servicesmngt/services"
 ```
 
 ### Obtener servicios de múltiples hosts
 
 ```bash
-curl "http://localhost:3000/api/v2/titans/services/multi?hosts=172.19.14.109,172.19.14.112&path=/api/v1/servicesmngt/services"
+curl "http://localhost:3000/api/v1/titans/services/multi?hosts=172.19.14.109,172.19.14.112&path=/api/v1/servicesmngt/services"
 ```
 
 Respuesta típica:
@@ -113,4 +113,4 @@ Respuesta típica:
 
 - CORS está habilitado para `http://localhost:5173` (frontend Vite) con `credentials: true`.
 - La conexión a MongoDB se gestiona en `src/config/config.mongoose.js`; el servidor Express se levanta sólo tras un `connect` exitoso.
-- No existen rutas `/proxy`; toda la funcionalidad Titans está bajo `/api/v2/titans`.
+- No existen rutas `/proxy`; toda la funcionalidad Titans está bajo `/api/v1/titans`.

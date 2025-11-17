@@ -126,7 +126,7 @@ before(async () => {
   server = http.createServer(app);
   await new Promise((resolve) => server.listen(0, resolve));
   const { port } = server.address();
-  baseUrl = `http://127.0.0.1:${port}/api/v2`;
+  baseUrl = `http://127.0.0.1:${port}/api/v1`;
 });
 
 after(async () => {

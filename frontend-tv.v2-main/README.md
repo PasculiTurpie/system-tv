@@ -1,6 +1,6 @@
 # Frontend TV v2
 
-Aplicación React (Vite) que consume la API unificada de la plataforma bajo `http://localhost:3000/api/v2`.
+Aplicación React (Vite) que consume la API unificada de la plataforma bajo `http://localhost:3000/api/v1`.
 
 ## Requisitos
 
@@ -18,7 +18,7 @@ Aplicación React (Vite) que consume la API unificada de la plataforma bajo `htt
 2. Configura las variables de entorno creando un archivo `.env` en la raíz con:
 
    ```env
-   VITE_API_BASE_URL=http://localhost:3000/api/v2
+   VITE_API_BASE_URL=http://localhost:3000/api/v1
    ```
 
    Esta URL es utilizada por todos los servicios del frontend para comunicarse con el backend. No se requiere ningún proxy adicional.
@@ -31,7 +31,7 @@ Aplicación React (Vite) que consume la API unificada de la plataforma bajo `htt
 
 ## Consumo de API
 
-Todas las solicitudes se realizan usando la variable `VITE_API_BASE_URL`. Algunos endpoints relevantes del backend expuestos bajo `/api/v2` son:
+Todas las solicitudes se realizan usando la variable `VITE_API_BASE_URL`. Algunos endpoints relevantes del backend expuestos bajo `/api/v1` son:
 
 - `GET /auth/me`
 - `POST /auth/login`
@@ -42,7 +42,7 @@ Todas las solicitudes se realizan usando la variable `VITE_API_BASE_URL`. Alguno
 Ejemplo rápido con `curl` desde el navegador (reemplaza `<IP>` con el host Titan que necesites consultar):
 
 ```bash
-curl "http://localhost:3000/api/v2/titans/services?host=<IP>&path=/services"
+curl "http://localhost:3000/api/v1/titans/services?host=<IP>&path=/services"
 ```
 
 ## Notas
