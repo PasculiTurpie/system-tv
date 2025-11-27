@@ -6,6 +6,23 @@ import "./DraggableDirectionalEdge.css";
 
 import { getDirectionColor } from "./directionColors";
 
+const buildTooltip = (edgeData = {}) => {
+  const start = edgeData?.labelStart ?? edgeData?.endpointLabels?.source ?? "";
+  const end = edgeData?.labelEnd ?? edgeData?.endpointLabels?.target ?? "";
+
+  const title =
+    edgeData?.tooltipTitle ??
+    edgeData?.label ??
+    edgeData?.id ??
+    start ||
+    end ||
+    "Etiqueta centro";
+
+  const body = edgeData?.tooltip ?? (start || end ? `${start} to ${end}` : "");
+
+  return { title, body };
+};
+
 export default function DraggableDirectionalEdge(props) {
   const {
     id,
@@ -36,8 +53,10 @@ export default function DraggableDirectionalEdge(props) {
   const currentLabelX = data?.labelPosition?.x ?? labelX;
   const currentLabelY = data?.labelPosition?.y ?? labelY;
 
-  const tooltipTitle = data?.tooltipTitle ?? "Etiqueta centro";
-  const tooltipBody = data?.tooltip ?? "";
+  const { title: tooltipTitle, body: tooltipBody } = useMemo(
+    () => buildTooltip(data),
+    [data]
+  );
 
   /* --------------------------- Tooltip --------------------------- */
   const [hover, setHover] = useState(false);
