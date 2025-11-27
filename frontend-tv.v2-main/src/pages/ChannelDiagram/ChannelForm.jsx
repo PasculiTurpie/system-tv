@@ -17,6 +17,16 @@ import {
 } from "./handleStandard.js";
 import { makeHandle, isValidHandle } from "./handles";
 
+const buildEdgeTooltip = (labelStart = "", labelEnd = "") => {
+  const hasStart = Boolean(labelStart);
+  const hasEnd = Boolean(labelEnd);
+
+  if (hasStart && hasEnd) return `${labelStart} to ${labelEnd}`;
+  if (hasStart) return `Origen: ${labelStart}`;
+  if (hasEnd) return `Destino: ${labelEnd}`;
+  return "";
+};
+
 export function toPayload(nodes = [], edges = [], viewport = null) {
   const DEFAULT_SOURCE_HANDLE = makeHandle("out", "right", 1);
   const DEFAULT_TARGET_HANDLE = makeHandle("in", "left", 1);
@@ -51,14 +61,10 @@ export function toPayload(nodes = [], edges = [], viewport = null) {
         ? edge.data.direction
         : "ida";
 
-    // 🔹 Tomamos tooltipTitle/tooltip si ya existen; si no, los recomponemos
     const labelStart = edge?.data?.labelStart || "";
     const labelEnd = edge?.data?.labelEnd || "";
-    const tooltipTitle =
-      edge?.data?.tooltipTitle ?? (edge?.data?.label || edge?.label || edge?.id || "");
-    const tooltip =
-      edge?.data?.tooltip ??
-      [labelStart, labelEnd].filter(Boolean).join(" to ");
+    const tooltipTitle = edge?.data?.label || edge?.label || "";
+    const tooltip = buildEdgeTooltip(labelStart, labelEnd);
 
     return {
       id: edge.id,
@@ -1435,9 +1441,8 @@ const ChannelForm = () => {
                     const labelStart = values.edgeLabelStart?.trim();
                     const labelEnd = values.edgeLabelEnd?.trim();
 
-                    // 🔹 NUEVO: tooltipTitle desde Etiqueta (centro) y tooltip fusionando inicio/fin con " to "
                     const tooltipTitle = trimmedLabel || id;
-                    const tooltip = [labelStart, labelEnd].filter(Boolean).join(" to ");
+                    const tooltip = buildEdgeTooltip(labelStart, labelEnd);
 
                     const endpointLabels = {};
                     if (labelStart) endpointLabels.source = labelStart;
